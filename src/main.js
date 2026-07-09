@@ -52,6 +52,10 @@ const state = {
 
 // ---------- 排盤 ----------
 function computeAll() {
+  if (!$('#birth-date').value) {
+    toast('請先選擇出生日期');
+    return false;
+  }
   const name = $('#name-input').value.trim() || '命主';
   let [y, m, d] = $('#birth-date').value.split('-').map(Number);
   const hour = Number($('#birth-hour').value);
@@ -84,6 +88,7 @@ function computeAll() {
   const startAge = Number(ziWei.majorLimits[state.limitIdx].ageRange.split('~')[0]);
   state.yearIdx = Math.min(9, Math.max(0, nowYear - (y + startAge - 1)));
   state.selectedPalace = '命宮';
+  return true;
 }
 
 const readingOf = (palaceName) =>
@@ -432,6 +437,21 @@ function renderAll() {
   renderShare();
 }
 
+// 進站尚未排盤時的歡迎畫面
+function renderEmpty() {
+  $('#page-title').textContent = '線上排盤';
+  $('#birth-summary').textContent = '';
+  const welcome = `<div class="card welcome-card">
+    <div class="card-label">開始排盤</div>
+    <p class="welcome-text">在左側輸入姓名、出生日期、時辰與性別,按「排盤」即可產生你的紫微斗數命盤與八字四柱,
+    並附上宮位小教室、大限流年瀏覽與白話解讀報告。</p>
+    <p class="welcome-text muted">所有計算皆在你的瀏覽器內完成,生辰資料不會上傳到任何伺服器。</p>
+  </div>`;
+  $('#view-dashboard').innerHTML = welcome;
+  $('#view-report').innerHTML = welcome;
+  $('#view-share').innerHTML = welcome;
+}
+
 // ---------- 初始化 ----------
 function setupControls() {
   // 時辰選單(預設未時)
@@ -453,11 +473,10 @@ function setupControls() {
 
   $('#birth-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    computeAll();
-    renderAll();
+    if (computeAll()) renderAll();
   });
 
-  // 分享連結參數回填
+  // 分享連結參數回填(有參數才直接排盤)
   const params = new URLSearchParams(location.search);
   if (params.get('date')) {
     $('#birth-date').value = params.get('date');
@@ -467,9 +486,11 @@ function setupControls() {
       state.gender = params.get('gender');
       $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === state.gender));
     }
+    return true;
   }
+  return false;
 }
 
-setupControls();
-computeAll();
-renderAll();
+const hasSharedParams = setupControls();
+if (hasSharedParams && computeAll()) renderAll();
+else renderEmpty();

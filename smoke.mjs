@@ -19,6 +19,16 @@ const $$ = (s) => [...doc.querySelectorAll(s)];
 let failed = 0;
 const check = (label, ok) => { console.log(`${ok ? '✅' : '❌'} ${label}`); if (!ok) failed++; };
 
+// --- 進站空白狀態(未排盤) ---
+check('進站顯示歡迎畫面', $('#view-dashboard').textContent.includes('開始排盤'));
+check('進站不顯示任何命盤', $$('.palace-cell').length === 0);
+
+// --- 填表排盤 ---
+$('#name-input').value = 'Shelly';
+$('#birth-date').value = '2002-09-04';
+$('#birth-hour').value = '13';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+
 // --- 命盤總覽 ---
 check('12 宮位格', $$('.palace-cell').length === 12);
 check('中央摘要格', $$('.chart-center').length === 1);
