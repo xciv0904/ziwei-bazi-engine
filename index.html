@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700;900&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>紫微斗數・八字排盤</title>
+  </head>
+  <body>
+    <div id="app" class="layout">
+      <!-- ============ 側欄 ============ -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-icon">命</div>
+          <div class="brand-title">紫微斗數<br />八字排盤</div>
+        </div>
+        <div class="divider"></div>
+
+        <form id="birth-form">
+          <div class="section-label">輸入生辰</div>
+          <div class="field">
+            <label for="name-input">姓名</label>
+            <input id="name-input" type="text" value="Shelly" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>曆法</label>
+            <div class="pill-group" id="cal-toggle">
+              <button type="button" class="pill active" data-value="solar">陽曆</button>
+              <button type="button" class="pill" data-value="lunar">農曆</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="birth-date">出生日期</label>
+            <input id="birth-date" type="date" value="2002-09-04" required />
+          </div>
+          <div class="field">
+            <label for="birth-hour">時辰</label>
+            <select id="birth-hour"></select>
+          </div>
+          <div class="field">
+            <label>性別</label>
+            <div class="pill-group" id="gender-toggle">
+              <button type="button" class="pill" data-value="male">男</button>
+              <button type="button" class="pill active" data-value="female">女</button>
+            </div>
+          </div>
+          <button type="submit" class="submit-btn">重新排盤</button>
+        </form>
+
+        <div class="divider"></div>
+
+        <nav class="side-nav">
+          <div class="section-label">命盤導覽</div>
+          <button class="nav-item active" data-view="dashboard">命盤總覽</button>
+          <button class="nav-item" data-view="report">解讀報告</button>
+          <button class="nav-item" data-view="share">分享命卡</button>
+        </nav>
+      </aside>
+
+      <!-- ============ 主內容 ============ -->
+      <main class="main">
+        <div class="page-head">
+          <h1 id="page-title">的命盤</h1>
+          <div id="birth-summary" class="birth-summary"></div>
+        </div>
+        <section id="view-dashboard"></section>
+        <section id="view-report" hidden></section>
+        <section id="view-share" hidden></section>
+      </main>
+    </div>
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,212 @@
+{
+  "input": {
+    "birthDate": "2002-09-04",
+    "birthTime": "14:11",
+    "gender": "female",
+    "age": 23
+  },
+  "baZi": {
+    "fourPillars": {
+      "yearPillar": { "stem": "壬", "branch": "午" },
+      "monthPillar": { "stem": "戊", "branch": "申" },
+      "dayPillar": { "stem": "乙", "branch": "亥" },
+      "hourPillar": { "stem": "癸", "branch": "未" }
+    },
+    "hiddenStems": {
+      "yearBranch": ["丁-食神", "己-偏財"],
+      "monthBranch": ["庚-正官", "壬-正印", "戊-正財"],
+      "dayBranch": ["壬-正印", "甲-劫財"],
+      "hourBranch": ["己-偏財", "丁-食神", "乙-比肩"]
+    },
+    "tenGods": {
+      "yearStem": "正印",
+      "monthStem": "正財",
+      "dayStem": "日主",
+      "hourStem": "偏印",
+      "yearBranch": "食神",
+      "monthBranch": "正官",
+      "dayBranch": "正印",
+      "hourBranch": "偏財"
+    },
+    "pillarDetails": {
+      "yearPillar": { "nayin": "楊柳木", "twelveStages": "長生", "shensha": "六害" },
+      "monthPillar": { "nayin": "大驛土", "twelveStages": "胎", "shensha": "驛馬" },
+      "dayPillar": { "nayin": "山頭火", "twelveStages": "死", "shensha": "劫煞" },
+      "hourPillar": { "nayin": "楊柳木", "twelveStages": "養", "shensha": "攀鞍" }
+    },
+    "branchRelations": [
+      { "branch": "yearBranch", "relation": "六合", "with": "hourBranch", "pair": "午未" },
+      { "branch": "monthBranch", "relation": "害", "with": "dayBranch", "pair": "申亥" },
+      { "branch": "dayBranch", "relation": "害", "with": "monthBranch", "pair": "申亥" },
+      { "branch": "hourBranch", "relation": "六合", "with": "yearBranch", "pair": "午未" }
+    ],
+    "fiveElementDistribution": {
+      "wood": 1,
+      "fire": 1,
+      "earth": 2,
+      "metal": 1,
+      "water": 3
+    },
+    "coreValues": {
+      "voidBranches": { "year": "申酉", "day": "申酉" },
+      "monthCommander": "庚",
+      "greatLuckStartAge": 9
+    },
+    "annualPillars": {
+      "2021": "辛丑", "2022": "壬寅", "2023": "癸卯", "2024": "甲辰",
+      "2025": "乙巳", "2026": "丙午", "2027": "丁未", "2028": "戊申",
+      "2029": "己酉", "2030": "庚戌", "2031": "辛亥", "2032": "壬子"
+    },
+    "monthlyPillars": {
+      "01": "己丑", "02": "庚寅", "03": "辛卯", "04": "壬辰",
+      "05": "癸巳", "06": "甲午", "07": "乙未", "08": "丙申",
+      "09": "丁酉", "10": "戊戌", "11": "己亥", "12": "庚子"
+    },
+    "greatLuckCycles": [
+      { "index": 1, "ganZhi": "丁未", "startYear": 2011, "ageRange": "9~18" },
+      { "index": 2, "ganZhi": "丙午", "startYear": 2021, "ageRange": "19~28" },
+      { "index": 3, "ganZhi": "乙巳", "startYear": 2031, "ageRange": "29~38" },
+      { "index": 4, "ganZhi": "甲辰", "startYear": 2041, "ageRange": "39~48" },
+      { "index": 5, "ganZhi": "癸卯", "startYear": 2051, "ageRange": "49~58" },
+      { "index": 6, "ganZhi": "壬寅", "startYear": 2061, "ageRange": "59~68" },
+      { "index": 7, "ganZhi": "辛丑", "startYear": 2071, "ageRange": "69~78" },
+      { "index": 8, "ganZhi": "庚子", "startYear": 2081, "ageRange": "79~88" },
+      { "index": 9, "ganZhi": "己亥", "startYear": 2091, "ageRange": "89~98" }
+    ]
+  },
+  "ziWei": {
+    "fiveElementBureau": "木三局",
+    "lifePalace": "丑",
+    "bodyPalace": "卯",
+    "lifeMaster": "巨門",
+    "bodyMaster": "火星",
+    "gender": "female",
+    "age": 23,
+    "majorLimits": [
+      { "ganZhi": "癸丑", "ageRange": "3~12" },
+      { "ganZhi": "壬子", "ageRange": "13~22" },
+      { "ganZhi": "辛亥", "ageRange": "23~32" },
+      { "ganZhi": "庚戌", "ageRange": "33~42" },
+      { "ganZhi": "己酉", "ageRange": "43~52" },
+      { "ganZhi": "戊申", "ageRange": "53~62" },
+      { "ganZhi": "丁未", "ageRange": "63~72" },
+      { "ganZhi": "丙午", "ageRange": "73~82" },
+      { "ganZhi": "乙巳", "ageRange": "83~92" },
+      { "ganZhi": "甲辰", "ageRange": "93~102" }
+    ],
+    "annualFlow": {
+      "2026": "丙午"
+    },
+    "minorLimits": [
+      { "year": 2023, "ganZhi": "癸卯", "age": 22 },
+      { "year": 2024, "ganZhi": "甲辰", "age": 23 },
+      { "year": 2025, "ganZhi": "乙巳", "age": 24 },
+      { "year": 2026, "ganZhi": "丙午", "age": 25 },
+      { "year": 2027, "ganZhi": "丁未", "age": 26 },
+      { "year": 2028, "ganZhi": "戊申", "age": 27 },
+      { "year": 2029, "ganZhi": "己酉", "age": 28 },
+      { "year": 2030, "ganZhi": "庚戌", "age": 29 },
+      { "year": 2031, "ganZhi": "辛亥", "age": 30 },
+      { "year": 2032, "ganZhi": "壬子", "age": 31 }
+    ],
+    "palaces": [
+      {
+        "name": "父母宮",
+        "position": "壬寅",
+        "majorStars": [{ "name": "廉貞", "brightness": "廟" }],
+        "minorStars": ["解神(廟)", "八座", "天巫", "截空", "蜚廉", "陰煞"],
+        "auxiliary": { "twelveStage": "絕", "shensha": ["大耗", "指背", "白虎"] }
+      },
+      {
+        "name": "福德宮",
+        "position": "癸卯",
+        "isBodyPalace": true,
+        "majorStars": [],
+        "minorStars": ["文昌(平)", "天魁(廟)", "天喜", "咸池(平)", "天德", "天刑(廟)"],
+        "auxiliary": { "twelveStage": "墓", "shensha": ["病符", "咸池", "天德"] }
+      },
+      {
+        "name": "田宅宮",
+        "position": "甲辰",
+        "majorStars": [{ "name": "破軍", "brightness": "旺" }],
+        "minorStars": ["右弼(廟)", "地空(陷)", "恩光(廟)", "鳳閣", "寡宿(陷)", "年解"],
+        "auxiliary": { "twelveStage": "死", "shensha": ["喜神", "月煞", "弔客"] }
+      },
+      {
+        "name": "官祿宮",
+        "position": "乙巳",
+        "majorStars": [{ "name": "天同", "brightness": "廟" }],
+        "minorStars": ["天鉞(廟)", "破碎(陷)"],
+        "auxiliary": { "twelveStage": "病", "shensha": ["飛廉", "亡神", "病符"] }
+      },
+      {
+        "name": "僕役宮",
+        "position": "丙午",
+        "majorStars": [
+          { "name": "武曲", "brightness": "旺", "transformation": "忌" },
+          { "name": "天府", "brightness": "旺" }
+        ],
+        "minorStars": ["地劫(廟)", "天福(平)", "天傷"],
+        "auxiliary": { "twelveStage": "衰", "shensha": ["奏書", "將星", "歲建"] }
+      },
+      {
+        "name": "遷移宮",
+        "position": "丁未",
+        "majorStars": [
+          { "name": "太陽", "brightness": "旺" },
+          { "name": "太陰", "brightness": "不" }
+        ],
+        "minorStars": ["天姚(旺)", "天才(平)", "天空"],
+        "auxiliary": { "twelveStage": "帝旺", "shensha": ["將軍", "攀鞍", "晦氣"] }
+      },
+      {
+        "name": "疾厄宮",
+        "position": "戊申",
+        "majorStars": [{ "name": "貪狼", "brightness": "平" }],
+        "minorStars": ["天馬(旺)", "火星(陷)", "旬空(廟)", "孤辰(平)", "天使"],
+        "auxiliary": { "twelveStage": "臨官", "shensha": ["小耗", "歲驛", "喪門"] }
+      },
+      {
+        "name": "財帛宮",
+        "position": "己酉",
+        "majorStars": [
+          { "name": "天機", "brightness": "旺" },
+          { "name": "巨門", "brightness": "廟" }
+        ],
+        "minorStars": ["紅鸞", "天壽", "封誥", "天廚"],
+        "auxiliary": { "twelveStage": "冠帶", "shensha": ["青龍", "息神", "貫索"] }
+      },
+      {
+        "name": "子女宮",
+        "position": "庚戌",
+        "majorStars": [
+          { "name": "紫微", "brightness": "旺", "transformation": "權" },
+          { "name": "天相", "brightness": "旺" }
+        ],
+        "minorStars": ["左輔(廟,四化科)", "鈴星(廟)", "陀羅(廟)", "龍池", "華蓋(平)", "天官"],
+        "auxiliary": { "twelveStage": "沐浴", "shensha": ["力士", "華蓋", "官符"] }
+      },
+      {
+        "name": "夫妻宮",
+        "position": "辛亥",
+        "majorStars": [{ "name": "天梁", "brightness": "陷", "transformation": "祿" }],
+        "minorStars": ["文曲(旺)", "祿存(廟)", "天月", "月德"],
+        "auxiliary": { "twelveStage": "長生", "shensha": ["博士", "劫煞", "小耗"] }
+      },
+      {
+        "name": "兄弟宮",
+        "position": "壬子",
+        "majorStars": [{ "name": "七殺", "brightness": "旺" }],
+        "minorStars": ["擎羊(陷)", "三台", "天貴(廟)", "天哭", "天虛"],
+        "auxiliary": { "twelveStage": "養", "shensha": ["官府", "災煞", "大耗"] }
+      },
+      {
+        "name": "命宮",
+        "position": "癸丑",
+        "majorStars": [],
+        "minorStars": ["台輔"],
+        "auxiliary": { "twelveStage": "胎", "shensha": ["伏兵", "天煞", "龍德"] }
+      }
+    ]
+  }
+}
