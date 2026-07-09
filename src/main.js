@@ -39,6 +39,7 @@ const yearGanZhi = (y) => STEMS[(y - 4) % 10] + BRANCHES[(y - 4) % 12];
 const state = {
   view: 'dashboard',
   reportTab: 'ziwei',
+  chartTab: 'ziwei', // 手機版:命盤總覽一次只顯示一張卡
   cal: 'solar',
   gender: 'female',
   selectedPalace: '命宮',
@@ -243,12 +244,19 @@ function renderLuckBrowser() {
 }
 
 function renderDashboard() {
+  const isZw = state.chartTab !== 'bazi';
   $('#view-dashboard').innerHTML = `<div class="stack">
-    <div class="row">${renderZiWeiCard()}${renderBaZiCard()}</div>
+    <div class="chart-tabs">
+      <button type="button" class="chart-tab${isZw ? ' active' : ''}" data-chart="ziwei">紫微命盤</button>
+      <button type="button" class="chart-tab${isZw ? '' : ' active'}" data-chart="bazi">八字四柱</button>
+    </div>
+    <div class="row chart-area ${isZw ? 'show-ziwei' : 'show-bazi'}">${renderZiWeiCard()}${renderBaZiCard()}</div>
     ${renderClassroom()}
     ${renderLuckBrowser()}
   </div>`;
 
+  $$('#view-dashboard .chart-tab').forEach((tab) =>
+    tab.addEventListener('click', () => { state.chartTab = tab.dataset.chart; renderDashboard(); }));
   $$('#view-dashboard .palace-cell').forEach((cell) =>
     cell.addEventListener('click', () => { state.selectedPalace = cell.dataset.palace; renderDashboard(); }));
   $$('#view-dashboard [data-limit]').forEach((chip) =>

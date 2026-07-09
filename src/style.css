@@ -259,9 +259,29 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
   z-index: 99;
 }
 
+/* ---------- 手機版:紫微/八字卡切換鈕 ---------- */
+.chart-tabs { display: none; gap: 8px; }
+.chart-tab {
+  flex: 1; text-align: center; padding: 10px 0; border-radius: 20px;
+  background: var(--card-bg); border: 1px solid rgba(43, 38, 33, .2);
+  font: 500 13px/1 var(--sans); color: var(--ink); transition: background .15s;
+}
+.chart-tab.active { background: var(--red); color: var(--cream); border-color: var(--red); font-weight: 600; }
+
 @media (max-width: 900px) {
   .layout { flex-direction: column; }
   .sidebar { width: 100%; }
   .main { padding: 20px 16px; }
-  .ziwei-card { min-width: 0; }
+
+  /* 一次只顯示一張卡,靠切換鈕選擇 */
+  .chart-tabs { display: flex; }
+  .chart-area .ziwei-card, .chart-area .bazi-card { min-width: 0; width: 100%; flex: 1 1 100%; }
+  .chart-area.show-ziwei .bazi-card { display: none; }
+  .chart-area.show-bazi .ziwei-card { display: none; }
+
+  /* 紫微 12 宮在窄螢幕的可讀性 */
+  .chart-grid { grid-template-rows: repeat(4, minmax(64px, auto)); }
+  .palace-cell { padding: 5px 5px; }
+  .palace-cell .p-minor { display: none; }
+  .chart-center .c-meta { font-size: 9px; }
 }
