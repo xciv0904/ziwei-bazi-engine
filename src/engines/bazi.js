@@ -23,6 +23,41 @@ const JIESHA_START = { 0: 5, 1: 2, 2: 11, 3: 8 };
 const LIU_HE = [['子', '丑'], ['寅', '亥'], ['卯', '戌'], ['辰', '酉'], ['巳', '申'], ['午', '未']];
 const LIU_HAI = [['子', '未'], ['丑', '午'], ['寅', '巳'], ['卯', '辰'], ['申', '亥'], ['酉', '戌']];
 const LIU_CHONG = [['子', '午'], ['丑', '未'], ['寅', '申'], ['卯', '酉'], ['辰', '戌'], ['巳', '亥']];
+// 三刑(寅巳申、丑戌未)與子卯相刑;辰午酉亥自刑僅在重複出現時成立,此處不列
+const XING = [['寅', '巳'], ['巳', '申'], ['申', '寅'], ['丑', '戌'], ['戌', '未'], ['未', '丑'], ['子', '卯']];
+
+// 月令司令分野(人元用事):節入後第 N 天由哪個藏干司令
+const MONTH_COMMANDER = {
+  寅: [['戊', 7], ['丙', 7], ['甲', 16]],
+  卯: [['甲', 10], ['乙', 20]],
+  辰: [['乙', 9], ['癸', 3], ['戊', 18]],
+  巳: [['戊', 5], ['庚', 9], ['丙', 16]],
+  午: [['丙', 10], ['己', 9], ['丁', 11]],
+  未: [['丁', 9], ['乙', 3], ['己', 18]],
+  申: [['戊', 7], ['壬', 7], ['庚', 16]],
+  酉: [['庚', 10], ['辛', 20]],
+  戌: [['辛', 9], ['丁', 3], ['戊', 18]],
+  亥: [['戊', 7], ['甲', 5], ['壬', 18]],
+  子: [['壬', 10], ['癸', 20]],
+  丑: [['癸', 9], ['辛', 3], ['己', 18]],
+};
+
+/** 月令司令:依節入天數查分野表,失敗時退回月支本氣 */
+function commanderOf(lunar, solar, monthBranch, fallback) {
+  try {
+    const jie = lunar.getPrevJie(true).getSolar();
+    const d0 = Date.UTC(jie.getYear(), jie.getMonth() - 1, jie.getDay());
+    const d1 = Date.UTC(solar.getYear(), solar.getMonth() - 1, solar.getDay());
+    let day = Math.floor((d1 - d0) / 86400000) + 1;
+    for (const [gan, span] of MONTH_COMMANDER[monthBranch]) {
+      if (day <= span) return gan;
+      day -= span;
+    }
+    return MONTH_COMMANDER[monthBranch].at(-1)[0];
+  } catch {
+    return fallback;
+  }
+}
 
 // lunar-javascript 輸出為簡體,轉為繁體(僅涵蓋十神/納音/十二長生會用到的字)
 const S2T = {
@@ -84,7 +119,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
 
   // --- 地支關係(六合/害/沖) ---
   const keys = ['yearBranch', 'monthBranch', 'dayBranch', 'hourBranch'];
-  const tables = [[LIU_HE, '六合'], [LIU_HAI, '害'], [LIU_CHONG, '沖']];
+  const tables = [[LIU_HE, '六合'], [LIU_HAI, '害'], [LIU_CHONG, '沖'], [XING, '刑']];
   const branchRelations = [];
   for (const a of keys) {
     for (const b of keys) {
@@ -160,7 +195,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
     fiveElementDistribution: dist,
     coreValues: {
       voidBranches: { year: ec.getYearXunKong(), day: ec.getDayXunKong() },
-      monthCommander: ec.getMonthHideGan()[0], // 月令本氣
+      monthCommander: commanderOf(solar.getLunar(), solar, branches.monthBranch, ec.getMonthHideGan()[0]),
       greatLuckStartAge: daYun[0] ? daYun[0].getStartYear() - year : null,
     },
     annualPillars,
