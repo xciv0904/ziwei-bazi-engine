@@ -58,6 +58,13 @@ $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
 check('八字手風琴 4 項', $$('#view-report .acc-item').length === 4);
 check('預設展開日主分析', $('#view-report .acc-item.open .acc-title').textContent.includes('日主分析'));
 
+// --- 命盤解析(綜合報告) ---
+$$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
+check('解析視圖顯示', !$('#view-comprehensive').hidden);
+check('紫微6段+八字3段', $$('#view-comprehensive .acc-item').length === 9);
+check('含當前焦點段', $('#view-comprehensive').textContent.includes('當前焦點'));
+check('含八字財官流向段', $('#view-comprehensive').textContent.includes('財官流向'));
+
 // --- 分享命卡 ---
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
 check('命卡姓名', $('.fate-name').textContent === 'Shelly');

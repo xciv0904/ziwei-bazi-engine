@@ -8,6 +8,7 @@ import { composeChartReading } from './engines/compose.js';
 import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
+import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 
@@ -332,6 +333,27 @@ function renderReport() {
     }));
 }
 
+// ---------- 分頁:命盤解析(綜合報告) ----------
+function renderComprehensive() {
+  const { ziWei, baZi } = state.data;
+  const zw = generateZiweiComprehensiveReading(ziWei);
+  const bz = generateBaziComprehensiveReading(baZi);
+
+  const block = (label, sections) => `
+    <div class="report-intro" style="margin-bottom:8px">${esc(label)}</div>
+    <div class="accordion">${sections.map((s) => `
+      <div class="acc-item open">
+        <div class="acc-row"><div class="acc-title">${esc(s.title)}</div></div>
+        <div class="acc-body">${esc(s.text)}</div>
+      </div>`).join('')}
+    </div>`;
+
+  $('#view-comprehensive').innerHTML =
+    block('紫微斗數・綜合解析', zw.sections) +
+    '<div style="height:20px"></div>' +
+    block('八字・綜合解析', bz.sections);
+}
+
 // ---------- 分頁三:分享命卡 ----------
 function shareUrl() {
   const { input, name } = state.data;
@@ -422,18 +444,19 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
 }
 
+const VIEWS = ['dashboard', 'report', 'comprehensive', 'share'];
+
 function switchView(view) {
   state.view = view;
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.view === view));
-  $('#view-dashboard').hidden = view !== 'dashboard';
-  $('#view-report').hidden = view !== 'report';
-  $('#view-share').hidden = view !== 'share';
+  for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
 }
 
 function renderAll() {
   renderHead();
   renderDashboard();
   renderReport();
+  renderComprehensive();
   renderShare();
 }
 
@@ -447,9 +470,7 @@ function renderEmpty() {
     並附上宮位小教室、大限流年瀏覽與白話解讀報告。</p>
     <p class="welcome-text muted">所有計算皆在你的瀏覽器內完成,生辰資料不會上傳到任何伺服器。</p>
   </div>`;
-  $('#view-dashboard').innerHTML = welcome;
-  $('#view-report').innerHTML = welcome;
-  $('#view-share').innerHTML = welcome;
+  for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
 }
 
 // ---------- 初始化 ----------
