@@ -1,0 +1,523 @@
+diff --git a/index.html b/index.html
+index bd8e4e0..e53644c 100644
+--- a/index.html
++++ b/index.html
+@@ -64,6 +64,10 @@
+         <div class="page-head">
+           <h1 id="page-title">的命盤</h1>
+           <div id="birth-summary" class="birth-summary"></div>
++          <div class="reading-mode-toggle" id="reading-mode-toggle" hidden>
++            <button type="button" class="mode-pill active" data-mode="public">大眾版</button>
++            <button type="button" class="mode-pill" data-mode="study">學習版</button>
++          </div>
+         </div>
+         <section id="view-dashboard"></section>
+         <section id="view-report" hidden></section>
+diff --git a/smoke.mjs b/smoke.mjs
+index ad32af7..5566cb3 100644
+--- a/smoke.mjs
++++ b/smoke.mjs
+@@ -71,6 +71,16 @@ check('命卡姓名', $('.fate-name').textContent === 'Shelly');
+ check('命宮主星標籤(空宮借星)', $('.fate-tags').textContent.includes('借'));
+ check('日主標籤 乙木', $('.fate-tags').textContent.includes('乙木'));
+ 
++// --- 大眾版/學習版切換(命盤解析、解讀報告、命盤總覽單宮說明都要吃這個開關) ---
++$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
++check('預設大眾版,小教室不含依據句', !$('.classroom-body').textContent.includes('亮度是'));
++$('.mode-pill[data-mode="study"]').click();
++check('切學習版,小教室含依據句', $('.classroom-body').textContent.includes('亮度是') || $('.classroom-body').textContent.includes('借對宮'));
++$$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
++check('學習版命盤解析含十神依據(細節上)', $('#view-comprehensive').textContent.includes('細節上'));
++$('.mode-pill[data-mode="public"]').click();
++check('切回大眾版,命盤解析不再含十神依據', !$('#view-comprehensive').textContent.includes('細節上'));
++
+ // --- 重新排盤(換男生日期) ---
+ $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+ $('#birth-date').value = '1998-03-15';
+diff --git a/src/engines/compose-bazi.js b/src/engines/compose-bazi.js
+index 78dd3d9..614b834 100644
+--- a/src/engines/compose-bazi.js
++++ b/src/engines/compose-bazi.js
+@@ -6,6 +6,12 @@ import db from '../data/ten-gods-meanings.json' with { type: 'json' };
+ 
+ const PHRASE = db['十神短語'];
+ const PILLAR_BG = db['柱位背景句'];
++const CORE = db['十神核心意義'];
++
++/** 學習版才附上的完整依據句(平常組裝報告只用短語,細節保留給點開/學習版看) */
++function citeCore(gods) {
++  return gods.map((g) => `${g}——${CORE[g]?.core ?? ''}`).join(';');
++}
+ 
+ const PILLARS = [
+   { stemKey: 'yearStem', branchKey: 'yearBranch', label: '年柱' },
+@@ -18,9 +24,11 @@ const PILLARS = [
+  * 單一柱的合併句:天干十神與地支十神先比對(是否相同/天干是否為日主本身),
+  * 再合併成一句,柱位背景句只附加一次。
+  */
+-function composePillar(label, stemGod, branchGod, dayStemLabel) {
++function composePillar(label, stemGod, branchGod, dayStemLabel, mode) {
+   const bg = PILLAR_BG[label];
+   if (!branchGod && !stemGod) return null;
++  const withCitation = (text, gods) =>
++    mode === 'study' ? `${text}(依據:${citeCore(gods)})` : text;
+ 
+   // 日柱天干是日主本身,沒有對應十神,只描述地支本氣
+   if (!stemGod || stemGod === '日主') {
+@@ -28,7 +36,7 @@ function composePillar(label, stemGod, branchGod, dayStemLabel) {
+     return {
+       pillar: label,
+       gods: [branchGod],
+-      text: `${label}天干為日主(${dayStemLabel}本身),地支本氣為${branchGod},透露${PHRASE[branchGod]}的特質,${bg}。`,
++      text: withCitation(`${label}天干為日主(${dayStemLabel}本身),地支本氣為${branchGod},透露${PHRASE[branchGod]}的特質,${bg}。`, [branchGod]),
+     };
+   }
+ 
+@@ -37,7 +45,7 @@ function composePillar(label, stemGod, branchGod, dayStemLabel) {
+     return {
+       pillar: label,
+       gods: [stemGod],
+-      text: `${label}天干為${stemGod},帶有${PHRASE[stemGod]}的特質,${bg}。`,
++      text: withCitation(`${label}天干為${stemGod},帶有${PHRASE[stemGod]}的特質,${bg}。`, [stemGod]),
+     };
+   }
+ 
+@@ -46,7 +54,7 @@ function composePillar(label, stemGod, branchGod, dayStemLabel) {
+     return {
+       pillar: label,
+       gods: [stemGod],
+-      text: `${label}天干與地支本氣皆為${stemGod},${PHRASE[stemGod]}的特質格外鮮明,${bg}。`,
++      text: withCitation(`${label}天干與地支本氣皆為${stemGod},${PHRASE[stemGod]}的特質格外鮮明,${bg}。`, [stemGod]),
+     };
+   }
+ 
+@@ -54,21 +62,26 @@ function composePillar(label, stemGod, branchGod, dayStemLabel) {
+   return {
+     pillar: label,
+     gods: [stemGod, branchGod],
+-    text: `${label}天干為${stemGod},帶有${PHRASE[stemGod]}的特質;地支本氣為${branchGod},則透露${PHRASE[branchGod]}的一面,兩者合看,${bg}。`,
++    text: withCitation(
++      `${label}天干為${stemGod},帶有${PHRASE[stemGod]}的特質;地支本氣為${branchGod},則透露${PHRASE[branchGod]}的一面,兩者合看,${bg}。`,
++      [stemGod, branchGod],
++    ),
+   };
+ }
+ 
+ /**
+  * 組裝整組四柱的十神解讀(以柱為單位,每柱一句合併句)
++ * mode = 'public'(預設):只用短語結論句;mode = 'study':每柱後面加上完整十神依據句。
+  * @param {object} baZi  convertToBaZi() 的輸出(用 fourPillars + tenGods)
++ * @param {object} [opts] { mode = 'public' | 'study' }
+  * @returns {{ dayMaster: string, entries: Array<{pillar, gods, text}>, text: string }}
+  */
+-export function composeBaZiReading(baZi) {
++export function composeBaZiReading(baZi, { mode = 'public' } = {}) {
+   const { fourPillars, tenGods } = baZi;
+   const entries = [];
+ 
+   for (const { stemKey, branchKey, label } of PILLARS) {
+-    const e = composePillar(label, tenGods[stemKey], tenGods[branchKey], fourPillars.dayPillar.stem);
++    const e = composePillar(label, tenGods[stemKey], tenGods[branchKey], fourPillars.dayPillar.stem, mode);
+     if (e) entries.push(e);
+   }
+ 
+diff --git a/src/engines/compose-luck.js b/src/engines/compose-luck.js
+index eb6248f..8ea6a1e 100644
+--- a/src/engines/compose-luck.js
++++ b/src/engines/compose-luck.js
+@@ -42,10 +42,10 @@ export const categoryOf = (god) =>
+   Object.entries(BZ['類別對應']).find(([, gods]) => gods.includes(god))?.[0] ?? null;
+ 
+ // ---------- 紫微:大限 / 流年 ----------
+-function palaceMaps(ziWei) {
++function palaceMaps(ziWei, mode = 'public') {
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+   const readingAt = (branch) =>
+-    composePalaceReading(byBranch[branch], byBranch[oppositeBranch(branch)]);
++    composePalaceReading(byBranch[branch], byBranch[oppositeBranch(branch)], { mode });
+   return { byBranch, readingAt };
+ }
+ 
+@@ -54,10 +54,10 @@ function palaceMaps(ziWei) {
+  * 大限宮位與流年宮位偶爾會剛好相同(同宮),此時先比對再決定要不要合併,
+  * 避免像舊版一樣大限、流年各自完整輸出一次同一段星曜解讀,造成重複段落。
+  * @param {object} ziWei  convertToZiWei() 輸出
+- * @param {object} [opts] { age = ziWei.age, year = 當年 }
++ * @param {object} [opts] { age = ziWei.age, year = 當年, mode = 'public' | 'study' }
+  */
+-export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().getFullYear() } = {}) {
+-  const { readingAt } = palaceMaps(ziWei);
++export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().getFullYear(), mode = 'public' } = {}) {
++  const { readingAt } = palaceMaps(ziWei, mode);
+ 
+   // 大限:找 age 落在哪個區間 → 該干支地支即大限宮位
+   const limit = ziWei.majorLimits.find((l) => {
+@@ -177,10 +177,11 @@ export function composeBaZiCycleOverlay(decadalInfo, annualInfo) {
+ 
+ /**
+  * 八字大運 + 流年疊加(供「解讀報告」大運概況區塊使用)
++ * mode = 'public'(預設):只留類別結論句;mode = 'study':額外附上「細節上,{十神}——{完整解釋}」的依據句。
+  * @param {object} baZi  convertToBaZi() 輸出
+- * @param {object} [opts] { year = 當年 }
++ * @param {object} [opts] { year = 當年, mode = 'public' | 'study' }
+  */
+-export function composeBaZiLuck(baZi, { year = new Date().getFullYear() } = {}) {
++export function composeBaZiLuck(baZi, { year = new Date().getFullYear(), mode = 'public' } = {}) {
+   const dayStem = baZi.fourPillars.dayPillar.stem;
+ 
+   const cycle = baZi.greatLuckCycles.find(
+@@ -208,9 +209,11 @@ export function composeBaZiLuck(baZi, { year = new Date().getFullYear() } = {})
+ 
+   const detailLine = (info) => `細節上,${info.god}——${tenGodsDb['十神核心意義'][info.god].core}`;
+   const detailLines = [];
+-  if (decadalInfo) detailLines.push(detailLine(decadalInfo));
+-  if (annualInfo && !(decadalInfo && overlay.merged && decadalInfo.god === annualInfo.god)) {
+-    detailLines.push(detailLine(annualInfo));
++  if (mode === 'study') {
++    if (decadalInfo) detailLines.push(detailLine(decadalInfo));
++    if (annualInfo && !(decadalInfo && overlay.merged && decadalInfo.god === annualInfo.god)) {
++      detailLines.push(detailLine(annualInfo));
++    }
+   }
+ 
+   const fullText = [overlay.text, ...detailLines].join('\n');
+diff --git a/src/engines/compose.js b/src/engines/compose.js
+index 7caff4c..b5078ed 100644
+--- a/src/engines/compose.js
++++ b/src/engines/compose.js
+@@ -36,19 +36,25 @@ export function brightnessSentence(brightness) {
+   return `亮度是「${brightness}」${plain ? `(${plain})` : ''},${db['亮度疊加'][bKey]}`;
+ }
+ 
+-/** 單顆星在某宮的完整句:基底文案 + 亮度疊加 + 四化疊加 */
+-function composeStar(palaceName, star, { borrowed = false } = {}) {
++/**
++ * 單顆星在某宮的完整句:基底文案 +(學習版才加)亮度疊加 + 四化疊加。
++ * mode = 'public'(大眾版,預設):只留結論句,不引用亮度廟旺得利平不陷、化祿權科忌這些依據。
++ * mode = 'study' (學習版):結論句之後,完整附上亮度、四化的依據說明,方便學習命理邏輯。
++ */
++function composeStar(palaceName, star, { borrowed = false, mode = 'public' } = {}) {
+   const base = db[palaceName]?.[star.name];
+   if (!base) return null;
+ 
+   const parts = [base];
+ 
+-  const brightnessLine = brightnessSentence(star.brightness);
+-  if (brightnessLine) parts.push(brightnessLine);
++  if (mode === 'study') {
++    const brightnessLine = brightnessSentence(star.brightness);
++    if (brightnessLine) parts.push(brightnessLine);
+ 
+-  if (star.transformation) {
+-    const key = star.transformation.startsWith('化') ? star.transformation : `化${star.transformation}`;
+-    if (db['四化疊加'][key]) parts.push(`${key}——${db['四化疊加'][key]}`);
++    if (star.transformation) {
++      const key = star.transformation.startsWith('化') ? star.transformation : `化${star.transformation}`;
++      if (db['四化疊加'][key]) parts.push(`${key}——${db['四化疊加'][key]}`);
++    }
+   }
+ 
+   return `${star.name}${borrowed ? '(借)' : ''}:${parts.join(' ')}`;
+@@ -58,16 +64,17 @@ function composeStar(palaceName, star, { borrowed = false } = {}) {
+  * 組裝單一宮位解讀
+  * @param {object} palace     ziWei.palaces 的元素
+  * @param {object} [opposite] 對宮(空宮借星用)
++ * @param {object} [opts]     { mode: 'public' | 'study', 預設 'public' }
+  * @returns {{ palaceName, position, isBodyPalace, borrowed, text }}
+  */
+-export function composePalaceReading(palace, opposite = null) {
++export function composePalaceReading(palace, opposite = null, { mode = 'public' } = {}) {
+   const { name } = palace;
+   const lines = [];
+   let borrowed = false;
+ 
+   if (palace.majorStars.length > 0) {
+     for (const star of palace.majorStars) {
+-      const line = composeStar(name, star);
++      const line = composeStar(name, star, { mode });
+       if (line) lines.push(line);
+     }
+     // 疊加順序:先宮位×單星基礎解釋,再疊雙主星組合補充句
+@@ -80,7 +87,7 @@ export function composePalaceReading(palace, opposite = null) {
+     else lines.push(`${name}無主星,借對宮(${opposite.name})星曜參看。`);
+ 
+     for (const star of opposite.majorStars) {
+-      const line = composeStar(opposite.name, star, { borrowed: true });
++      const line = composeStar(opposite.name, star, { borrowed: true, mode });
+       if (line) lines.push(line);
+     }
+     const combo = lookupCombo(opposite.majorStars.map((s) => s.name));
+@@ -100,13 +107,14 @@ export function composePalaceReading(palace, opposite = null) {
+ /**
+  * 組裝整張盤(12 宮)
+  * @param {object} ziWei  convertToZiWei() 的輸出
++ * @param {object} [opts] { mode: 'public' | 'study' }
+  * @returns {{ overview, palaces: Array }}
+  */
+-export function composeChartReading(ziWei) {
++export function composeChartReading(ziWei, { mode = 'public' } = {}) {
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
+   return {
+     overview: `五行局:${ziWei.fiveElementBureau},命宮在${ziWei.lifePalace}、身宮在${ziWei.bodyPalace},命主${ziWei.lifeMaster}、身主${ziWei.bodyMaster}。`,
+     palaces: ziWei.palaces.map((p) =>
+-      composePalaceReading(p, byBranch[oppositeBranch(branchOf(p))])),
++      composePalaceReading(p, byBranch[oppositeBranch(branchOf(p))], { mode })),
+   };
+ }
+diff --git a/src/engines/comprehensive.js b/src/engines/comprehensive.js
+index 9a3df45..934e2a6 100644
+--- a/src/engines/comprehensive.js
++++ b/src/engines/comprehensive.js
+@@ -56,8 +56,9 @@ const BRIGHTNESS_PLAIN = palaceStarDb['亮度原始等級白話'];
+  * 另外原本「星名亮度得——此星的特質穩定發揮」這種寫法太術語化,
+  * 一般使用者看不懂「得」是什麼,改成白話說明(廟旺得利平不陷各自的白話 + 具體影響)。
+  */
+-function applyOverlays(text, stars) {
++function applyOverlays(text, stars, mode = 'public') {
+   const parts = [text];
++  if (mode !== 'study') return parts.join(' '); // 大眾版:只留結論句,不引用亮度/四化依據
+ 
+   const brightnessGroups = new Map(); // bKey -> [star,...]
+   for (const s of stars) {
+@@ -83,7 +84,7 @@ function applyOverlays(text, stars) {
+ }
+ 
+ /** 取某宮位的完整解釋(空宮自動借對宮,文案用對宮情境) */
+-function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true } = {}) {
++function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true, mode = 'public' } = {}) {
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
+   let stars = palace.majorStars;
+   let ctx = palace.name;
+@@ -95,7 +96,7 @@ function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true } = {})
+   }
+   const main = resolveMainText(ctx, stars.map((s) => s.name));
+   return {
+-    text: withOverlays ? applyOverlays(main, stars) : main,
++    text: withOverlays ? applyOverlays(main, stars, mode) : main,
+     stars: stars.map((s) => s.name),
+     borrowed,
+   };
+@@ -120,9 +121,9 @@ function resonanceSentence(starsA, starsB) {
+  * @param {object} [opts] { year, age }
+  * @returns {{ sections: Array<{title, text}>, text: string }}
+  */
+-export function generateZiweiComprehensiveReading(ziWei, { year = new Date().getFullYear(), age = ziWei.age } = {}) {
++export function generateZiweiComprehensiveReading(ziWei, { year = new Date().getFullYear(), age = ziWei.age, mode = 'public' } = {}) {
+   const byName = Object.fromEntries(ziWei.palaces.map((p) => [p.name, p]));
+-  const reading = (name, opt) => palaceReadingOf(ziWei, byName[name], opt);
++  const reading = (name, opt) => palaceReadingOf(ziWei, byName[name], { ...opt, mode });
+   const sections = [];
+ 
+   // 第1段:性格才華(命宮 + 身宮)
+@@ -156,7 +157,7 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
+   // 第3段:戀愛婚姻(夫妻宮 + 四化)
+   const s3p = assembly['第3段_戀愛婚姻'];
+   const spousePalace = byName['夫妻宮'];
+-  const spouse = palaceReadingOf(ziWei, spousePalace, { overlays: false });
++  const spouse = palaceReadingOf(ziWei, spousePalace, { overlays: false, mode });
+   const spouseMutagens = spousePalace.majorStars.filter((s) => s.transformation);
+   const s3lines = [fill(s3p['連接句模板'][0], { 夫妻宮解釋: spouse.text })];
+   if (spouseMutagens.length) {
+@@ -204,7 +205,7 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
+   const gz = yearGanZhi(year);
+   const annualPalace = byBranch[gz[1]];
+-  const annualReading = palaceReadingOf(ziWei, annualPalace);
++  const annualReading = palaceReadingOf(ziWei, annualPalace, { mode });
+ 
+   const s6lines = [FOCUS['開頭句']];
+   let limitPalace = null;
+@@ -225,7 +226,7 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
+         startAge, endAge,
+         大限干支: limit.ganZhi,
+         大限宮位名稱: limitPalace.name,
+-        大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace).text,
++        大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace, { mode }).text,
+       }));
+     }
+   }
+@@ -260,11 +261,24 @@ function findGod(tenGods, wanted) {
+ }
+ 
+ /**
++ * 五行分析總結句:大眾版只用結論(composeElementAnalysis().summary);
++ * 學習版額外附上五行數量依據(依據:木1、火1、土2、金1、水3),方便學習判斷邏輯怎麼算出來的。
++ */
++function elementSummaryFor(baZi, mode) {
++  const analysis = composeElementAnalysis(baZi.fiveElementDistribution);
++  if (mode !== 'study') return analysis.summary;
++  const counts = Object.entries(analysis.classification).map(([el, c]) => `${el}${c.count}`).join('、');
++  return `${analysis.summary}(依據:${counts})`;
++}
++
++/**
++ * mode = 'public'(預設):結論句為主,不引用五行數量、十神完整依據;
++ * mode = 'study':第二段附上五行數量依據,第三段附上大運/流年十神的完整依據句。
+  * @param {object} baZi  convertToBaZi() 輸出
+- * @param {object} [opts] { year }
++ * @param {object} [opts] { year, mode = 'public' | 'study' }
+  * @returns {{ sections: Array<{title, text}>, text: string }}
+  */
+-export function generateBaziComprehensiveReading(baZi, { year = new Date().getFullYear() } = {}) {
++export function generateBaziComprehensiveReading(baZi, { year = new Date().getFullYear(), mode = 'public' } = {}) {
+   const sections = [];
+   const dayStem = baZi.fourPillars.dayPillar.stem;
+   const dayEl = STEM_EL[dayStem];
+@@ -291,7 +305,7 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
+     officerHit
+       ? fill(t2['連接句模板'][1], { 官殺出現位置: officerHit.label, 官殺十神: officerHit.god, 官殺核心解釋: core(officerHit.god) })
+       : t2['無官殺時'],
+-    fill(t2['連接句模板'][2], { '五行分析總結句(來自five-element-analysis.json的整體平衡建議模板)': composeElementAnalysis(baZi.fiveElementDistribution).summary }),
++    fill(t2['連接句模板'][2], { '五行分析總結句(來自five-element-analysis.json的整體平衡建議模板)': elementSummaryFor(baZi, mode) }),
+   ];
+   sections.push({ title: '二、財官流向', text: s2lines.join('') });
+ 
+@@ -333,9 +347,19 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
+     ? fill(t3['結尾行動建議句_大運流年類別相同時'], { 有利類別: favorableCategory })
+     : fill(t3['結尾行動建議句'], { 有利類別: favorableCategory, 需留意類別: cautiousCategory });
+ 
++  const citeGod = (god) => `細節上,${god}——${tenGodsDb['十神核心意義'][god].core}`;
++  const godCitations = [];
++  if (mode === 'study') {
++    if (decadalInfo) godCitations.push(citeGod(decadalInfo.god));
++    if (annualInfo && !(decadalInfo && overlay?.merged && decadalInfo.god === annualInfo.god)) {
++      godCitations.push(citeGod(annualInfo.god));
++    }
++  }
++
+   const s3lines = [
+     fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary }),
+     overlay?.text ?? '',
++    ...godCitations,
+     closingLine,
+   ].filter(Boolean);
+   sections.push({ title: '三、人際健康與行動建議', text: s3lines.join('') });
+diff --git a/src/main.js b/src/main.js
+index 94c8a22..089124e 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -44,6 +44,7 @@ const state = {
+   chartTab: 'ziwei', // 手機版:命盤總覽一次只顯示一張卡
+   cal: 'solar',
+   gender: 'female',
++  readingMode: 'public', // 'public'(大眾版,預設)| 'study'(學習版):控制解讀文字要不要附上亮度/四化/十神/五行的完整依據
+   selectedPalace: '命宮',
+   limitIdx: 0,
+   yearIdx: 0,
+@@ -69,16 +70,13 @@ function computeAll() {
+ 
+   const ziWei = convertToZiWei(input);
+   const baZi = convertToBaZi(input);
+-  const readings = composeChartReading(ziWei);
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+ 
+   state.data = {
+-    name, input, ziWei, baZi, readings, byBranch,
+-    elements: composeElementAnalysis(baZi.fiveElementDistribution),
+-    zwLuck: composeZiWeiLuck(ziWei),
+-    bzLuck: composeBaZiLuck(baZi),
+-    tenGods: composeBaZiReading(baZi),
++    name, input, ziWei, baZi, byBranch,
++    elements: composeElementAnalysis(baZi.fiveElementDistribution), // 兩版本共用同一份,顯示時再依mode選summary/text
+   };
++  applyReadingMode();
+ 
+   // 預設選中「現行」大限與流年
+   const nowYear = new Date().getFullYear();
+@@ -93,6 +91,19 @@ function computeAll() {
+   return true;
+ }
+ 
++// 依目前 state.readingMode 重新組裝所有「會受大眾版/學習版影響」的解讀資料。
++// 排盤完成後呼叫一次;之後使用者切換大眾版/學習版開關時,不用重新排盤,只要重跑這個函式再重繪畫面。
++function applyReadingMode() {
++  const { ziWei, baZi } = state.data;
++  const mode = state.readingMode;
++  Object.assign(state.data, {
++    readings: composeChartReading(ziWei, { mode }),
++    zwLuck: composeZiWeiLuck(ziWei, { mode }),
++    bzLuck: composeBaZiLuck(baZi, { mode }),
++    tenGods: composeBaZiReading(baZi, { mode }),
++  });
++}
++
+ const readingOf = (palaceName) =>
+   state.data.readings.palaces.find((p) => p.palaceName === palaceName);
+ 
+@@ -101,6 +112,7 @@ function renderHead() {
+   const { name, input, ziWei, baZi } = state.data;
+   $('#page-title').textContent = `${name}　的命盤`;
+   $('#copy-ai-btn').hidden = false;
++  $('#reading-mode-toggle').hidden = false;
+   const lunar = Solar.fromYmd(input.year, input.month, input.day).getLunar();
+   const shichen = SHICHEN.find((s) => s.hour === input.hour);
+   $('#birth-summary').textContent =
+@@ -287,7 +299,7 @@ function reportItems() {
+   const dayEntries = tenGods.entries.filter((e) => e.pillar === '日柱').map((e) => e.text).join('\n');
+   const bazi = [
+     { key: 'zhu', color: 'var(--gold)', letter: '主', title: '日主分析', text: [tenGods.dayMaster, dayEntries].filter(Boolean).join('\n') },
+-    { key: 'xiji', color: 'var(--red)', letter: '喜', title: '五行喜忌', text: elements.text },
++    { key: 'xiji', color: 'var(--red)', letter: '喜', title: '五行喜忌', text: state.readingMode === 'study' ? elements.text : elements.summary },
+     { key: 'shishen', color: 'var(--gold)', letter: '神', title: '十神配置', text: tenGods.entries.map((e) => e.text).join('\n') },
+     { key: 'dayun', color: 'var(--red)', letter: '運', title: '大運概況', text: [bzLuck.decadal?.text, bzLuck.annual?.text].filter(Boolean).join('\n\n') },
+   ];
+@@ -338,8 +350,9 @@ function renderReport() {
+ // ---------- 分頁:命盤解析(綜合報告) ----------
+ function renderComprehensive() {
+   const { ziWei, baZi } = state.data;
+-  const zw = generateZiweiComprehensiveReading(ziWei);
+-  const bz = generateBaziComprehensiveReading(baZi);
++  const mode = state.readingMode;
++  const zw = generateZiweiComprehensiveReading(ziWei, { mode });
++  const bz = generateBaziComprehensiveReading(baZi, { mode });
+ 
+   const block = (label, sections) => `
+     <div class="report-intro" style="margin-bottom:8px">${esc(label)}</div>
+@@ -474,6 +487,7 @@ function renderEmpty() {
+   </div>`;
+   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
+   $('#copy-ai-btn').hidden = true;
++  $('#reading-mode-toggle').hidden = true;
+ }
+ 
+ // ---------- 初始化 ----------
+@@ -496,6 +510,15 @@ function setupControls() {
+ 
+   $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+ 
++  $('#reading-mode-toggle').addEventListener('click', (e) => {
++    const btn = e.target.closest('.mode-pill');
++    if (!btn || !state.data) return;
++    state.readingMode = btn.dataset.mode;
++    $$('#reading-mode-toggle .mode-pill').forEach((p) => p.classList.toggle('active', p === btn));
++    applyReadingMode();
++    renderAll();
++  });
++
+   $('#copy-ai-btn').addEventListener('click', async () => {
+     if (!state.data) return;
+     const { input, ziWei, baZi } = state.data;
+diff --git a/src/style.css b/src/style.css
+index 0c7d801..bd6a39b 100644
+--- a/src/style.css
++++ b/src/style.css
+@@ -93,6 +93,19 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
+ .page-head h1 { margin: 0; font: 700 20px/1 var(--serif); color: var(--ink); }
+ .birth-summary { font: 400 12px/1 var(--sans); color: rgba(43, 38, 33, .5); }
+ 
++/* ---------- 大眾版/學習版 切換(page-head,影響命盤解析、解讀報告、命盤總覽單宮說明) ---------- */
++.reading-mode-toggle {
++  display: flex; gap: 6px; margin-left: auto;
++  background: var(--card-bg); border: 1px solid rgba(43, 38, 33, .15);
++  border-radius: 18px; padding: 3px;
++}
++.mode-pill {
++  padding: 6px 14px; border-radius: 15px;
++  font: 500 12px/1 var(--sans); color: var(--ink-60);
++  background: transparent; border: none; transition: background .15s, color .15s;
++}
++.mode-pill.active { background: var(--red); color: var(--cream); font-weight: 600; }
++
+ .card {
+   background: var(--card-bg); border: 1px solid var(--border);
+   border-radius: 6px; padding: 16px;

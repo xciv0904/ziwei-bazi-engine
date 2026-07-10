@@ -64,6 +64,10 @@
         <div class="page-head">
           <h1 id="page-title">的命盤</h1>
           <div id="birth-summary" class="birth-summary"></div>
+          <div class="reading-mode-toggle" id="reading-mode-toggle" hidden>
+            <button type="button" class="mode-pill active" data-mode="public">大眾版</button>
+            <button type="button" class="mode-pill" data-mode="study">學習版</button>
+          </div>
         </div>
         <section id="view-dashboard"></section>
         <section id="view-report" hidden></section>
@@ -71,6 +75,9 @@
         <section id="view-share" hidden></section>
       </main>
     </div>
+    <button id="copy-ai-btn" class="copy-ai-btn" type="button" hidden>
+      <span class="copy-ai-icon">AI</span>複製給AI解讀
+    </button>
     <div id="toast" class="toast" hidden></div>
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -10,17 +10,21 @@ import focusSection from '../data/current-focus-section.json' with { type: 'json
 import baziReading from '../data/bazi-comprehensive-reading.json' with { type: 'json' };
 import elementDb from '../data/five-element-analysis.json' with { type: 'json' };
 import tenGodsDb from '../data/ten-gods-meanings.json' with { type: 'json' };
-import overlays from '../data/luck-cycle-overlays.json' with { type: 'json' };
 import { BRIGHTNESS_ALIAS } from './compose.js';
-import { tenGodOf } from './compose-luck.js';
+import { tenGodOf, composeBaZiCycleOverlay, categoryOf } from './compose-luck.js';
 import { composeElementAnalysis } from './compose-elements.js';
+import { composeShenShaReading } from './compose-shensha.js';
+import { composeBranchRelationsReading } from './compose-branch-relations.js';
+import luckOverlayDb from '../data/luck-cycle-overlays.json' with { type: 'json' };
+import shenshaDb from '../data/shensha-analysis.json' with { type: 'json' };
 
 const COMBOS = doubleStarDb['雙主星組合'];
 const TAGS = traitTags['主星特質標籤'];
 const STAR_ORDER = doubleLogic['星曜正規化排序表']['順序'];
 const ADVICE = assembly['條件式建議句庫'];
 const FOCUS = focusSection['第6段_當前焦點'];
-const BZ_CAT = overlays['八字大運流年類別疊加'];
+const LUCK_CATEGORY_DESC = luckOverlayDb['八字大運流年類別疊加']['類別解讀'];
+const SHENSHA_CORE = { ...shenshaDb['貴人星解讀'], ...shenshaDb['煞星解讀'] };
 
 const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -48,15 +52,35 @@ function resolveMainText(contextPalace, starNames) {
   return `${get(pair[0])}同時,${get(pair[1])}`;
 }
 
-/** 主句之後依序疊加亮度、四化(與四化亮度疊加的優先順序) */
-function applyOverlays(text, stars) {
+const BRIGHTNESS_PLAIN = palaceStarDb['亮度原始等級白話'];
+
+/**
+ * 主句之後依序疊加亮度、四化(與四化亮度疊加的優先順序)。
+ * 亮度疊加句是通用模板(依廟旺平陷分四級),若同一宮位有多顆星落在同一級距,
+ * 直接各自套用會變成同一句話重複兩次、只換星名——比照五行分析的修正原則,
+ * 改成先依等級分組,同級距的星合併成一句,避免重複段落。
+ * 另外原本「星名亮度得——此星的特質穩定發揮」這種寫法太術語化,
+ * 一般使用者看不懂「得」是什麼,改成白話說明(廟旺得利平不陷各自的白話 + 具體影響)。
+ */
+function applyOverlays(text, stars, mode = 'public') {
   const parts = [text];
+  if (mode !== 'study') return parts.join(' '); // 大眾版:只留結論句,不引用亮度/四化依據
+
+  const brightnessGroups = new Map(); // bKey -> [star,...]
   for (const s of stars) {
     const bKey = BRIGHTNESS_ALIAS[s.brightness];
     if (bKey && palaceStarDb['亮度疊加'][bKey]) {
-      parts.push(`${s.name}亮度${s.brightness}——${palaceStarDb['亮度疊加'][bKey]}`);
+      if (!brightnessGroups.has(bKey)) brightnessGroups.set(bKey, []);
+      brightnessGroups.get(bKey).push(s);
     }
   }
+  for (const [bKey, group] of brightnessGroups) {
+    const label = group
+      .map((s) => `${s.name}的亮度是「${s.brightness}」${BRIGHTNESS_PLAIN[s.brightness] ? `(${BRIGHTNESS_PLAIN[s.brightness]})` : ''}`)
+      .join('、');
+    parts.push(`${label},${palaceStarDb['亮度疊加'][bKey]}`);
+  }
+
   for (const s of stars) {
     if (!s.transformation) continue;
     const key = `化${s.transformation}`;
@@ -66,7 +90,7 @@ function applyOverlays(text, stars) {
 }
 
 /** 取某宮位的完整解釋(空宮自動借對宮,文案用對宮情境) */
-function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true } = {}) {
+function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true, mode = 'public' } = {}) {
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
   let stars = palace.majorStars;
   let ctx = palace.name;
@@ -78,7 +102,7 @@ function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true } = {}) 
   }
   const main = resolveMainText(ctx, stars.map((s) => s.name));
   return {
-    text: withOverlays ? applyOverlays(main, stars) : main,
+    text: withOverlays ? applyOverlays(main, stars, mode) : main,
     stars: stars.map((s) => s.name),
     borrowed,
   };
@@ -103,19 +127,23 @@ function resonanceSentence(starsA, starsB) {
  * @param {object} [opts] { year, age }
  * @returns {{ sections: Array<{title, text}>, text: string }}
  */
-export function generateZiweiComprehensiveReading(ziWei, { year = new Date().getFullYear(), age = ziWei.age } = {}) {
+export function generateZiweiComprehensiveReading(ziWei, { year = new Date().getFullYear(), age = ziWei.age, mode = 'public' } = {}) {
   const byName = Object.fromEntries(ziWei.palaces.map((p) => [p.name, p]));
-  const reading = (name, opt) => palaceReadingOf(ziWei, byName[name], opt);
+  const reading = (name, opt) => palaceReadingOf(ziWei, byName[name], { ...opt, mode });
   const sections = [];
 
   // 第1段:性格才華(命宮 + 身宮)
+  // 身宮偶爾會與命宮落在同一宮(同宮),此時直接各自完整輸出會變成同一段星曜解釋重複兩次,
+  // 需先檢查兩者是否同宮,同宮時合併講一次並點出『高度疊合』的意義,而非各自平鋪直述。
   const life = reading('命宮');
   const bodyPalace = ziWei.palaces.find((p) => p.isBodyPalace);
-  const body = reading(bodyPalace.name);
+  const bodyIsLifePalace = bodyPalace.name === '命宮';
   const s1p = assembly['第1段_性格才華'];
   const s1lines = [
     (life.borrowed ? s1p['命宮空宮時開頭'] : s1p['命宮有主星時開頭']) + life.text,
-    fill(s1p['連接句模板'][1], { 身宮宮位名稱: bodyPalace.name, 身宮解釋: body.text }),
+    bodyIsLifePalace
+      ? fill(s1p['身宮與命宮同宮時'], { 命宮解釋: life.text })
+      : fill(s1p['連接句模板'][1], { 身宮宮位名稱: bodyPalace.name, 身宮解釋: reading(bodyPalace.name).text }),
   ];
   sections.push({ title: '一、性格與才華', text: s1lines.join('') });
 
@@ -135,7 +163,7 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
   // 第3段:戀愛婚姻(夫妻宮 + 四化)
   const s3p = assembly['第3段_戀愛婚姻'];
   const spousePalace = byName['夫妻宮'];
-  const spouse = palaceReadingOf(ziWei, spousePalace, { overlays: false });
+  const spouse = palaceReadingOf(ziWei, spousePalace, { overlays: false, mode });
   const spouseMutagens = spousePalace.majorStars.filter((s) => s.transformation);
   const s3lines = [fill(s3p['連接句模板'][0], { 夫妻宮解釋: spouse.text })];
   if (spouseMutagens.length) {
@@ -174,33 +202,47 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
   });
 
   // 第6段:當前焦點(大限 + 流年,current-focus-section.json)
+  // 大限宮位與流年宮位偶爾會剛好相同,此時要先比對、合併成一次完整解讀,
+  // 不要大限、流年各自完整輸出一次同一段星曜解讀(跟八字大運流年類別重複是同一種bug)。
   const limit = ziWei.majorLimits.find((l) => {
     const [a, b] = l.ageRange.split('~').map(Number);
     return age >= a && age <= b;
   });
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
-  const s6lines = [FOCUS['開頭句']];
-  let limitPalace = null;
-  if (limit) {
-    limitPalace = byBranch[limit.ganZhi[1]];
-    const [startAge, endAge] = limit.ageRange.split('~');
-    s6lines.push(fill(FOCUS['大限句模板'], {
-      startAge, endAge,
-      大限干支: limit.ganZhi,
-      大限宮位名稱: limitPalace.name,
-      大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace).text,
-    }));
-  }
   const gz = yearGanZhi(year);
   const annualPalace = byBranch[gz[1]];
-  s6lines.push(fill(FOCUS['流年句模板'], {
-    西元年: year,
-    流年干支: gz,
-    流年宮位名稱: annualPalace.name,
-    流年宮位星曜解釋: palaceReadingOf(ziWei, annualPalace).text,
-  }));
-  if (limitPalace && limitPalace.name === annualPalace.name) {
-    s6lines.push(fill(FOCUS['重疊提醒句'], { 宮位名稱: annualPalace.name }));
+  const annualReading = palaceReadingOf(ziWei, annualPalace, { mode });
+
+  const s6lines = [FOCUS['開頭句']];
+  let limitPalace = null;
+  let sameAsAnnual = false;
+  if (limit) {
+    limitPalace = byBranch[limit.ganZhi[1]];
+    sameAsAnnual = limitPalace.name === annualPalace.name;
+    const [startAge, endAge] = limit.ageRange.split('~');
+    if (sameAsAnnual) {
+      s6lines.push(fill(FOCUS['大限流年同宮模板'], {
+        startAge, endAge, 大限干支: limit.ganZhi,
+        西元年: year, 流年干支: gz,
+        宮位名稱: annualPalace.name,
+        宮位星曜解釋: annualReading.text,
+      }));
+    } else {
+      s6lines.push(fill(FOCUS['大限句模板'], {
+        startAge, endAge,
+        大限干支: limit.ganZhi,
+        大限宮位名稱: limitPalace.name,
+        大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace, { mode }).text,
+      }));
+    }
+  }
+  if (!sameAsAnnual) {
+    s6lines.push(fill(FOCUS['流年句模板'], {
+      西元年: year,
+      流年干支: gz,
+      流年宮位名稱: annualPalace.name,
+      流年宮位星曜解釋: annualReading.text,
+    }));
   }
   s6lines.push(FOCUS['結尾句']);
   sections.push({ title: '六、當前焦點', text: s6lines.join('') });
@@ -225,16 +267,36 @@ function findGod(tenGods, wanted) {
 }
 
 /**
+ * 五行分析總結句:大眾版只用結論(composeElementAnalysis().summary);
+ * 學習版額外附上五行數量依據(依據:木1、火1、土2、金1、水3),方便學習判斷邏輯怎麼算出來的。
+ */
+function elementSummaryForAnalysis(analysis, mode) {
+  if (mode !== 'study') return analysis.summary;
+  const counts = Object.entries(analysis.classification).map(([el, c]) => `${el}${c.count}`).join('、');
+  return `${analysis.summary}(依據:${counts})`;
+}
+
+/**
+ * mode = 'public'(預設):結論句為主,不引用五行數量、十神完整依據;
+ * mode = 'study':第二段附上五行數量依據,第三段附上大運/流年十神的完整依據句。
  * @param {object} baZi  convertToBaZi() 輸出
- * @param {object} [opts] { year }
+ * @param {object} [opts] { year, mode = 'public' | 'study' }
  * @returns {{ sections: Array<{title, text}>, text: string }}
  */
-export function generateBaziComprehensiveReading(baZi, { year = new Date().getFullYear() } = {}) {
+export function generateBaziComprehensiveReading(baZi, { year = new Date().getFullYear(), mode = 'public' } = {}) {
   const sections = [];
   const dayStem = baZi.fourPillars.dayPillar.stem;
   const dayEl = STEM_EL[dayStem];
   const core = (god) => tenGodsDb['十神核心意義'][god]?.core ?? '';
   const t1 = baziReading['第1段_個性本質']['連接句模板'];
+  const firstSentence = (s) => (s ? (s.match(/^[^。]*。/)?.[0] ?? s) : '');
+  // 概覽用:取第一個逗號/頓號前的短句(不是完整句子),確保「一句話重點」真的簡短,並去掉開頭的「代表」贅字
+  const firstClause = (s) => {
+    if (!s) return '';
+    const bare = s.replace(/^代表/, '');
+    const m = bare.match(/^[^,，、。]*[,，、]?/);
+    return (m?.[0] ?? bare).replace(/[,，、]$/, '');
+  };
 
   // 第1段:個性本質
   const s1lines = [
@@ -249,6 +311,7 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
   const t2 = baziReading['第2段_財官流向'];
   const wealthHit = findGod(baZi.tenGods, ['正財', '偏財']);
   const officerHit = findGod(baZi.tenGods, ['正官', '七殺']);
+  const elementAnalysis = composeElementAnalysis(baZi.fiveElementDistribution);
   const s2lines = [
     wealthHit
       ? fill(t2['連接句模板'][0], { 財星出現位置: wealthHit.label, 財星十神: wealthHit.god, 財星核心解釋: core(wealthHit.god) })
@@ -256,7 +319,7 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
     officerHit
       ? fill(t2['連接句模板'][1], { 官殺出現位置: officerHit.label, 官殺十神: officerHit.god, 官殺核心解釋: core(officerHit.god) })
       : t2['無官殺時'],
-    fill(t2['連接句模板'][2], { '五行分析總結句(來自five-element-analysis.json的整體平衡建議模板)': composeElementAnalysis(baZi.fiveElementDistribution).summary }),
+    fill(t2['連接句模板'][2], { '五行分析總結句(來自five-element-analysis.json的整體平衡建議模板)': elementSummaryForAnalysis(elementAnalysis, mode) }),
   ];
   sections.push({ title: '二、財官流向', text: s2lines.join('') });
 
@@ -272,26 +335,105 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
   }
   const relSummary = relParts.length ? relParts.join('、') : '四柱地支之間沒有明顯的合沖刑害';
 
-  const categoryOf = (god) =>
-    Object.entries(BZ_CAT['類別對應']).find(([, gods]) => gods.includes(god))?.[0] ?? null;
+  // 大運類別與流年類別先比對是否相同:相同時合併成一段並點出疊加意義,
+  // 不同時用對比句銜接,避免像舊版一樣各自完整輸出造成重複段落(共用 compose-luck.js 的判斷邏輯)
   const cycle = baZi.greatLuckCycles.find((c) => year >= c.startYear && year < c.startYear + 10);
-  const s3lines = [fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary })];
-  let decadalCat = null;
+  let decadalInfo = null;
   if (cycle) {
-    decadalCat = categoryOf(tenGodOf(dayStem, cycle.ganZhi[0]));
-    s3lines.push(fill(t3['連接句模板'][1], {
-      大運干支: cycle.ganZhi, 起訖年齡: `${cycle.ageRange}歲`,
-      大運類別: decadalCat, 大運類別解讀: BZ_CAT['類別解讀'][decadalCat],
-    }));
+    const god = tenGodOf(dayStem, cycle.ganZhi[0]);
+    const category = categoryOf(god);
+    if (category) decadalInfo = { ganZhi: cycle.ganZhi, ageRange: cycle.ageRange, god, category };
   }
   const gz = baZi.annualPillars[year] ?? yearGanZhi(year);
-  const annualCat = categoryOf(tenGodOf(dayStem, gz[0]));
-  s3lines.push(fill(t3['連接句模板'][2], {
-    西元年: year, 流年干支: gz,
-    流年類別: annualCat, 流年類別解讀: BZ_CAT['類別解讀'][annualCat],
-  }));
-  s3lines.push(fill(t3['結尾行動建議句'], { 有利類別: decadalCat ?? annualCat, 需留意類別: annualCat }));
+  let annualInfo = null;
+  {
+    const god = tenGodOf(dayStem, gz[0]);
+    const category = categoryOf(god);
+    if (category) annualInfo = { ganZhi: gz, year, god, category };
+  }
+  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo);
+  const favorableCategory = decadalInfo?.category ?? annualInfo?.category;
+  const cautiousCategory = annualInfo?.category ?? decadalInfo?.category;
+
+  // 大運類別與流年類別相同時,結尾建議句也不該再講「把握A、同時對A謹慎」這種同一個類別講兩次的怪句子,
+  // 改用「這段期間A格外集中,把握機會但留意過猶不及」的收斂版本。
+  const closingLine = overlay?.merged
+    ? fill(t3['結尾行動建議句_大運流年類別相同時'], { 有利類別: favorableCategory })
+    : fill(t3['結尾行動建議句'], { 有利類別: favorableCategory, 需留意類別: cautiousCategory });
+
+  const citeGod = (god) => `細節上,${god}——${tenGodsDb['十神核心意義'][god].core}`;
+  const godCitations = [];
+  if (mode === 'study') {
+    if (decadalInfo) godCitations.push(citeGod(decadalInfo.god));
+    if (annualInfo && !(decadalInfo && overlay?.merged && decadalInfo.god === annualInfo.god)) {
+      godCitations.push(citeGod(annualInfo.god));
+    }
+  }
+
+  const s3lines = [
+    fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary }),
+    overlay?.text ?? '',
+    ...godCitations,
+    closingLine,
+  ].filter(Boolean);
   sections.push({ title: '三、人際健康與行動建議', text: s3lines.join('') });
+
+  // 第4段:地支關係(六合/害/沖/刑/相破/暗合/半合/拱/半會)
+  // 同一組地支若同時觸發多種關係類型,compose-branch-relations.js 已依合併規則處理,不重複輸出
+  const branchRelReading = composeBranchRelationsReading(baZi);
+  sections.push({ title: '四、地支關係', text: branchRelReading.text });
+
+  // 第5段:神煞(貴人星/煞星)
+  // 同一柱若有多個神煞,compose-shensha.js 已合併成一句,柱位背景句只講一次
+  const shenshaReading = composeShenShaReading(baZi);
+  sections.push({ title: '五、神煞', text: shenshaReading.text });
+
+  // ---- 全盤概覽:純粹排版/組裝順序調整,不做新的資料運算,完全取材自上面已算好的內容 ----
+  const PHRASE = tenGodsDb['十神短語'];
+  const coreLine = `日主${dayStem}(${dayEl}日生),${firstSentence(elementAnalysis.summary)}`;
+
+  const careerLine = officerHit
+    ? `事業:${officerHit.god}當令,${PHRASE[officerHit.god] ?? firstClause(core(officerHit.god))}。`
+    : `事業:命局中官殺不顯,${firstClause(t2['無官殺時'])}。`;
+
+  const wealthLine = wealthHit
+    ? `財運:${wealthHit.god}入柱,${PHRASE[wealthHit.god] ?? firstClause(core(wealthHit.god))}。`
+    : `財運:命局中財星不顯,${firstClause(t2['無財星時'])}。`;
+
+  // 感情:優先看日柱/時柱是否有桃花類神煞(紅艷煞),沒有就退回日柱地支十神(配偶宮本氣)
+  const loveShenshaHit = ['紅艷煞'].find(
+    (n) => (baZi.shenshaList?.dayPillar ?? []).includes(n) || (baZi.shenshaList?.hourPillar ?? []).includes(n),
+  );
+  const loveLine = loveShenshaHit
+    ? `感情:帶${loveShenshaHit},${firstClause(SHENSHA_CORE[loveShenshaHit])}。`
+    : `感情:日支見${baZi.tenGods.dayBranch},${PHRASE[baZi.tenGods.dayBranch] ?? firstClause(core(baZi.tenGods.dayBranch))}。`;
+
+  // 健康與情緒調節:取五行分佈中最鮮明(過旺/退回取數量最高)的一項
+  const healthEl = elementAnalysis.dominant[0];
+  const healthLine = `健康:${healthEl}偏多,${firstClause(elementAnalysis.classification[healthEl]?.levelNote ?? '')}。`;
+
+  // 家庭與原生背景:優先看年柱/月柱是否有孤辰/喪門,沒有就退回年干十神
+  const familyShenshaHit = ['孤辰', '喪門'].find(
+    (n) => (baZi.shenshaList?.yearPillar ?? []).includes(n) || (baZi.shenshaList?.monthPillar ?? []).includes(n),
+  );
+  const familyLine = familyShenshaHit
+    ? `家庭:年月柱帶${familyShenshaHit},${firstClause(SHENSHA_CORE[familyShenshaHit])}。`
+    : `家庭:年干見${baZi.tenGods.yearStem},${PHRASE[baZi.tenGods.yearStem] ?? firstClause(core(baZi.tenGods.yearStem))}。`;
+
+  // 當前大運與今年流年重點:重用第三段已算好的 decadalInfo/annualInfo/overlay,不重新運算
+  let luckLine;
+  if (decadalInfo && annualInfo && overlay?.merged) {
+    luckLine = `大運流年:兩者同屬${favorableCategory},${firstClause(LUCK_CATEGORY_DESC[favorableCategory] ?? '')},際遇格外集中的一年。`;
+  } else if (decadalInfo && annualInfo) {
+    luckLine = `大運流年:大運屬${decadalInfo.category},今年流年轉向${annualInfo.category},建議兼顧長期方向與這一年的短期焦點。`;
+  } else if (decadalInfo) {
+    luckLine = `大運:目前屬${decadalInfo.category},${firstClause(LUCK_CATEGORY_DESC[decadalInfo.category] ?? '')}。`;
+  } else {
+    luckLine = '大運流年:資料不足,暫無法概覽。';
+  }
+
+  const overviewLines = [coreLine, careerLine, wealthLine, loveLine, healthLine, familyLine, luckLine];
+  sections.unshift({ title: '全盤概覽', text: overviewLines.join(' ') });
 
   return { sections, text: sections.map((s) => `【${s.title}】\n${s.text}`).join('\n\n') };
 }

@@ -9,6 +9,7 @@ import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
+import { formatChartForAI } from './engines/format-ai.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 
@@ -43,11 +44,15 @@ const state = {
   chartTab: 'ziwei', // 手機版:命盤總覽一次只顯示一張卡
   cal: 'solar',
   gender: 'female',
+  readingMode: 'public', // 'public'(大眾版,預設)| 'study'(學習版):控制解讀文字要不要附上亮度/四化/十神/五行的完整依據
   selectedPalace: '命宮',
   limitIdx: 0,
   yearIdx: 0,
   expandedZiwei: 'ming',
   expandedBazi: 'zhu',
+  // 命盤解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
+  // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
+  expandedComprehensiveDetails: new Set(),
   data: null, // { name, input, ziWei, baZi, readings, elements, zwLuck, bzLuck, tenGods, byBranch }
 };
 
@@ -68,16 +73,13 @@ function computeAll() {
 
   const ziWei = convertToZiWei(input);
   const baZi = convertToBaZi(input);
-  const readings = composeChartReading(ziWei);
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
 
   state.data = {
-    name, input, ziWei, baZi, readings, byBranch,
-    elements: composeElementAnalysis(baZi.fiveElementDistribution),
-    zwLuck: composeZiWeiLuck(ziWei),
-    bzLuck: composeBaZiLuck(baZi),
-    tenGods: composeBaZiReading(baZi),
+    name, input, ziWei, baZi, byBranch,
+    elements: composeElementAnalysis(baZi.fiveElementDistribution), // 兩版本共用同一份,顯示時再依mode選summary/text
   };
+  applyReadingMode();
 
   // 預設選中「現行」大限與流年
   const nowYear = new Date().getFullYear();
@@ -92,6 +94,19 @@ function computeAll() {
   return true;
 }
 
+// 依目前 state.readingMode 重新組裝所有「會受大眾版/學習版影響」的解讀資料。
+// 排盤完成後呼叫一次;之後使用者切換大眾版/學習版開關時,不用重新排盤,只要重跑這個函式再重繪畫面。
+function applyReadingMode() {
+  const { ziWei, baZi } = state.data;
+  const mode = state.readingMode;
+  Object.assign(state.data, {
+    readings: composeChartReading(ziWei, { mode }),
+    zwLuck: composeZiWeiLuck(ziWei, { mode }),
+    bzLuck: composeBaZiLuck(baZi, { mode }),
+    tenGods: composeBaZiReading(baZi, { mode }),
+  });
+}
+
 const readingOf = (palaceName) =>
   state.data.readings.palaces.find((p) => p.palaceName === palaceName);
 
@@ -99,6 +114,8 @@ const readingOf = (palaceName) =>
 function renderHead() {
   const { name, input, ziWei, baZi } = state.data;
   $('#page-title').textContent = `${name}　的命盤`;
+  $('#copy-ai-btn').hidden = false;
+  $('#reading-mode-toggle').hidden = false;
   const lunar = Solar.fromYmd(input.year, input.month, input.day).getLunar();
   const shichen = SHICHEN.find((s) => s.hour === input.hour);
   $('#birth-summary').textContent =
@@ -285,7 +302,7 @@ function reportItems() {
   const dayEntries = tenGods.entries.filter((e) => e.pillar === '日柱').map((e) => e.text).join('\n');
   const bazi = [
     { key: 'zhu', color: 'var(--gold)', letter: '主', title: '日主分析', text: [tenGods.dayMaster, dayEntries].filter(Boolean).join('\n') },
-    { key: 'xiji', color: 'var(--red)', letter: '喜', title: '五行喜忌', text: elements.text },
+    { key: 'xiji', color: 'var(--red)', letter: '喜', title: '五行喜忌', text: state.readingMode === 'study' ? elements.text : elements.summary },
     { key: 'shishen', color: 'var(--gold)', letter: '神', title: '十神配置', text: tenGods.entries.map((e) => e.text).join('\n') },
     { key: 'dayun', color: 'var(--red)', letter: '運', title: '大運概況', text: [bzLuck.decadal?.text, bzLuck.annual?.text].filter(Boolean).join('\n\n') },
   ];
@@ -334,24 +351,45 @@ function renderReport() {
 }
 
 // ---------- 分頁:命盤解析(綜合報告) ----------
+// 命盤解析(綜合報告)裡屬於補充細節、預設收合的段落標題(點開才展開,避免一次全部展開資訊過載)
+const COLLAPSIBLE_DETAIL_TITLES = new Set(['四、地支關係', '五、神煞']);
+
 function renderComprehensive() {
   const { ziWei, baZi } = state.data;
-  const zw = generateZiweiComprehensiveReading(ziWei);
-  const bz = generateBaziComprehensiveReading(baZi);
+  const mode = state.readingMode;
+  const zw = generateZiweiComprehensiveReading(ziWei, { mode });
+  const bz = generateBaziComprehensiveReading(baZi, { mode });
 
   const block = (label, sections) => `
     <div class="report-intro" style="margin-bottom:8px">${esc(label)}</div>
-    <div class="accordion">${sections.map((s) => `
-      <div class="acc-item open">
-        <div class="acc-row"><div class="acc-title">${esc(s.title)}</div></div>
-        <div class="acc-body">${esc(s.text)}</div>
-      </div>`).join('')}
+    <div class="accordion">${sections.map((s) => {
+      const collapsible = COLLAPSIBLE_DETAIL_TITLES.has(s.title);
+      const open = !collapsible || state.expandedComprehensiveDetails.has(s.title);
+      return `
+      <div class="acc-item${open ? ' open' : ''}">
+        ${collapsible
+          ? `<button type="button" class="acc-row" data-detail="${esc(s.title)}">
+              <div class="acc-title">${esc(s.title)}<span class="acc-subtle">(補充細節,點開查看)</span></div>
+              <div class="acc-chevron">›</div>
+            </button>`
+          : `<div class="acc-row"><div class="acc-title">${esc(s.title)}</div></div>`}
+        ${open ? `<div class="acc-body">${esc(s.text)}</div>` : ''}
+      </div>`;
+    }).join('')}
     </div>`;
 
   $('#view-comprehensive').innerHTML =
     block('紫微斗數・綜合解析', zw.sections) +
     '<div style="height:20px"></div>' +
     block('八字・綜合解析', bz.sections);
+
+  $$('#view-comprehensive .acc-row[data-detail]').forEach((row) =>
+    row.addEventListener('click', () => {
+      const title = row.dataset.detail;
+      if (state.expandedComprehensiveDetails.has(title)) state.expandedComprehensiveDetails.delete(title);
+      else state.expandedComprehensiveDetails.add(title);
+      renderComprehensive();
+    }));
 }
 
 // ---------- 分頁三:分享命卡 ----------
@@ -471,14 +509,17 @@ function renderEmpty() {
     <p class="welcome-text muted">所有計算皆在你的瀏覽器內完成,生辰資料不會上傳到任何伺服器。</p>
   </div>`;
   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
+  $('#copy-ai-btn').hidden = true;
+  $('#reading-mode-toggle').hidden = true;
 }
 
 // ---------- 初始化 ----------
 function setupControls() {
-  // 時辰選單(預設未時)
+  // 時辰選單(預設子時,列表第一個選項,避免下拉選單一開始就停在中間某個時辰,
+  // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選,這裡只是給一個不易混淆的起始值)
   $('#birth-hour').innerHTML = SHICHEN
     .map((s) => `<option value="${s.hour}">${s.label}</option>`).join('');
-  $('#birth-hour').value = '13';
+  $('#birth-hour').value = '0';
 
   // 藥丸切換
   for (const [id, key] of [['#cal-toggle', 'cal'], ['#gender-toggle', 'gender']]) {
@@ -491,6 +532,27 @@ function setupControls() {
   }
 
   $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+
+  $('#reading-mode-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('.mode-pill');
+    if (!btn || !state.data) return;
+    state.readingMode = btn.dataset.mode;
+    $$('#reading-mode-toggle .mode-pill').forEach((p) => p.classList.toggle('active', p === btn));
+    applyReadingMode();
+    renderAll();
+  });
+
+  $('#copy-ai-btn').addEventListener('click', async () => {
+    if (!state.data) return;
+    const { input, ziWei, baZi } = state.data;
+    const text = formatChartForAI({ input, ziWei, baZi });
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('已複製，可以貼給AI解讀了');
+    } catch {
+      toast('複製失敗，請確認瀏覽器剪貼簿權限');
+    }
+  });
 
   $('#birth-form').addEventListener('submit', (e) => {
     e.preventDefault();

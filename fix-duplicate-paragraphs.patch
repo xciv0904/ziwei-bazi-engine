@@ -1,0 +1,1091 @@
+diff --git a/index.html b/index.html
+index 60f4395..bd8e4e0 100644
+--- a/index.html
++++ b/index.html
+@@ -71,6 +71,9 @@
+         <section id="view-share" hidden></section>
+       </main>
+     </div>
++    <button id="copy-ai-btn" class="copy-ai-btn" type="button" hidden>
++      <span class="copy-ai-icon">AI</span>複製給AI解讀
++    </button>
+     <div id="toast" class="toast" hidden></div>
+     <script type="module" src="/src/main.js"></script>
+   </body>
+diff --git a/src/data/bazi-comprehensive-reading.json b/src/data/bazi-comprehensive-reading.json
+index 7ac67e3..b5925a3 100644
+--- a/src/data/bazi-comprehensive-reading.json
++++ b/src/data/bazi-comprehensive-reading.json
+@@ -1,16 +1,14 @@
+ {
+   "說明": "八字的綜合解析比紫微單純,因為沒有12宮跟雙星組合問題,主要是把四柱十神、五行分佈、大運流年整合成一份敘事報告。分3段:個性本質、財官流向、人際健康與行動建議。",
+-
+   "第1段_個性本質": {
+     "組裝順序": "日主(乙/木)特質 + 年柱十神(先天底蘊) + 月柱十神(成長環境) + 日支十神(自身核心)",
+     "連接句模板": [
+       "從日主{日主}來看,{日主基本特質}",
+-      "年柱顯示{年干十神},{年干十神核心解釋},這反映出你早年的家庭背景與根基。",
+-      "月柱顯示{月干十神},{月干十神核心解釋},影響了你成長過程中的處世態度。",
+-      "日支(代表自身與配偶宮位)顯示{日支十神},{日支十神核心解釋}。"
++      "年柱顯示{年干十神},{年干十神核心解釋}這反映出你早年的家庭背景與根基。",
++      "月柱顯示{月干十神},{月干十神核心解釋}影響了你成長過程中的處世態度。",
++      "日支(代表自身與配偶宮位)顯示{日支十神},{日支十神核心解釋}"
+     ]
+   },
+-
+   "第2段_財官流向": {
+     "組裝順序": "掃描四柱中出現的財星(正財/偏財)與官殺星(正官/七殺),依出現位置串接",
+     "連接句模板": [
+@@ -21,21 +19,19 @@
+     "無財星時": "命局中財星未在四柱天干或地支主氣中顯現,財運需多留意藏干或大運流年是否引動財星。",
+     "無官殺時": "命局中官殺星未在四柱天干或地支主氣中顯現,事業發展較不受外在框架約束,適合走自主性高的路線。"
+   },
+-
+   "第3段_人際健康與行動建議": {
+-    "組裝順序": "掃描地支關係(六合/六害/刑沖等)+ 當前大運類別(來自luck-cycle-overlays.json的八字大運流年類別疊加)",
++    "組裝順序": "掃描地支關係(六合/六害/刑沖等)+ 當前大運類別與流年類別的合併/對比疊加句(修正版:改用luck-cycle-overlays.json的『組裝判斷邏輯』,由compose-luck.js的composeBaZiCycleOverlay()統一產生,先比對大運類別與流年類別是否相同,相同時合併成一段、不同時用對比句銜接,避免各自完整輸出造成重複段落)",
+     "連接句模板": [
+-      "從地支關係來看,{地支關係列表摘要},這些關係會影響你與他人相處時的細膩互動模式。",
+-      "目前走的大運為{大運干支}({起訖年齡}),屬於{大運類別},{大運類別解讀}",
+-      "今年({西元年}年,{流年干支}年)流年屬於{流年類別},{流年類別解讀}"
++      "從地支關係來看,{地支關係列表摘要},這些關係會影響你與他人相處時的細膩互動模式。"
+     ],
+-    "結尾行動建議句": "綜合來看,建議把握{有利類別}帶來的機會,同時對{需留意類別}保持謹慎與彈性。"
++    "結尾行動建議句": "綜合來看,建議把握{有利類別}帶來的機會,同時對{需留意類別}保持謹慎與彈性。",
++    "大運流年疊加句": "此段落不再用固定模板拼接,改由compose-luck.js的composeBaZiCycleOverlay()依luck-cycle-overlays.json『八字大運流年類別疊加』裡的『組裝判斷邏輯』動態產生(合併版/對比版/僅流年版三選一),詳見該檔案的說明與範例。",
++    "結尾行動建議句_大運流年類別相同時": "綜合來看,這段期間{有利類別}的際遇格外集中,建議積極把握發揮的機會,但也別忽略物極必反、過猶不及的風險。"
+   },
+-
+   "套用範例": {
+     "說明": "以Shelly八字為例(日主乙木,壬午/戊申/乙亥/癸未)",
+     "第1段範例": "從日主乙(木)來看,個性溫和而有韌性,像藤蔓般懂得順勢生長。年柱顯示正印,代表庇蔭與長輩緣,反映出你早年的家庭背景較有支持與照顧。月柱顯示正財,代表務實勤奮的價值觀,影響了你成長過程中重視穩定收入的處世態度。日支顯示正印,代表你自身核心與配偶緣分中,也帶有庇蔭與被照顧的特質。",
+     "第2段範例": "財運方面,月柱顯示正財,代表穩定的財富與務實的價值觀,個性勤奮踏實,重視透過努力累積資源。事業與名譽方面,月支藏干顯示正官,代表原則、責任與名譽,個性正直守規矩,重視社會地位與他人的肯定。五行分佈上,命局中水偏多,木、火、金相對偏少,整體來說個性上會比較偏向智慧靈活、善於應變,但在成長行動力與熱情表達的部分可以透過後天培養來補強。",
+     "第3段範例": "從地支關係來看,年支與時支六合(午未),月支與日支相害(申亥),這些關係會影響你與家人、伴侶之間的細膩互動模式。目前走的大運為丙午(19~28歲),屬於財運類別,這段期間財運機會增加,務實努力或人脈手腕都容易帶來實質收穫。今年(2026年,丙午年)流年屬於財運類別,建議把握財運帶來的機會,同時對人際往來中的財務糾葛保持謹慎。"
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/data/comprehensive-reading-assembly.json b/src/data/comprehensive-reading-assembly.json
+index 6bb0879..843e776 100644
+--- a/src/data/comprehensive-reading-assembly.json
++++ b/src/data/comprehensive-reading-assembly.json
+@@ -1,6 +1,5 @@
+ {
+   "說明": "此檔案提供5段式命盤綜合解析報告的組裝素材。組裝邏輯:抓對應宮位的星曜解釋(來自palace-star-meanings.json等)-> 用本檔案的連接句串接 -> 依實際出現的四化比對條件式建議句庫,生成第5段。",
+-
+   "第1段_性格才華": {
+     "組裝順序": "命宮解釋(或空宮借星規則) + 連接句 + 身宮解釋",
+     "連接句模板": [
+@@ -9,9 +8,9 @@
+       "命身兩宮合看,可以說是{命宮解釋}的底色,再加上{身宮解釋}的人生課題與際遇重心。"
+     ],
+     "命宮有主星時開頭": "從命宮來看,",
+-    "命宮空宮時開頭": "命宮無主星,需借對宮遷移宮的星曜來看個性特質,"
++    "命宮空宮時開頭": "命宮無主星,需借對宮遷移宮的星曜來看個性特質,",
++    "身宮與命宮同宮時": "而你的身宮剛好與命宮同宮,不需要再另外分開描述——這代表你的本命性格與內在真正在意、投入心力的人生課題高度疊合,{命宮解釋}不只是表面個性,更是你一生實際會去實踐與追求的方向。"
+   },
+-
+   "第2段_事業金錢": {
+     "組裝順序": "官祿宮 -> 財帛宮 -> 福德宮 -> 田宅宮,四宮依序串接",
+     "連接句模板": [
+@@ -27,7 +26,6 @@
+       "差異大時": "呈現出不同的面貌,顯示你可能需要在『擅長的事』與『賺錢的方式』之間找到平衡點。"
+     }
+   },
+-
+   "第3段_戀愛婚姻": {
+     "組裝順序": "夫妻宮解釋 + 四化疊加(若有)",
+     "連接句模板": [
+@@ -36,7 +34,6 @@
+     ],
+     "無四化時結尾句": "整體來說,這是這個宮位單純呈現出的感情基調,實際狀況仍會隨大限流年而變化。"
+   },
+-
+   "第4段_健康家庭人際": {
+     "組裝順序": "疾厄宮 -> 父母宮 -> 田宅宮(重複引用,聚焦居住與家庭氣氛角度)-> 交友宮",
+     "連接句模板": [
+@@ -46,13 +43,11 @@
+       "人際交友上,交友宮呈現{交友宮解釋}"
+     ]
+   },
+-
+   "第5段_行動建議": {
+     "組裝方式": "掃描全部12宮的四化(化祿/化權/化科/化忌),每個觸發對應一條建議句,最後彙整成一段",
+     "開頭句": "綜合以上,以下是可以留意的重點:",
+     "結尾句": "掌握有利的流向、留意需要調整的模式,是這段時間可以著力的方向。"
+   },
+-
+   "條件式建議句庫": {
+     "說明": "依四化出現的宮位觸發對應建議,key格式為『四化類型_宮位』",
+     "化祿_財帛宮": "財帛宮化祿,財運有順遂加分的跡象,適合積極把握眼前的賺錢機會。",
+@@ -69,4 +64,4 @@
+     "化忌_疾厄宮": "疾厄宮化忌,健康方面需要多留意保養,建議定期檢查、避免過度勞累。",
+     "化忌_命宮": "命宮化忌,這段時間個人狀態容易感到糾結或阻礙,建議多給自己一些調整與沉澱的空間。"
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/data/five-element-analysis.json b/src/data/five-element-analysis.json
+index 6540dae..2e79d6e 100644
+--- a/src/data/five-element-analysis.json
++++ b/src/data/five-element-analysis.json
+@@ -1,5 +1,6 @@
+ {
+-  "說明": "此表用於分析八字四柱(含藏干)統計出的五行分佈數量,判斷整體格局的旺缺與平衡建議。組裝邏輯:算出五行數量 -> 依旺缺判斷邏輯分類每個五行 -> 套用五行基本特質 -> 用整體平衡建議模板組成總結句。",
++  "說明": "修正版:取消『過旺/適中/偏弱』套用同一句通用模板、只換五行名稱的做法,改成每個五行各自獨立、具體的描述。組裝邏輯:算出五行數量 -> 依旺缺門檻分類每個五行 -> 套用該五行對應狀態的專屬描述 -> 用整體平衡建議模板組成開頭總結句。「五行基本特質」保留給日主基本特質等『不分數量、單純描述該五行本質』的場合使用,與『五行狀態描述』(依數量多寡而不同)是兩組不同用途的文字,不要混用。",
++
+   "五行基本特質": {
+     "木": "代表成長、仁慈與規劃力,五行屬木旺的人通常有理想抱負,行動力強,喜歡不斷成長突破。",
+     "火": "代表熱情、表達與行動力,五行屬火旺的人通常個性直率熱情,善於表現自己,行動迅速。",
+@@ -7,31 +8,51 @@
+     "金": "代表原則、決斷與義氣,五行屬金旺的人通常個性剛毅果斷,重視是非對錯,行事講求效率。",
+     "水": "代表智慧、彈性與人際,五行屬水旺的人通常思維靈活,善於應變,人際手腕圓融但情緒也較敏感。"
+   },
+-  "旺缺判斷邏輯": {
+-    "說明": "依五行分佈數量(通常以四柱天干地支加藏干計算,總數約8-10顆)判斷該五行是過旺、適中還是偏弱。",
+-    "過旺": {
+-      "門檻": "數量4以上",
+-      "解讀": "此五行的特質會非常鮮明主導整體個性,但也可能因為過於集中而顯得極端或缺乏彈性,建議留意調節、避免走極端。"
++
++  "五行狀態描述": {
++    "木": {
++      "過旺": "行動力與企圖心旺盛,想法多、也勇於開創,但也可能因為想同時做太多事而缺乏聚焦,容易半途而廢或顯得急躁。",
++      "適中": "成長動力與規劃能力穩定發揮,做事有方向感又不至於躁進。",
++      "偏弱": "遇到需要主動出擊、開創新局的情境時,容易猶豫不決、缺乏行動的推力,做決定前想比較久,也比較沒有『先做再說』的衝勁,可以透過設定明確的小目標、逼自己動手開始,來練習提升行動力。"
+     },
+-    "適中": {
+-      "門檻": "數量2-3",
+-      "解讀": "此五行的特質穩定發揮,是命局中健康均衡的一部分。"
++    "火": {
++      "過旺": "熱情外顯、表達欲強,行動速度快、感染力足,但也容易衝動行事,情緒來得快去得也快,容易顯得急躁或不耐煩。",
++      "適中": "熱情與表達能力穩定發揮,能適度展現自己又不至於過度張揚。",
++      "偏弱": "在需要主動表達、展現熱情或即時反應的場合,容易顯得含蓄、慢熱,情緒感染力較弱,別人不容易第一時間感受到你的熱忱,可以透過練習公開表達、增加社交曝光度來補強這一塊。"
+     },
+-    "偏弱": {
+-      "門檻": "數量0-1",
+-      "解讀": "此五行的特質在個性或人生際遇中較不明顯,也可能是需要後天補強或留意的生命課題,例如透過職業選擇、生活習慣或方位來調節補強。"
++    "土": {
++      "過旺": "穩重踏實、重視誠信,但也可能過於保守固執,不容易變通,對新事物或改變的接受度較低。",
++      "適中": "穩重與包容力穩定發揮,做事可靠又不失彈性。",
++      "偏弱": "在需要穩定承擔、長期堅持的事務上,可能比較沒有耐性撐到底,容易半途轉換方向,也比較缺乏『腳踏實地慢慢累積』的耐心,可以透過培養固定的生活習慣、練習把一件事做到完整收尾,來補強這一塊。"
++    },
++    "金": {
++      "過旺": "原則性強、決斷果決,是非分明,但也可能過於剛硬、不留餘地,人際互動上容易顯得強勢或難以妥協。",
++      "適中": "決斷力與原則感穩定發揮,做事有效率又能保留彈性。",
++      "偏弱": "遇到需要明快決斷、堅持原則或劃清界線的情境時,容易猶豫、心軟,不容易拒絕別人,也比較容易在該堅持立場時退讓,可以透過練習明確表達界線、減少過度考慮他人感受來補強這一塊。"
++    },
++    "水": {
++      "過旺": "思維靈活、善於應變,人際手腕圓融,但也容易想太多、情緒起伏較大,遇事容易多慮而拖延決定。",
++      "適中": "智慧與應變能力穩定發揮,善於溝通又不至於過度算計。",
++      "偏弱": "在需要靈活應變、察言觀色的場合,反應可能比較直接、不夠圓融,不容易第一時間讀懂弦外之音,人際互動上少了點緩衝的彈性,可以透過多觀察他人反應、練習換位思考來補強這一塊。"
+     }
+   },
+-  "整體平衡建議模板": "從五行分佈來看,命局中{過旺元素列表}偏多,{偏弱元素列表}偏少,整體來說個性上會比較偏向{過旺元素的特質關鍵字},在{偏弱元素相關領域}的部分,可以透過後天培養來補強、達到更好的平衡。",
+-  "範例套用": {
++
++  "旺缺門檻": {
++    "過旺": "數量4以上",
++    "適中": "數量2-3",
++    "偏弱": "數量0-1"
++  },
++
++  "整體平衡建議模板": "從五行分佈來看,命局中{過旺元素列表}偏多,{偏弱元素列表}偏少。",
++
++  "組裝方式": [
++    "1. 算出五行數量,依旺缺門檻分類每個五行",
++    "2. 每個五行套用『五行狀態描述』裡對應狀態的具體句子(不是通用模板,是各自獨立的內容)",
++    "3. 過旺跟偏弱的五行才需要輸出說明句,適中的可以簡短帶過或省略,避免報告過長重複"
++  ],
++
++  "修正後範例套用": {
+     "說明": "以Shelly的命盤為例(木1 火1 土2 金1 水3)",
+-    "分類結果": {
+-      "水": "過旺(3顆,接近門檻但屬適中偏高,可視為此命局中最鮮明的元素)",
+-      "土": "適中(2顆)",
+-      "木": "偏弱(1顆)",
+-      "火": "偏弱(1顆)",
+-      "金": "偏弱(1顆)"
+-    },
+-    "生成範例句": "從五行分佈來看,命局中水偏多,木、火、金相對偏少,整體來說個性上會比較偏向智慧靈活、善於應變與人際手腕圓融,但也要留意情緒容易敏感起伏。在成長行動力(木)、熱情表達(火)、決斷原則(金)的部分,可以透過後天培養來補強、達到更好的平衡。"
++    "生成範例句": "從五行分佈來看,命局中水偏多,木、火、金相對偏少。水偏多的部分,思維靈活、善於應變,人際手腕圓融,但也容易想太多、情緒起伏較大,遇事容易多慮而拖延決定。木偏弱的部分,遇到需要主動出擊、開創新局的情境時,容易猶豫不決、缺乏行動的推力,可以透過設定明確的小目標來練習提升行動力。火偏弱的部分,在需要主動表達、展現熱情的場合容易顯得含蓄慢熱,可以透過練習公開表達來補強。金偏弱的部分,遇到需要明快決斷或劃清界線的情境時容易猶豫心軟,可以透過練習明確表達界線來補強。"
+   }
+ }
+diff --git a/src/data/luck-cycle-overlays.json b/src/data/luck-cycle-overlays.json
+index de68ddf..4bc3e2e 100644
+--- a/src/data/luck-cycle-overlays.json
++++ b/src/data/luck-cycle-overlays.json
+@@ -7,7 +7,7 @@
+     "流年結尾句": "流年是短期的運勢焦點,建議把握這一年在{宮位名稱}相關領域上出現的機會或課題。"
+   },
+   "八字大運流年類別疊加": {
+-    "說明": "把十神分成五大類別,套用在大運或流年的干支上(取該干支天干對日主的十神關係)。組裝邏輯:算出大運/流年天干對日主的十神 -> 判斷屬於哪個類別 -> 套用對應的類別解讀,可與ten-gods-meanings.json的單一十神解釋並用,類別解讀提供宏觀走向,單一十神解釋提供細節。",
++    "說明": "修正版:原本問題是當大運類別與流年類別相同時(例如都是食傷運),兩段各自套用完整的類別解讀文字,導致內容一模一樣,讀者容易誤以為是系統錯誤。組裝邏輯:算出大運/流年天干對日主的十神 -> 判斷屬於哪個類別 -> 先比對大運類別與流年類別是否相同 -> 相同時合併成一段並點出『疊加強化』的意義,不同時維持分開兩段但用對比句型銜接。",
+     "類別對應": {
+       "比劫運": ["比肩", "劫財"],
+       "食傷運": ["食神", "傷官"],
+@@ -22,7 +22,24 @@
+       "官殺運": "這段期間責任與壓力感較重,可能面臨工作、地位或人際上的挑戰與考驗,也是建立名譽地位的關鍵時期。",
+       "印運": "這段期間學習、進修或貴人運勢較旺,適合充實自己、累積內在實力,也容易得到長輩或師長的提攜。"
+     },
+-    "大運開頭句模板": "這十年大運走{干支}({startAge}歲至{endAge}歲),屬於{類別名稱},",
+-    "流年開頭句模板": "今年({西元年}年,{干支}年)流年屬於{類別名稱},"
++    "組裝判斷邏輯": {
++      "說明": "先分別算出大運類別與流年類別,再比對是否相同,決定要輸出『合併版』還是『分開版』",
++      "類別相同時": {
++        "說明": "只講一次完整類別解讀,並加一句『疊加強化』的提醒,把『重複』轉化成『這是重要訊號』的正面意義",
++        "模板": "這十年大運走{大運干支}({起始歲}歲至{結束歲}歲),今年({西元年}年,{流年干支}年)的流年也剛好落在同一個類別——{類別名稱},{類別解讀}由於大運與流年方向一致,這段期間{類別名稱}相關的際遇會格外集中且明顯,是特別值得把握或留意的一年。"
++      },
++      "類別不同時": {
++        "說明": "維持原本分開兩段,但用對比句型帶出兩者的差異,增加層次感,而非各自平鋪直述",
++        "模板": "這十年大運走{大運干支}({起始歲}歲至{結束歲}歲),屬於{大運類別},{大運類別解讀}不過今年({西元年}年,{流年干支}年)的流年則轉向{流年類別}的氛圍,{流年類別解讀}兩相對照,長期的大方向與這一年的短期焦點不完全相同,建議兼顧兩者步調。"
++      },
++      "僅有流年無大運時": {
++        "說明": "找不到對應大運週期時(例如超出排盤範圍),只輸出流年單獨一段",
++        "模板": "今年({西元年}年,{流年干支}年)流年屬於{類別名稱},{類別解讀}"
++      }
++    },
++    "套用範例": {
++      "說明": "以Shelly為例修正後的結果(大運丙午19-28歲屬食傷運,流年2026丙午年也屬食傷運,類別相同)",
++      "修正後生成句": "這十年大運走丙午(19歲至28歲),今年(2026年,丙午年)的流年也剛好落在同一個類別——食傷運,這段期間才華與創意特別容易展現,表達欲增強,適合發展創作、學習或個人專長,但也要留意言行鋒芒過露,或與權威產生摩擦。由於大運與流年方向一致,這段期間食傷運相關的際遇會格外集中且明顯,是特別值得把握或留意的一年。"
++    }
+   }
+ }
+diff --git a/src/data/ten-gods-meanings.json b/src/data/ten-gods-meanings.json
+index cd5b17a..749cb01 100644
+--- a/src/data/ten-gods-meanings.json
++++ b/src/data/ten-gods-meanings.json
+@@ -1,5 +1,6 @@
+ {
+-  "說明": "十神解讀分兩層:core為該十神的核心特質,pillarModifier依出現在年/月/日/時哪一柱做語意修飾。組裝邏輯:抓該柱的十神 → 套用core → 疊加對應柱位的pillarModifier。",
++  "說明": "修正版:原本天干十神跟地支十神各自套用一次完整的『柱位修飾』,導致同一柱裡背景說明重複出現兩次。改成以柱為單位輸出,天干與地支的十神合併成一句話,柱位背景說明只講一次。「十神核心意義」(含完整core句)保留給使用者點開細節時才顯示;平常組裝報告只用「十神短語」的精簡版本,避免長句重複堆疊。",
++
+   "十神核心意義": {
+     "比肩": {
+       "core": "代表自我、同輩與競爭,個性獨立自主,重視公平對等的關係,不喜歡被人壓過一頭。",
+@@ -42,10 +43,48 @@
+       "keywords": ["獨特", "鑽研", "疏離感", "偏門專長"]
+     }
+   },
+-  "柱位修飾": {
+-    "年柱": "這個特質與祖上根基、早年成長環境及家族背景有關,影響你早年的性格養成。",
+-    "月柱": "這個特質與父母緣分、青壯年發展及原生家庭的互動模式有關,也常反映你的處世態度。",
+-    "日柱": "這個特質與你自身核心性格及配偶緣分關係最直接,是命局中最貼近『你自己』的部分。",
+-    "時柱": "這個特質與子女緣分、晚年發展及人生後半段的際遇有關,也反映你內心深處的追求。"
++
++  "十神短語": {
++    "說明": "精簡版,只取核心特質關鍵詞,用於組裝合併句,避免重複使用完整長句",
++    "比肩": "自主獨立、重視公平對等",
++    "劫財": "行動衝勁、易因義氣破財",
++    "食神": "才華洋溢、溫和樂觀",
++    "傷官": "聰明有主見、不喜受拘束",
++    "正財": "務實勤奮、重視穩定累積",
++    "偏財": "靈活變通、人緣手腕佳",
++    "正官": "正直守分、重視名譽責任",
++    "七殺": "剛強果斷、行動力強但壓力感重",
++    "正印": "溫和有涵養、易得長輩庇蔭",
++    "偏印": "獨特專注、想法獨到但略顯疏離"
++  },
++
++  "柱位背景句": {
++    "年柱": "反映你早年的家庭背景與根基",
++    "月柱": "影響你成長過程中的處世態度與原生家庭互動模式",
++    "日柱": "與你自身核心性格及配偶緣分關係最直接,是命局中最貼近『你自己』的部分",
++    "時柱": "與子女緣分、晚年發展及人生後半段的際遇有關,也反映你內心深處的追求"
++  },
++
++  "合併句組裝模板": {
++    "天干十神與地支十神不同時": "{柱位}天干為{天干十神},帶有{天干短語}的特質;地支本氣為{地支十神},則透露{地支短語}的一面,兩者合看,{柱位背景句}。",
++    "天干十神與地支十神相同時": "{柱位}天干與地支本氣皆為{十神},{十神短語}的特質格外鮮明,{柱位背景句}。",
++    "日柱天干為日主時": "{柱位}天干為日主({日主}本身),地支本氣為{地支十神},透露{地支短語}的特質,{柱位背景句}。"
++  },
++
++  "組裝流程": [
++    "1. 取得該柱的天干十神與地支十神(來自baZi.tenGods資料)",
++    "2. 若該柱天干為日主本身(日柱天干無十神),套用『日柱天干為日主時』模板,只描述地支本氣一次",
++    "3. 若天干與地支十神不同,套用『天干十神與地支十神不同時』模板,分別代入各自的短語(來自十神短語表,不是完整core句),柱位背景句只出現一次",
++    "4. 若天干與地支十神相同(較少見但可能發生),套用『相同時』模板,避免重複講兩次一樣的特質",
++    "5. 四柱(年月日時)各自組裝一句,合起來就是完整的第1段個性本質內容",
++    "6. 若需要更詳細的單一十神解釋(例如使用者點開細節),才使用『十神核心意義』裡的完整core句,平常組裝報告時只用短語版本,避免長句重複堆疊"
++  ],
++
++  "套用範例": {
++    "說明": "以Shelly八字為例(年壬午/月戊申/日乙亥/時癸未)",
++    "年柱": "年柱天干為正印,帶有溫和有涵養、易得長輩庇蔭的特質;地支本氣為食神,則透露才華洋溢、溫和樂觀的一面,兩者合看,反映你早年的家庭背景與根基。",
++    "月柱": "月柱天干為正財,帶有務實勤奮、重視穩定累積的特質;地支本氣為正官,則透露正直守分、重視名譽責任的一面,兩者合看,影響你成長過程中的處世態度與原生家庭互動模式。",
++    "日柱": "日柱天干為日主(乙木本身),地支本氣為正印,透露溫和有涵養、易得長輩庇蔭的特質,與你自身核心性格及配偶緣分關係最直接,是命局中最貼近『你自己』的部分。",
++    "時柱": "時柱天干為偏印,帶有獨特專注、想法獨到但略顯疏離的特質;地支本氣為偏財,則透露靈活變通、人緣手腕佳的一面,兩者合看,與子女緣分、晚年發展及人生後半段的際遇有關,也反映你內心深處的追求。"
+   }
+ }
+diff --git a/src/engines/compose-bazi.js b/src/engines/compose-bazi.js
+index a3a030b..78dd3d9 100644
+--- a/src/engines/compose-bazi.js
++++ b/src/engines/compose-bazi.js
+@@ -1,51 +1,75 @@
+ // src/engines/compose-bazi.js — 八字十神解讀組裝引擎
+-// 組裝邏輯(照 ten-gods-meanings.json 的說明):
+-//   抓該柱的十神 → 套用 core → 疊加對應柱位的 pillarModifier
++// 組裝邏輯(照 ten-gods-meanings.json 修正版):
++//   以「柱」為單位輸出(年柱/月柱/日柱/時柱各一段),天干十神與地支十神合併成一句,
++//   柱位背景說明只講一次,避免天干、地支各自套用一次完整柱位背景造成重複。
+ import db from '../data/ten-gods-meanings.json' with { type: 'json' };
+ 
+-const CORE = db['十神核心意義'];
+-const PILLAR_MODIFIER = db['柱位修飾'];
++const PHRASE = db['十神短語'];
++const PILLAR_BG = db['柱位背景句'];
+ 
+ const PILLARS = [
+-  { key: 'yearPillar', stemKey: 'yearStem', branchKey: 'yearBranch', label: '年柱' },
+-  { key: 'monthPillar', stemKey: 'monthStem', branchKey: 'monthBranch', label: '月柱' },
+-  { key: 'dayPillar', stemKey: 'dayStem', branchKey: 'dayBranch', label: '日柱' },
+-  { key: 'hourPillar', stemKey: 'hourStem', branchKey: 'hourBranch', label: '時柱' },
++  { stemKey: 'yearStem', branchKey: 'yearBranch', label: '年柱' },
++  { stemKey: 'monthStem', branchKey: 'monthBranch', label: '月柱' },
++  { stemKey: 'dayStem', branchKey: 'dayBranch', label: '日柱' },
++  { stemKey: 'hourStem', branchKey: 'hourBranch', label: '時柱' },
+ ];
+ 
+-/** 單一十神在某柱的完整句:core + 柱位修飾 */
+-function composeTenGod(godName, pillarLabel, { position }) {
+-  const meaning = CORE[godName];
+-  if (!meaning) return null;
++/**
++ * 單一柱的合併句:天干十神與地支十神先比對(是否相同/天干是否為日主本身),
++ * 再合併成一句,柱位背景句只附加一次。
++ */
++function composePillar(label, stemGod, branchGod, dayStemLabel) {
++  const bg = PILLAR_BG[label];
++  if (!branchGod && !stemGod) return null;
++
++  // 日柱天干是日主本身,沒有對應十神,只描述地支本氣
++  if (!stemGod || stemGod === '日主') {
++    if (!branchGod) return null;
++    return {
++      pillar: label,
++      gods: [branchGod],
++      text: `${label}天干為日主(${dayStemLabel}本身),地支本氣為${branchGod},透露${PHRASE[branchGod]}的特質,${bg}。`,
++    };
++  }
++
++  // 地支本氣理論上一定存在,若真的缺漏則只描述天干,做容錯
++  if (!branchGod) {
++    return {
++      pillar: label,
++      gods: [stemGod],
++      text: `${label}天干為${stemGod},帶有${PHRASE[stemGod]}的特質,${bg}。`,
++    };
++  }
++
++  // 天干與地支十神相同 → 不要講兩次一樣的特質,合併成一句強調鮮明
++  if (stemGod === branchGod) {
++    return {
++      pillar: label,
++      gods: [stemGod],
++      text: `${label}天干與地支本氣皆為${stemGod},${PHRASE[stemGod]}的特質格外鮮明,${bg}。`,
++    };
++  }
++
++  // 天干與地支十神不同 → 合併成一句,柱位背景句只出現一次
+   return {
+-    pillar: pillarLabel,
+-    position, // '天干' | '地支(本氣)'
+-    god: godName,
+-    keywords: meaning.keywords,
+-    text: `${godName}(${pillarLabel}${position}):${meaning.core} ${PILLAR_MODIFIER[pillarLabel]}`,
++    pillar: label,
++    gods: [stemGod, branchGod],
++    text: `${label}天干為${stemGod},帶有${PHRASE[stemGod]}的特質;地支本氣為${branchGod},則透露${PHRASE[branchGod]}的一面,兩者合看,${bg}。`,
+   };
+ }
+ 
+ /**
+- * 組裝整組四柱的十神解讀
++ * 組裝整組四柱的十神解讀(以柱為單位,每柱一句合併句)
+  * @param {object} baZi  convertToBaZi() 的輸出(用 fourPillars + tenGods)
+- * @returns {{ dayMaster: string, entries: Array, text: string }}
++ * @returns {{ dayMaster: string, entries: Array<{pillar, gods, text}>, text: string }}
+  */
+ export function composeBaZiReading(baZi) {
+   const { fourPillars, tenGods } = baZi;
+   const entries = [];
+ 
+-  for (const { key, stemKey, branchKey, label } of PILLARS) {
+-    const stemGod = tenGods[stemKey];
+-    if (stemGod && stemGod !== '日主') {
+-      const e = composeTenGod(stemGod, label, { position: '天干' });
+-      if (e) entries.push(e);
+-    }
+-    const branchGod = tenGods[branchKey];
+-    if (branchGod) {
+-      const e = composeTenGod(branchGod, label, { position: '地支本氣' });
+-      if (e) entries.push(e);
+-    }
++  for (const { stemKey, branchKey, label } of PILLARS) {
++    const e = composePillar(label, tenGods[stemKey], tenGods[branchKey], fourPillars.dayPillar.stem);
++    if (e) entries.push(e);
+   }
+ 
+   const dayMaster = `日主${fourPillars.dayPillar.stem}(${fourPillars.dayPillar.stem}${fourPillars.dayPillar.branch}日生),全局十神皆以此為基準推算。`;
+diff --git a/src/engines/compose-elements.js b/src/engines/compose-elements.js
+index 323e9b5..7498be9 100644
+--- a/src/engines/compose-elements.js
++++ b/src/engines/compose-elements.js
+@@ -1,22 +1,14 @@
+ // src/engines/compose-elements.js — 五行分佈整體分析
+-// 組裝邏輯(照 five-element-analysis.json):
+-//   算出五行數量 → 依旺缺門檻分類 → 套五行基本特質 → 用平衡建議模板組成總結句
++// 組裝邏輯(照 five-element-analysis.json 修正版):
++//   算出五行數量 → 依旺缺門檻分類 → 每個五行套用「五行狀態描述」裡對應狀態的專屬文字(不是通用模板套名字)
++//   → 用整體平衡建議模板組成開頭總結句 → 只有過旺/偏弱的五行才輸出說明句,適中的簡短帶過
+ import db from '../data/five-element-analysis.json' with { type: 'json' };
+ 
+ const TRAITS = db['五行基本特質'];
+-const LEVELS = db['旺缺判斷邏輯'];
++const STATE_DESC = db['五行狀態描述'];
+ 
+ const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
+ 
+-// 模板需要的短關鍵字(由五行基本特質濃縮,供 {特質關鍵字} 與 {相關領域} 插槽使用)
+-const ELEMENT_KEYWORDS = {
+-  木: { trait: '有理想抱負、行動力強', domain: '成長行動力' },
+-  火: { trait: '直率熱情、善於表現', domain: '熱情表達' },
+-  土: { trait: '穩定可靠、重視誠信', domain: '穩重承擔' },
+-  金: { trait: '剛毅果斷、講求效率', domain: '決斷原則' },
+-  水: { trait: '智慧靈活、善於應變與人際手腕圓融', domain: '智慧應變' },
+-};
+-
+ function levelOf(count) {
+   if (count >= 4) return '過旺';
+   if (count >= 2) return '適中';
+@@ -31,7 +23,7 @@ export function composeElementAnalysis(distribution) {
+   const counts = Object.entries(distribution)
+     .map(([key, count]) => ({ element: ELEMENT_NAME[key], count }));
+ 
+-  // 分類 + 各元素解讀
++  // 分類 + 各元素專屬解讀(每個五行的過旺/適中/偏弱都是各自獨立的文字,不共用通用模板)
+   const classification = {};
+   for (const { element, count } of counts) {
+     const level = levelOf(count);
+@@ -39,7 +31,7 @@ export function composeElementAnalysis(distribution) {
+       count,
+       level,
+       trait: TRAITS[element],
+-      levelNote: LEVELS[level]['解讀'],
++      levelNote: STATE_DESC[element][level],
+     };
+   }
+ 
+@@ -51,13 +43,27 @@ export function composeElementAnalysis(distribution) {
+   }
+   const weak = counts.filter((c) => c.count <= 1).map((c) => c.element);
+ 
+-  // 套用整體平衡建議模板
+-  const summary =
++  // 開頭總結句(短句,不再塞入通用的「特質關鍵字/相關領域」清單,避免跟下面的專屬描述重複)
++  const opener =
+     `從五行分佈來看,命局中${dominant.join('、')}偏多,` +
+-    `${weak.join('、')}相對偏少,` +
+-    `整體來說個性上會比較偏向${dominant.map((e) => ELEMENT_KEYWORDS[e].trait).join(';')},` +
+-    `在${weak.map((e) => `${ELEMENT_KEYWORDS[e].domain}(${e})`).join('、')}的部分,` +
+-    `可以透過後天培養來補強、達到更好的平衡。`;
++    `${weak.join('、')}相對偏少。`;
++
++  // 過旺/偏弱的五行各自接一句專屬描述;適中的不展開,避免報告冗長重複。
++  // 注意:dominant 可能是「真的過旺(數量4+)」,也可能是「沒有元素達到過旺門檻時,
++  // 退回取數量最高者」(例如水3顆,數量上屬適中,但敘事上仍視為此命局最鮮明的元素)。
++  // 不論哪一種情況,只要被列進 dominant,narrative 都要用「過旺」的專屬描述(而非該元素
++  // 實際數量對應的「適中」描述),否則會出現「標示偏多、內文卻寫著適中文字」的矛盾。
++  const dominantSet = new Set(dominant);
++  const highlightLines = [...dominant, ...weak]
++    .filter((el, idx, arr) => arr.indexOf(el) === idx) // 去重(理論上 dominant/weak 不會重疊,保險起見)
++    .map((el) => {
++      const isDominant = dominantSet.has(el);
++      const label = isDominant ? '偏多' : '偏弱';
++      const descLevel = isDominant ? '過旺' : '偏弱';
++      return `${el}${label}的部分,${STATE_DESC[el][descLevel]}`;
++    });
++
++  const summary = [opener, ...highlightLines].join('');
+ 
+   const detailLines = counts.map(({ element, count }) => {
+     const c = classification[element];
+diff --git a/src/engines/compose-luck.js b/src/engines/compose-luck.js
+index 45544fe..59b4882 100644
+--- a/src/engines/compose-luck.js
++++ b/src/engines/compose-luck.js
+@@ -1,12 +1,14 @@
+ // src/engines/compose-luck.js — 大運/流年疊加解讀
+ // 紫微:當前大限(或流年)落在哪一宮 → 套該宮位×主星基礎解釋 → 疊時間框架句
+-// 八字:大運/流年天干對日主的十神 → 歸類五大運別 → 類別解讀(宏觀)+ 單一十神(細節)
++// 八字:大運/流年天干對日主的十神 → 歸類五大運別 → 先比對大運類別與流年類別是否相同
++//       → 相同時合併成一段(避免完整類別解讀重複輸出兩次),不同時用對比句銜接
+ import overlays from '../data/luck-cycle-overlays.json' with { type: 'json' };
+ import tenGodsDb from '../data/ten-gods-meanings.json' with { type: 'json' };
+ import { composePalaceReading } from './compose.js';
+ 
+ const ZW = overlays['紫微大限流年疊加'];
+ const BZ = overlays['八字大運流年類別疊加'];
++const BZ_LOGIC = BZ['組裝判斷邏輯'];
+ 
+ const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+ const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+@@ -36,7 +38,7 @@ export function tenGodOf(dayStem, otherStem) {
+   return same ? '偏印' : '正印'; // 生我
+ }
+ 
+-const categoryOf = (god) =>
++export const categoryOf = (god) =>
+   Object.entries(BZ['類別對應']).find(([, gods]) => gods.includes(god))?.[0] ?? null;
+ 
+ // ---------- 紫微:大限 / 流年 ----------
+@@ -93,58 +95,104 @@ export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().get
+   return { decadal, annual };
+ }
+ 
+-// ---------- 八字:大運 / 流年 ----------
+-function baZiOverlay(ganZhi, openLine) {
+-  const god = ganZhi ? tenGodOf(baZiOverlay.dayStem, ganZhi[0]) : null;
+-  const category = god && categoryOf(god);
+-  if (!category) return null;
+-  const detail = tenGodsDb['十神核心意義'][god];
++// ---------- 八字:大運 / 流年類別疊加(先比對是否重複,再決定合併或對比) ----------
++
++/**
++ * 依大運類別與流年類別是否相同,組出合併版/對比版/僅流年版的疊加文字。
++ * 抽成共用函式,comprehensive.js 的八字第3段也呼叫同一份邏輯,避免兩處各自實作、
++ * 各自忘記做重複檢查。
++ * @param {{ganZhi, ageRange, category, god}|null} decadalInfo
++ * @param {{ganZhi, year, category, god}|null} annualInfo
++ * @returns {{ text: string, merged: boolean }|null}
++ */
++export function composeBaZiCycleOverlay(decadalInfo, annualInfo) {
++  if (!decadalInfo && !annualInfo) return null;
++
++  if (decadalInfo && annualInfo) {
++    const [startAge, endAge] = decadalInfo.ageRange.split('~');
++    if (decadalInfo.category === annualInfo.category) {
++      return {
++        merged: true,
++        text: fill(BZ_LOGIC['類別相同時']['模板'], {
++          大運干支: decadalInfo.ganZhi, 起始歲: startAge, 結束歲: endAge,
++          西元年: annualInfo.year, 流年干支: annualInfo.ganZhi,
++          類別名稱: decadalInfo.category, 類別解讀: BZ['類別解讀'][decadalInfo.category],
++        }),
++      };
++    }
++    return {
++      merged: false,
++      text: fill(BZ_LOGIC['類別不同時']['模板'], {
++        大運干支: decadalInfo.ganZhi, 起始歲: startAge, 結束歲: endAge,
++        大運類別: decadalInfo.category, 大運類別解讀: BZ['類別解讀'][decadalInfo.category],
++        西元年: annualInfo.year, 流年干支: annualInfo.ganZhi,
++        流年類別: annualInfo.category, 流年類別解讀: BZ['類別解讀'][annualInfo.category],
++      }),
++    };
++  }
++
++  if (annualInfo) {
++    return {
++      merged: false,
++      text: fill(BZ_LOGIC['僅有流年無大運時']['模板'], {
++        西元年: annualInfo.year, 流年干支: annualInfo.ganZhi,
++        類別名稱: annualInfo.category, 類別解讀: BZ['類別解讀'][annualInfo.category],
++      }),
++    };
++  }
++
++  // 只有大運沒有流年,理論上不會發生(流年一定存在),保留容錯
++  const [startAge, endAge] = decadalInfo.ageRange.split('~');
+   return {
+-    ganZhi,
+-    tenGod: god,
+-    category,
+-    text: [
+-      openLine + BZ['類別解讀'][category],
+-      `細節上,${god}——${detail.core}`,
+-    ].join('\n'),
++    merged: false,
++    text: `這十年大運走${decadalInfo.ganZhi}(${startAge}歲至${endAge}歲),屬於${decadalInfo.category},${BZ['類別解讀'][decadalInfo.category]}`,
+   };
+ }
+ 
+ /**
+- * 八字大運 + 流年疊加
++ * 八字大運 + 流年疊加(供「解讀報告」大運概況區塊使用)
+  * @param {object} baZi  convertToBaZi() 輸出
+  * @param {object} [opts] { year = 當年 }
+  */
+ export function composeBaZiLuck(baZi, { year = new Date().getFullYear() } = {}) {
+-  baZiOverlay.dayStem = baZi.fourPillars.dayPillar.stem;
++  const dayStem = baZi.fourPillars.dayPillar.stem;
+ 
+-  // 大運:找 year 落在哪個十年
+   const cycle = baZi.greatLuckCycles.find(
+     (c) => year >= c.startYear && year < c.startYear + 10,
+   );
+-  let decadal = null;
++  let decadalInfo = null;
+   if (cycle) {
+-    const [startAge, endAge] = cycle.ageRange.split('~');
+-    decadal = baZiOverlay(
+-      cycle.ganZhi,
+-      fill(BZ['大運開頭句模板'], {
+-        干支: cycle.ganZhi, startAge, endAge,
+-        類別名稱: categoryOf(tenGodOf(baZiOverlay.dayStem, cycle.ganZhi[0])),
+-      }),
+-    );
+-    if (decadal) Object.assign(decadal, { ageRange: cycle.ageRange, startYear: cycle.startYear });
++    const god = tenGodOf(dayStem, cycle.ganZhi[0]);
++    const category = categoryOf(god);
++    if (category) {
++      decadalInfo = { ganZhi: cycle.ganZhi, ageRange: cycle.ageRange, startYear: cycle.startYear, god, category };
++    }
+   }
+ 
+-  // 流年
+   const gz = baZi.annualPillars[year] ?? yearGanZhi(year);
+-  const annual = baZiOverlay(
+-    gz,
+-    fill(BZ['流年開頭句模板'], {
+-      西元年: year, 干支: gz,
+-      類別名稱: categoryOf(tenGodOf(baZiOverlay.dayStem, gz[0])),
+-    }),
+-  );
+-  if (annual) annual.year = year;
++  let annualInfo = null;
++  {
++    const god = tenGodOf(dayStem, gz[0]);
++    const category = categoryOf(god);
++    if (category) annualInfo = { ganZhi: gz, year, god, category };
++  }
+ 
+-  return { decadal, annual };
++  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo);
++  if (!overlay) return { decadal: null, annual: null };
++
++  const detailLine = (info) => `細節上,${info.god}——${tenGodsDb['十神核心意義'][info.god].core}`;
++  const detailLines = [];
++  if (decadalInfo) detailLines.push(detailLine(decadalInfo));
++  if (annualInfo && !(decadalInfo && overlay.merged && decadalInfo.god === annualInfo.god)) {
++    detailLines.push(detailLine(annualInfo));
++  }
++
++  const fullText = [overlay.text, ...detailLines].join('\n');
++
++  // 大運與流年的類別敘述已經合併/對比成同一段文字,只掛在其中一個欄位上,
++  // 避免呼叫端(main.js)用 [decadal?.text, annual?.text] 相接時,把同一段內容再疊一次。
++  if (decadalInfo) {
++    return { decadal: { ...decadalInfo, text: fullText }, annual: null };
++  }
++  return { decadal: null, annual: { ...annualInfo, text: fullText } };
+ }
+diff --git a/src/engines/comprehensive.js b/src/engines/comprehensive.js
+index 00c9fa1..3aec27d 100644
+--- a/src/engines/comprehensive.js
++++ b/src/engines/comprehensive.js
+@@ -10,9 +10,8 @@ import focusSection from '../data/current-focus-section.json' with { type: 'json
+ import baziReading from '../data/bazi-comprehensive-reading.json' with { type: 'json' };
+ import elementDb from '../data/five-element-analysis.json' with { type: 'json' };
+ import tenGodsDb from '../data/ten-gods-meanings.json' with { type: 'json' };
+-import overlays from '../data/luck-cycle-overlays.json' with { type: 'json' };
+ import { BRIGHTNESS_ALIAS } from './compose.js';
+-import { tenGodOf } from './compose-luck.js';
++import { tenGodOf, composeBaZiCycleOverlay, categoryOf } from './compose-luck.js';
+ import { composeElementAnalysis } from './compose-elements.js';
+ 
+ const COMBOS = doubleStarDb['雙主星組合'];
+@@ -20,7 +19,6 @@ const TAGS = traitTags['主星特質標籤'];
+ const STAR_ORDER = doubleLogic['星曜正規化排序表']['順序'];
+ const ADVICE = assembly['條件式建議句庫'];
+ const FOCUS = focusSection['第6段_當前焦點'];
+-const BZ_CAT = overlays['八字大運流年類別疊加'];
+ 
+ const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+ const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+@@ -48,15 +46,28 @@ function resolveMainText(contextPalace, starNames) {
+   return `${get(pair[0])}同時,${get(pair[1])}`;
+ }
+ 
+-/** 主句之後依序疊加亮度、四化(與四化亮度疊加的優先順序) */
++/**
++ * 主句之後依序疊加亮度、四化(與四化亮度疊加的優先順序)。
++ * 亮度疊加句是通用模板(依廟旺平陷分四級),若同一宮位有多顆星落在同一級距,
++ * 直接各自套用會變成同一句話重複兩次、只換星名——比照五行分析的修正原則,
++ * 改成先依等級分組,同級距的星合併成一句,避免重複段落。
++ */
+ function applyOverlays(text, stars) {
+   const parts = [text];
++
++  const brightnessGroups = new Map(); // bKey -> [star,...]
+   for (const s of stars) {
+     const bKey = BRIGHTNESS_ALIAS[s.brightness];
+     if (bKey && palaceStarDb['亮度疊加'][bKey]) {
+-      parts.push(`${s.name}亮度${s.brightness}——${palaceStarDb['亮度疊加'][bKey]}`);
++      if (!brightnessGroups.has(bKey)) brightnessGroups.set(bKey, []);
++      brightnessGroups.get(bKey).push(s);
+     }
+   }
++  for (const [bKey, group] of brightnessGroups) {
++    const label = group.map((s) => `${s.name}亮度${s.brightness}`).join('、');
++    parts.push(`${label}——${palaceStarDb['亮度疊加'][bKey]}`);
++  }
++
+   for (const s of stars) {
+     if (!s.transformation) continue;
+     const key = `化${s.transformation}`;
+@@ -109,13 +120,17 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
+   const sections = [];
+ 
+   // 第1段:性格才華(命宮 + 身宮)
++  // 身宮偶爾會與命宮落在同一宮(同宮),此時直接各自完整輸出會變成同一段星曜解釋重複兩次,
++  // 需先檢查兩者是否同宮,同宮時合併講一次並點出『高度疊合』的意義,而非各自平鋪直述。
+   const life = reading('命宮');
+   const bodyPalace = ziWei.palaces.find((p) => p.isBodyPalace);
+-  const body = reading(bodyPalace.name);
++  const bodyIsLifePalace = bodyPalace.name === '命宮';
+   const s1p = assembly['第1段_性格才華'];
+   const s1lines = [
+     (life.borrowed ? s1p['命宮空宮時開頭'] : s1p['命宮有主星時開頭']) + life.text,
+-    fill(s1p['連接句模板'][1], { 身宮宮位名稱: bodyPalace.name, 身宮解釋: body.text }),
++    bodyIsLifePalace
++      ? fill(s1p['身宮與命宮同宮時'], { 命宮解釋: life.text })
++      : fill(s1p['連接句模板'][1], { 身宮宮位名稱: bodyPalace.name, 身宮解釋: reading(bodyPalace.name).text }),
+   ];
+   sections.push({ title: '一、性格與才華', text: s1lines.join('') });
+ 
+@@ -272,25 +287,37 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
+   }
+   const relSummary = relParts.length ? relParts.join('、') : '四柱地支之間沒有明顯的合沖刑害';
+ 
+-  const categoryOf = (god) =>
+-    Object.entries(BZ_CAT['類別對應']).find(([, gods]) => gods.includes(god))?.[0] ?? null;
++  // 大運類別與流年類別先比對是否相同:相同時合併成一段並點出疊加意義,
++  // 不同時用對比句銜接,避免像舊版一樣各自完整輸出造成重複段落(共用 compose-luck.js 的判斷邏輯)
+   const cycle = baZi.greatLuckCycles.find((c) => year >= c.startYear && year < c.startYear + 10);
+-  const s3lines = [fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary })];
+-  let decadalCat = null;
++  let decadalInfo = null;
+   if (cycle) {
+-    decadalCat = categoryOf(tenGodOf(dayStem, cycle.ganZhi[0]));
+-    s3lines.push(fill(t3['連接句模板'][1], {
+-      大運干支: cycle.ganZhi, 起訖年齡: `${cycle.ageRange}歲`,
+-      大運類別: decadalCat, 大運類別解讀: BZ_CAT['類別解讀'][decadalCat],
+-    }));
++    const god = tenGodOf(dayStem, cycle.ganZhi[0]);
++    const category = categoryOf(god);
++    if (category) decadalInfo = { ganZhi: cycle.ganZhi, ageRange: cycle.ageRange, god, category };
+   }
+   const gz = baZi.annualPillars[year] ?? yearGanZhi(year);
+-  const annualCat = categoryOf(tenGodOf(dayStem, gz[0]));
+-  s3lines.push(fill(t3['連接句模板'][2], {
+-    西元年: year, 流年干支: gz,
+-    流年類別: annualCat, 流年類別解讀: BZ_CAT['類別解讀'][annualCat],
+-  }));
+-  s3lines.push(fill(t3['結尾行動建議句'], { 有利類別: decadalCat ?? annualCat, 需留意類別: annualCat }));
++  let annualInfo = null;
++  {
++    const god = tenGodOf(dayStem, gz[0]);
++    const category = categoryOf(god);
++    if (category) annualInfo = { ganZhi: gz, year, god, category };
++  }
++  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo);
++  const favorableCategory = decadalInfo?.category ?? annualInfo?.category;
++  const cautiousCategory = annualInfo?.category ?? decadalInfo?.category;
++
++  // 大運類別與流年類別相同時,結尾建議句也不該再講「把握A、同時對A謹慎」這種同一個類別講兩次的怪句子,
++  // 改用「這段期間A格外集中,把握機會但留意過猶不及」的收斂版本。
++  const closingLine = overlay?.merged
++    ? fill(t3['結尾行動建議句_大運流年類別相同時'], { 有利類別: favorableCategory })
++    : fill(t3['結尾行動建議句'], { 有利類別: favorableCategory, 需留意類別: cautiousCategory });
++
++  const s3lines = [
++    fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary }),
++    overlay?.text ?? '',
++    closingLine,
++  ].filter(Boolean);
+   sections.push({ title: '三、人際健康與行動建議', text: s3lines.join('') });
+ 
+   return { sections, text: sections.map((s) => `【${s.title}】\n${s.text}`).join('\n\n') };
+diff --git a/src/engines/format-ai.js b/src/engines/format-ai.js
+new file mode 100644
+index 0000000..4a680fe
+--- /dev/null
++++ b/src/engines/format-ai.js
+@@ -0,0 +1,198 @@
++// src/engines/format-ai.js — 把排盤結果轉換成給AI閱讀的純文字格式
++// 用途:「複製給AI解讀」按鈕,把 convertToZiWei() / convertToBaZi() 的原始輸出攤平成
++// 人類與LLM都好讀的純文字,附上固定的解讀指令,讓使用者可以直接貼給任何一個對話式AI。
++
++const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
++const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
++const REL_NAME = { 六合: '六合', 害: '相害', 沖: '相沖', 刑: '相刑' };
++const PILLAR_LABEL = { yearPillar: '年柱', monthPillar: '月柱', dayPillar: '日柱', hourPillar: '時柱' };
++
++const line = (label, value) => `${label}:${value}`;
++
++/** 單顆主星:名稱(亮度[,化X]) */
++function formatMajorStar(s) {
++  const tags = [];
++  if (s.brightness) tags.push(s.brightness);
++  if (s.transformation) tags.push(`化${s.transformation}`);
++  return tags.length ? `${s.name}(${tags.join(',')})` : s.name;
++}
++
++// ---------- 紫微 ----------
++
++function formatZiWeiSection(ziWei, input) {
++  const lines = [];
++  lines.push('【紫微斗數】');
++  lines.push('');
++
++  lines.push('◆ 基本資訊');
++  lines.push(line('性別', input.gender === 'female' ? '女' : '男'));
++  lines.push(line('生日', `${input.year}年${input.month}月${input.day}日 ${input.hour}時(陽曆,24小時制)`));
++  lines.push(line('五行局', ziWei.fiveElementBureau));
++  lines.push(line('命宮地支', ziWei.lifePalace));
++  lines.push(line('身宮地支', ziWei.bodyPalace));
++  lines.push(line('命主星', ziWei.lifeMaster));
++  lines.push(line('身主星', ziWei.bodyMaster));
++  lines.push('');
++
++  lines.push('◆ 大限列表');
++  ziWei.majorLimits.forEach((l, i) => {
++    lines.push(`第${i + 1}限 ${l.ganZhi}(${l.ageRange}歲)`);
++  });
++  lines.push('');
++
++  lines.push('◆ 流年');
++  for (const [year, ganZhi] of Object.entries(ziWei.annualFlow)) {
++    lines.push(`${year}年:${ganZhi}`);
++  }
++  lines.push('');
++
++  lines.push('◆ 小限列表');
++  for (const m of ziWei.minorLimits) {
++    lines.push(`${m.year}年(虛歲${m.age}):${m.ganZhi}`);
++  }
++  lines.push('');
++
++  lines.push('◆ 十二宮列表');
++  for (const p of ziWei.palaces) {
++    const bodyMark = p.isBodyPalace ? '(身宮)' : '';
++    lines.push(`${p.name}${bodyMark} ${p.position}`);
++    lines.push(`  主星:${p.majorStars.length ? p.majorStars.map(formatMajorStar).join(' ') : '無(空宮)'}`);
++    lines.push(`  輔星:${p.minorStars.length ? p.minorStars.join(' ') : '無'}`);
++    lines.push(`  運星:${p.auxiliary.twelveStage || '無'}`);
++    lines.push(`  神煞:${p.auxiliary.shensha.length ? p.auxiliary.shensha.join('、') : '無'}`);
++  }
++
++  return lines.join('\n');
++}
++
++// ---------- 八字 ----------
++
++function formatBaZiSection(baZi) {
++  const lines = [];
++  lines.push('【八字】');
++  lines.push('');
++
++  lines.push('◆ 四柱');
++  for (const key of ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']) {
++    const p = baZi.fourPillars[key];
++    lines.push(line(PILLAR_LABEL[key], `${p.stem}${p.branch}`));
++  }
++  lines.push('');
++
++  lines.push('◆ 藏干');
++  for (const key of ['yearBranch', 'monthBranch', 'dayBranch', 'hourBranch']) {
++    lines.push(line(BRANCH_LABEL[key], baZi.hiddenStems[key].join('、')));
++  }
++  lines.push('');
++
++  lines.push('◆ 十神(天干/地支)');
++  const tg = baZi.tenGods;
++  lines.push(`年干:${tg.yearStem}　年支:${tg.yearBranch}`);
++  lines.push(`月干:${tg.monthStem}　月支:${tg.monthBranch}`);
++  lines.push(`日干:${tg.dayStem}　日支:${tg.dayBranch}`);
++  lines.push(`時干:${tg.hourStem}　時支:${tg.hourBranch}`);
++  lines.push('');
++
++  lines.push('◆ 各柱納音/十二長生/神煞');
++  for (const key of ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']) {
++    const d = baZi.pillarDetails[key];
++    lines.push(`${PILLAR_LABEL[key]}:納音${d.nayin}、十二長生${d.twelveStages}、神煞${d.shensha}`);
++  }
++  lines.push('');
++
++  lines.push('◆ 地支關係');
++  if (baZi.branchRelations.length) {
++    for (const r of baZi.branchRelations) {
++      lines.push(`${BRANCH_LABEL[r.branch]}與${BRANCH_LABEL[r.with]}${REL_NAME[r.relation] ?? r.relation}(${r.pair})`);
++    }
++  } else {
++    lines.push('四柱地支之間沒有明顯的合沖刑害');
++  }
++  lines.push('');
++
++  lines.push('◆ 五行分佈');
++  lines.push(
++    Object.entries(baZi.fiveElementDistribution)
++      .map(([k, v]) => `${ELEMENT_NAME[k]}${v}`)
++      .join(' '),
++  );
++  lines.push('');
++
++  lines.push('◆ 核心判斷值');
++  lines.push(line('年柱空亡', baZi.coreValues.voidBranches.year));
++  lines.push(line('日柱空亡', baZi.coreValues.voidBranches.day));
++  lines.push(line('月令司令', baZi.coreValues.monthCommander));
++  lines.push(line('大運起運歲數', baZi.coreValues.greatLuckStartAge != null ? `${baZi.coreValues.greatLuckStartAge}歲` : '未知'));
++  lines.push('');
++
++  lines.push('◆ 流年列表');
++  for (const [year, ganZhi] of Object.entries(baZi.annualPillars)) {
++    lines.push(`${year}年:${ganZhi}`);
++  }
++  lines.push('');
++
++  lines.push('◆ 流月列表');
++  // 注意:monthlyPillars 的 key 是 '01'~'12' 這種補零字串,'10'/'11'/'12' 屬於JS的
++  // 「類陣列索引」canonical 整數字串,會被引擎排到所有非canonical字串key(如'01')前面,
++  // 直接用 Object.entries() 迭代會出現 10,11,12,1,2,...,9 這種錯亂順序,
++  // 這裡改成明確依 1~12 月份順序取值,確保輸出是正確的時間序。
++  lines.push(
++    Array.from({ length: 12 }, (_, i) => {
++      const m = i + 1;
++      const key = String(m).padStart(2, '0');
++      return `${m}月:${baZi.monthlyPillars[key]}`;
++    }).join('　'),
++  );
++  lines.push('');
++
++  lines.push('◆ 大運列表');
++  for (const c of baZi.greatLuckCycles) {
++    lines.push(`第${c.index}運 ${c.ganZhi}(西元${c.startYear}年起,${c.ageRange}歲)`);
++  }
++
++  return lines.join('\n');
++}
++
++// ---------- 固定解讀指令(最終版,完整附上,不省略任何一段) ----------
++
++const AI_INSTRUCTION = `請以此資料為唯一事實來源進行分析:不要重新排盤,不要自行推算,不要補充資料中不存在的星曜、宮位、四化或流年資訊。
++如果我提出的是具體問題(例如感情、工作、創業、健康,或某一年),請直接回答問題,不要先輸出完整人生分析;只有當我沒有提出具體問題時,才按以下框架做整體解盤。
++請不要只解釋單顆星曜,也不要孤立看某一個宮位。分析時請留意以下對宮軸線,不要孤立看單一宮位:
++命宮↔遷移宮(自我選擇與外部環境)、財帛宮↔福德宮(現實資源與精神滿足)、
++夫妻宮↔官祿宮(親密關係與事業責任)、兄弟宮↔交友宮(熟人協作與外部人脈)、
++子女宮↔田宅宮(投入產出與沉澱積累)、父母宮↔疾厄宮(規則身份與身心承載)。
++請區分本命、大限、流年三個層次:本命看長期性格與反覆出現的人生課題,
++大限看當前十年的階段性重心,流年看今年被推到前台的具體觸發點,不要混為一談。
++請依序說明:
++1) 天生性格與核心才華(命宮、身宮)
++2) 事業與金錢流向(官祿宮、財帛宮、福德宮、田宅宮)
++3) 戀愛婚姻(夫妻宮及相關宮位)
++4) 健康、家庭、居住、人際(疾厄宮、父母宮、田宅宮、交友宮)
++5) 能善用有利流向的行動,以及需要留意的現實模式
++每個判斷都必須以資料中實際顯示的主星、輔星、亮度與四化,以及流向部分顯示的大限、流年、小限為主要依據。未顯示的數值不要推測。
++輸出時請保持依據清楚,但不要寫成術數論文:
++- 80%輸出應是對我有用的結論、現實場景、性格機制、關係模式等實際影響
++- 20%輸出保留必要的依據(命宮、身宮、三方四正、大限流年四化)
++- 不要逐條解釋每顆星、每個宮位
++- 只在關鍵結論後簡短說明依據
++請務必依據提供的命盤資料說明。`;
++
++/**
++ * 把排盤引擎的輸出轉成給AI解讀用的純文字。
++ * @param {object} chartData
++ * @param {object} chartData.input  { year, month, day, hour, gender } (computeAll() 組出的排盤輸入)
++ * @param {object} chartData.ziWei  convertToZiWei() 的輸出
++ * @param {object} chartData.baZi   convertToBaZi() 的輸出
++ * @returns {string} 純文字字串,可直接複製貼給AI
++ */
++export function formatChartForAI({ input, ziWei, baZi }) {
++  return [
++    formatZiWeiSection(ziWei, input),
++    '',
++    formatBaZiSection(baZi),
++    '',
++    '---',
++    '',
++    AI_INSTRUCTION,
++  ].join('\n');
++}
+diff --git a/src/main.js b/src/main.js
+index ae861ff..4545361 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -9,6 +9,7 @@ import { composeBaZiReading } from './engines/compose-bazi.js';
+ import { composeElementAnalysis } from './engines/compose-elements.js';
+ import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
+ import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
++import { formatChartForAI } from './engines/format-ai.js';
+ import { LAYOUT_POSITIONS } from './data/layout-positions.js';
+ import { palaceMeanings } from './data/palace-meanings.js';
+ 
+@@ -99,6 +100,7 @@ const readingOf = (palaceName) =>
+ function renderHead() {
+   const { name, input, ziWei, baZi } = state.data;
+   $('#page-title').textContent = `${name}　的命盤`;
++  $('#copy-ai-btn').hidden = false;
+   const lunar = Solar.fromYmd(input.year, input.month, input.day).getLunar();
+   const shichen = SHICHEN.find((s) => s.hour === input.hour);
+   $('#birth-summary').textContent =
+@@ -471,6 +473,7 @@ function renderEmpty() {
+     <p class="welcome-text muted">所有計算皆在你的瀏覽器內完成,生辰資料不會上傳到任何伺服器。</p>
+   </div>`;
+   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
++  $('#copy-ai-btn').hidden = true;
+ }
+ 
+ // ---------- 初始化 ----------
+@@ -492,6 +495,18 @@ function setupControls() {
+ 
+   $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+ 
++  $('#copy-ai-btn').addEventListener('click', async () => {
++    if (!state.data) return;
++    const { input, ziWei, baZi } = state.data;
++    const text = formatChartForAI({ input, ziWei, baZi });
++    try {
++      await navigator.clipboard.writeText(text);
++      toast('已複製，可以貼給AI解讀了');
++    } catch {
++      toast('複製失敗，請確認瀏覽器剪貼簿權限');
++    }
++  });
++
+   $('#birth-form').addEventListener('submit', (e) => {
+     e.preventDefault();
+     if (computeAll()) renderAll();
+diff --git a/src/style.css b/src/style.css
+index 0513225..0c7d801 100644
+--- a/src/style.css
++++ b/src/style.css
+@@ -264,6 +264,27 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
+   z-index: 99;
+ }
+ 
++/* ---------- 複製給AI解讀(固定按鈕) ---------- */
++.copy-ai-btn {
++  position: fixed; bottom: 28px; right: 28px;
++  display: flex; align-items: center; gap: 8px;
++  background: var(--red); color: var(--cream);
++  font: 600 13px/1 var(--sans); padding: 12px 20px; border-radius: 24px;
++  border: none; box-shadow: 0 4px 16px rgba(0, 0, 0, .18);
++  cursor: pointer; z-index: 90; transition: transform .12s, box-shadow .12s;
++}
++.copy-ai-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0, 0, 0, .22); }
++.copy-ai-btn:active { transform: translateY(0); }
++.copy-ai-icon {
++  display: inline-flex; align-items: center; justify-content: center;
++  width: 18px; height: 18px; border-radius: 5px;
++  background: rgba(255, 255, 255, .22); font: 700 9px/1 var(--sans);
++}
++
++@media (max-width: 900px) {
++  .copy-ai-btn { right: 16px; bottom: 16px; padding: 10px 16px; font-size: 12px; }
++}
++
+ /* ---------- 手機版:紫微/八字卡切換鈕 ---------- */
+ .chart-tabs { display: none; gap: 8px; }
+ .chart-tab {

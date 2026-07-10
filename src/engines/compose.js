@@ -22,21 +22,39 @@ export const BRIGHTNESS_ALIAS = {
   廟: '廟', 旺: '旺', 得: '旺', 利: '平', 平: '平', 不: '陷', 陷: '陷',
 };
 
-/** 單顆星在某宮的完整句:基底文案 + 亮度疊加 + 四化疊加 */
-function composeStar(palaceName, star, { borrowed = false } = {}) {
+const BRIGHTNESS_PLAIN = db['亮度原始等級白話'];
+
+/**
+ * 亮度疊加句:原本寫成「亮度得——此星的特質穩定發揮。」對一般使用者來說,
+ * 「得」是什麼、「穩定發揮」具體是什麼意思都看不懂。改成白話說法:
+ * 先講這個亮度等級大概是什麼程度(用白話,不是單丟一個字),再講對這方面特質的具體影響。
+ */
+export function brightnessSentence(brightness) {
+  const bKey = BRIGHTNESS_ALIAS[brightness];
+  if (!bKey || !db['亮度疊加'][bKey]) return null;
+  const plain = BRIGHTNESS_PLAIN[brightness];
+  return `亮度是「${brightness}」${plain ? `(${plain})` : ''},${db['亮度疊加'][bKey]}`;
+}
+
+/**
+ * 單顆星在某宮的完整句:基底文案 +(學習版才加)亮度疊加 + 四化疊加。
+ * mode = 'public'(大眾版,預設):只留結論句,不引用亮度廟旺得利平不陷、化祿權科忌這些依據。
+ * mode = 'study' (學習版):結論句之後,完整附上亮度、四化的依據說明,方便學習命理邏輯。
+ */
+function composeStar(palaceName, star, { borrowed = false, mode = 'public' } = {}) {
   const base = db[palaceName]?.[star.name];
   if (!base) return null;
 
   const parts = [base];
 
-  const brightnessKey = BRIGHTNESS_ALIAS[star.brightness];
-  if (brightnessKey && db['亮度疊加'][brightnessKey]) {
-    parts.push(`亮度${star.brightness}——${db['亮度疊加'][brightnessKey]}`);
-  }
+  if (mode === 'study') {
+    const brightnessLine = brightnessSentence(star.brightness);
+    if (brightnessLine) parts.push(brightnessLine);
 
-  if (star.transformation) {
-    const key = star.transformation.startsWith('化') ? star.transformation : `化${star.transformation}`;
-    if (db['四化疊加'][key]) parts.push(`${key}——${db['四化疊加'][key]}`);
+    if (star.transformation) {
+      const key = star.transformation.startsWith('化') ? star.transformation : `化${star.transformation}`;
+      if (db['四化疊加'][key]) parts.push(`${key}——${db['四化疊加'][key]}`);
+    }
   }
 
   return `${star.name}${borrowed ? '(借)' : ''}:${parts.join(' ')}`;
@@ -46,16 +64,17 @@ function composeStar(palaceName, star, { borrowed = false } = {}) {
  * 組裝單一宮位解讀
  * @param {object} palace     ziWei.palaces 的元素
  * @param {object} [opposite] 對宮(空宮借星用)
+ * @param {object} [opts]     { mode: 'public' | 'study', 預設 'public' }
  * @returns {{ palaceName, position, isBodyPalace, borrowed, text }}
  */
-export function composePalaceReading(palace, opposite = null) {
+export function composePalaceReading(palace, opposite = null, { mode = 'public' } = {}) {
   const { name } = palace;
   const lines = [];
   let borrowed = false;
 
   if (palace.majorStars.length > 0) {
     for (const star of palace.majorStars) {
-      const line = composeStar(name, star);
+      const line = composeStar(name, star, { mode });
       if (line) lines.push(line);
     }
     // 疊加順序:先宮位×單星基礎解釋,再疊雙主星組合補充句
@@ -68,7 +87,7 @@ export function composePalaceReading(palace, opposite = null) {
     else lines.push(`${name}無主星,借對宮(${opposite.name})星曜參看。`);
 
     for (const star of opposite.majorStars) {
-      const line = composeStar(opposite.name, star, { borrowed: true });
+      const line = composeStar(opposite.name, star, { borrowed: true, mode });
       if (line) lines.push(line);
     }
     const combo = lookupCombo(opposite.majorStars.map((s) => s.name));
@@ -88,13 +107,14 @@ export function composePalaceReading(palace, opposite = null) {
 /**
  * 組裝整張盤(12 宮)
  * @param {object} ziWei  convertToZiWei() 的輸出
+ * @param {object} [opts] { mode: 'public' | 'study' }
  * @returns {{ overview, palaces: Array }}
  */
-export function composeChartReading(ziWei) {
+export function composeChartReading(ziWei, { mode = 'public' } = {}) {
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
   return {
     overview: `五行局:${ziWei.fiveElementBureau},命宮在${ziWei.lifePalace}、身宮在${ziWei.bodyPalace},命主${ziWei.lifeMaster}、身主${ziWei.bodyMaster}。`,
     palaces: ziWei.palaces.map((p) =>
-      composePalaceReading(p, byBranch[oppositeBranch(branchOf(p))])),
+      composePalaceReading(p, byBranch[oppositeBranch(branchOf(p))], { mode })),
   };
 }

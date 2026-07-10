@@ -1,0 +1,375 @@
+diff --git a/src/data/current-focus-section.json b/src/data/current-focus-section.json
+index 28ac242..459d89d 100644
+--- a/src/data/current-focus-section.json
++++ b/src/data/current-focus-section.json
+@@ -1,26 +1,23 @@
+ {
+-  "說明": "在原本5段綜合解析之後,新增第6段,自動抓出當前年齡對應的大限與流年,結合luck-cycle-overlays.json產生即時焦點提示。",
+-
++  "說明": "在原本5段綜合解析之後,新增第6段,自動抓出當前年齡對應的大限與流年,結合luck-cycle-overlays.json產生即時焦點提示。修正版:原本不管大限宮位與流年宮位是否相同,都各自完整輸出一次星曜解讀,若剛好落在同一宮,讀者會看到同一段解讀被印兩次,最後才補一句『恰好重疊』——這跟八字大運流年類別重複是同一種bug。改成先比對兩者是否同宮,同宮時只完整講一次,並點出『重疊』本身的意義;不同宮時維持原本分開兩段。",
+   "組裝流程": [
+     "1. 用使用者目前年齡,比對紫微命盤的『大限』列表(majorLimits),找出年齡落在哪個區間,取得對應的大限干支與宮位",
+     "2. 用西元年,比對『流年』(annualFlow)或小限列表(minorLimits),取得今年對應的流年干支與宮位",
+-    "3. 分別取出大限宮位與流年宮位的星曜解釋(沿用第1-4段已經查過的palace-star-meanings.json)",
+-    "4. 套用luck-cycle-overlays.json的大限開頭句模板、流年開頭句模板,組成這一段的文字",
+-    "5. 若大限宮位與流年宮位剛好相同,可以加一句『這十年與這一年的焦點恰好重疊,代表這個面向格外值得留意』增加強調感"
++    "3. 先比對大限宮位與流年宮位是否相同",
++    "4. 相同時,只套用『大限流年同宮模板』完整講一次該宮位的星曜解釋,不要大限、流年各自再套用一次完整解讀",
++    "5. 不同時,才分別套用大限開頭句模板、流年開頭句模板,各自輸出各自的宮位星曜解釋"
+   ],
+-
+   "第6段_當前焦點": {
+     "開頭句": "從當前的時間點來看,",
+     "大限句模板": "這十年({startAge}歲至{endAge}歲,{大限干支}限)運勢重心落在{大限宮位名稱},{大限宮位星曜解釋}",
+     "流年句模板": "而今年({西元年}年,{流年干支}年)的流年焦點則落在{流年宮位名稱},{流年宮位星曜解釋}",
+-    "重疊提醒句": "這十年與這一年的焦點恰好重疊在{宮位名稱},代表這個面向在近期格外值得留意與著力。",
+-    "結尾句": "掌握這段期間的重點,會比單看命盤整體更貼近你現在實際會遇到的際遇。"
++    "結尾句": "掌握這段期間的重點,會比單看命盤整體更貼近你現在實際會遇到的際遇。",
++    "大限流年同宮模板": "這十年({startAge}歲至{endAge}歲,{大限干支}限)與今年({西元年}年,{流年干支}年)的流年焦點,剛好落在同一個宮位——{宮位名稱},{宮位星曜解釋}由於大限與流年重疊在同一個面向,這段期間{宮位名稱}相關的際遇會格外集中且明顯,是這十年中特別關鍵的一年。"
+   },
+-
+   "套用範例": {
+-    "說明": "以Shelly為例(23歲,2026年)",
++    "說明": "以Shelly為例(23歲,2026年,大限落夫妻宮、流年落僕役宮,兩者不同宮,維持分開兩段)",
+     "大限": "23~32歲落在辛亥限,對應夫妻宮",
+     "流年": "2026年丙午年,對應僕役宮(交友宮)",
+     "生成範例句": "從當前的時間點來看,這十年(23歲至32歲,辛亥限)運勢重心落在夫妻宮,天梁星陷但化祿,顯示這段期間感情與婚姻議題會是人生的重要課題,即使星曜落陷,化祿仍帶來一定的順遂加分。而今年(2026年,丙午年)的流年焦點則落在僕役宮(交友宮),武曲天府旺但化忌,提醒近期在人際合作或交友往來上,可能需要多留意細節與分寸。掌握這段期間的重點,會比單看命盤整體更貼近你現在實際會遇到的際遇。"
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/data/luck-cycle-overlays.json b/src/data/luck-cycle-overlays.json
+index 4bc3e2e..2b6e55b 100644
+--- a/src/data/luck-cycle-overlays.json
++++ b/src/data/luck-cycle-overlays.json
+@@ -1,19 +1,35 @@
+ {
+   "紫微大限流年疊加": {
+-    "說明": "大限/流年本質上是把命盤十二宮的其中一宮,套用到一段時間區間的運勢上。組裝邏輯:找出當前大限(或流年)所在的宮位 -> 套用該宮位x主星的基礎解釋(來自palace-star-meanings.json)-> 疊加下方的時間框架句。",
++    "說明": "大限/流年本質上是把命盤十二宮的其中一宮,套用到一段時間區間的運勢上。組裝邏輯:找出當前大限(或流年)所在的宮位 -> 套用該宮位x主星的基礎解釋(來自palace-star-meanings.json)-> 疊加下方的時間框架句。 修正版:大限宮位與流年宮位若剛好相同,composeZiWeiLuck()改成只完整輸出一次該宮位解讀(套用下方的『大限流年同宮模板』),不再各自輸出一次造成同一段解讀重複。",
+     "大限開頭句模板": "這十年({startAge}歲至{endAge}歲,{ganZhi}限),運勢重心落在{宮位名稱},代表這段期間的生活際遇會特別呼應這個宮位所主導的面向。",
+     "大限結尾句": "掌握這十年的重點,建議把心力多放在{宮位名稱}所代表的生活面向上,會比較容易順勢而為。",
+     "流年開頭句模板": "今年({西元年}年,{干支}年),流年運勢落在{宮位名稱},這一年特別容易在這個面向上有具體的際遇或轉折。",
+-    "流年結尾句": "流年是短期的運勢焦點,建議把握這一年在{宮位名稱}相關領域上出現的機會或課題。"
++    "流年結尾句": "流年是短期的運勢焦點,建議把握這一年在{宮位名稱}相關領域上出現的機會或課題。",
++    "大限流年同宮模板": "這十年({startAge}歲至{endAge}歲,{大限干支}限)與今年({西元年}年,{流年干支}年)的流年焦點,剛好落在同一個宮位——{宮位名稱},{宮位星曜解釋}由於大限與流年重疊在同一個面向,這段期間{宮位名稱}相關的際遇會格外集中且明顯,是這十年中特別關鍵的一年。"
+   },
+   "八字大運流年類別疊加": {
+     "說明": "修正版:原本問題是當大運類別與流年類別相同時(例如都是食傷運),兩段各自套用完整的類別解讀文字,導致內容一模一樣,讀者容易誤以為是系統錯誤。組裝邏輯:算出大運/流年天干對日主的十神 -> 判斷屬於哪個類別 -> 先比對大運類別與流年類別是否相同 -> 相同時合併成一段並點出『疊加強化』的意義,不同時維持分開兩段但用對比句型銜接。",
+     "類別對應": {
+-      "比劫運": ["比肩", "劫財"],
+-      "食傷運": ["食神", "傷官"],
+-      "財運": ["正財", "偏財"],
+-      "官殺運": ["正官", "七殺"],
+-      "印運": ["正印", "偏印"]
++      "比劫運": [
++        "比肩",
++        "劫財"
++      ],
++      "食傷運": [
++        "食神",
++        "傷官"
++      ],
++      "財運": [
++        "正財",
++        "偏財"
++      ],
++      "官殺運": [
++        "正官",
++        "七殺"
++      ],
++      "印運": [
++        "正印",
++        "偏印"
++      ]
+     },
+     "類別解讀": {
+       "比劫運": "這段期間人際互動與競爭氛圍較明顯,適合以合作或人脈拓展為主軸,同時也要留意錢財因人情往來而流失的風險。",
+@@ -42,4 +58,4 @@
+       "修正後生成句": "這十年大運走丙午(19歲至28歲),今年(2026年,丙午年)的流年也剛好落在同一個類別——食傷運,這段期間才華與創意特別容易展現,表達欲增強,適合發展創作、學習或個人專長,但也要留意言行鋒芒過露,或與權威產生摩擦。由於大運與流年方向一致,這段期間食傷運相關的際遇會格外集中且明顯,是特別值得把握或留意的一年。"
+     }
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/data/palace-star-meanings.json b/src/data/palace-star-meanings.json
+index bcbb248..0df305e 100644
+--- a/src/data/palace-star-meanings.json
++++ b/src/data/palace-star-meanings.json
+@@ -204,9 +204,20 @@
+     "化忌": "在原本的特質上,提醒需要留意的糾結或阻礙課題。"
+   },
+   "亮度疊加": {
+-    "廟": "此星的正面特質發揮到極致。",
+-    "旺": "此星的特質穩定發揮。",
+-    "平": "此星的特質中規中矩,不特別突出也不特別弱。",
+-    "陷": "此星的特質受到壓抑,需要留意較弱的一面。"
++    "說明": "廟旺得利平不陷七階會先收斂成廟/旺/平/陷四個等級再套用下面的文字(得→旺、利→平、不→陷),所以同一句文字可能對應到不只一個原始等級,這是正常的,不是bug。",
++    "廟": "這裡的特質會發揮到最完整、最有力的狀態,是這顆星在這個位置很理想的狀況,可以放心倚重這方面的特質。",
++    "旺": "這裡的特質可以穩定發揮,不容易忽強忽弱,平常怎麼表現大概就會怎麼呈現。",
++    "平": "這裡的特質中規中矩,沒有特別加分,也沒有明顯扣分,平平淡淡地發揮基本作用就好。",
++    "陷": "這裡的特質比較發揮不出來,容易打折扣、卡卡的,是這個宮位裡比較需要多留意、多花點心力去補強的地方,而不是完全不管它。"
++  },
++  "亮度原始等級白話": {
++    "說明": "紫微斗數的星曜亮度分廟旺得利平不陷七階,數值愈前面愈強。這裡對應到每一階給一個白話說明,組句時會寫成「{星名}的亮度是{原始等級}({白話})」,不要只丟一個單字讓使用者猜。",
++    "廟": "最強的等級",
++    "旺": "偏強的等級",
++    "得": "中上的等級",
++    "利": "中間偏弱一點的等級",
++    "平": "中間的等級",
++    "不": "偏弱的等級",
++    "陷": "最弱的等級"
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/engines/compose-luck.js b/src/engines/compose-luck.js
+index 59b4882..eb6248f 100644
+--- a/src/engines/compose-luck.js
++++ b/src/engines/compose-luck.js
+@@ -51,6 +51,8 @@ function palaceMaps(ziWei) {
+ 
+ /**
+  * 紫微大限 + 流年疊加
++ * 大限宮位與流年宮位偶爾會剛好相同(同宮),此時先比對再決定要不要合併,
++ * 避免像舊版一樣大限、流年各自完整輸出一次同一段星曜解讀,造成重複段落。
+  * @param {object} ziWei  convertToZiWei() 輸出
+  * @param {object} [opts] { age = ziWei.age, year = 當年 }
+  */
+@@ -62,35 +64,59 @@ export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().get
+     const [a, b] = l.ageRange.split('~').map(Number);
+     return age >= a && age <= b;
+   });
++
++  // 流年:該年地支即流年宮位
++  const gz = yearGanZhi(year);
++  const annualReading = readingAt(gz[1]);
++
+   let decadal = null;
++  let merged = false;
++
+   if (limit) {
+     const [startAge, endAge] = limit.ageRange.split('~');
+-    const reading = readingAt(limit.ganZhi[1]);
+-    decadal = {
+-      ganZhi: limit.ganZhi,
+-      ageRange: limit.ageRange,
+-      palaceName: reading.palaceName,
+-      text: [
+-        fill(ZW['大限開頭句模板'], { startAge, endAge, ganZhi: limit.ganZhi, 宮位名稱: reading.palaceName }),
+-        reading.text,
+-        fill(ZW['大限結尾句'], { 宮位名稱: reading.palaceName }),
+-      ].join('\n'),
+-    };
++    const limitReading = readingAt(limit.ganZhi[1]);
++    merged = limitReading.palaceName === annualReading.palaceName;
++
++    decadal = merged
++      ? {
++          ganZhi: limit.ganZhi,
++          ageRange: limit.ageRange,
++          palaceName: limitReading.palaceName,
++          text: [
++            fill(ZW['大限流年同宮模板'], {
++              startAge, endAge, 大限干支: limit.ganZhi,
++              西元年: year, 流年干支: gz,
++              宮位名稱: limitReading.palaceName,
++              宮位星曜解釋: limitReading.text,
++            }),
++          ].join('\n'),
++        }
++      : {
++          ganZhi: limit.ganZhi,
++          ageRange: limit.ageRange,
++          palaceName: limitReading.palaceName,
++          text: [
++            fill(ZW['大限開頭句模板'], { startAge, endAge, ganZhi: limit.ganZhi, 宮位名稱: limitReading.palaceName }),
++            limitReading.text,
++            fill(ZW['大限結尾句'], { 宮位名稱: limitReading.palaceName }),
++          ].join('\n'),
++        };
+   }
+ 
+-  // 流年:該年地支即流年宮位
+-  const gz = yearGanZhi(year);
+-  const reading = readingAt(gz[1]);
+-  const annual = {
+-    year,
+-    ganZhi: gz,
+-    palaceName: reading.palaceName,
+-    text: [
+-      fill(ZW['流年開頭句模板'], { 西元年: year, 干支: gz, 宮位名稱: reading.palaceName }),
+-      reading.text,
+-      fill(ZW['流年結尾句'], { 宮位名稱: reading.palaceName }),
+-    ].join('\n'),
+-  };
++  // 已經合併進 decadal 的話,annual 不再獨立輸出,避免呼叫端([decadal?.text, annual?.text].join)
++  // 把同一段星曜解讀再接一次
++  const annual = merged
++    ? null
++    : {
++        year,
++        ganZhi: gz,
++        palaceName: annualReading.palaceName,
++        text: [
++          fill(ZW['流年開頭句模板'], { 西元年: year, 干支: gz, 宮位名稱: annualReading.palaceName }),
++          annualReading.text,
++          fill(ZW['流年結尾句'], { 宮位名稱: annualReading.palaceName }),
++        ].join('\n'),
++      };
+ 
+   return { decadal, annual };
+ }
+diff --git a/src/engines/compose.js b/src/engines/compose.js
+index fb7c860..7caff4c 100644
+--- a/src/engines/compose.js
++++ b/src/engines/compose.js
+@@ -22,6 +22,20 @@ export const BRIGHTNESS_ALIAS = {
+   廟: '廟', 旺: '旺', 得: '旺', 利: '平', 平: '平', 不: '陷', 陷: '陷',
+ };
+ 
++const BRIGHTNESS_PLAIN = db['亮度原始等級白話'];
++
++/**
++ * 亮度疊加句:原本寫成「亮度得——此星的特質穩定發揮。」對一般使用者來說,
++ * 「得」是什麼、「穩定發揮」具體是什麼意思都看不懂。改成白話說法:
++ * 先講這個亮度等級大概是什麼程度(用白話,不是單丟一個字),再講對這方面特質的具體影響。
++ */
++export function brightnessSentence(brightness) {
++  const bKey = BRIGHTNESS_ALIAS[brightness];
++  if (!bKey || !db['亮度疊加'][bKey]) return null;
++  const plain = BRIGHTNESS_PLAIN[brightness];
++  return `亮度是「${brightness}」${plain ? `(${plain})` : ''},${db['亮度疊加'][bKey]}`;
++}
++
+ /** 單顆星在某宮的完整句:基底文案 + 亮度疊加 + 四化疊加 */
+ function composeStar(palaceName, star, { borrowed = false } = {}) {
+   const base = db[palaceName]?.[star.name];
+@@ -29,10 +43,8 @@ function composeStar(palaceName, star, { borrowed = false } = {}) {
+ 
+   const parts = [base];
+ 
+-  const brightnessKey = BRIGHTNESS_ALIAS[star.brightness];
+-  if (brightnessKey && db['亮度疊加'][brightnessKey]) {
+-    parts.push(`亮度${star.brightness}——${db['亮度疊加'][brightnessKey]}`);
+-  }
++  const brightnessLine = brightnessSentence(star.brightness);
++  if (brightnessLine) parts.push(brightnessLine);
+ 
+   if (star.transformation) {
+     const key = star.transformation.startsWith('化') ? star.transformation : `化${star.transformation}`;
+diff --git a/src/engines/comprehensive.js b/src/engines/comprehensive.js
+index 3aec27d..9a3df45 100644
+--- a/src/engines/comprehensive.js
++++ b/src/engines/comprehensive.js
+@@ -46,11 +46,15 @@ function resolveMainText(contextPalace, starNames) {
+   return `${get(pair[0])}同時,${get(pair[1])}`;
+ }
+ 
++const BRIGHTNESS_PLAIN = palaceStarDb['亮度原始等級白話'];
++
+ /**
+  * 主句之後依序疊加亮度、四化(與四化亮度疊加的優先順序)。
+  * 亮度疊加句是通用模板(依廟旺平陷分四級),若同一宮位有多顆星落在同一級距,
+  * 直接各自套用會變成同一句話重複兩次、只換星名——比照五行分析的修正原則,
+  * 改成先依等級分組,同級距的星合併成一句,避免重複段落。
++ * 另外原本「星名亮度得——此星的特質穩定發揮」這種寫法太術語化,
++ * 一般使用者看不懂「得」是什麼,改成白話說明(廟旺得利平不陷各自的白話 + 具體影響)。
+  */
+ function applyOverlays(text, stars) {
+   const parts = [text];
+@@ -64,8 +68,10 @@ function applyOverlays(text, stars) {
+     }
+   }
+   for (const [bKey, group] of brightnessGroups) {
+-    const label = group.map((s) => `${s.name}亮度${s.brightness}`).join('、');
+-    parts.push(`${label}——${palaceStarDb['亮度疊加'][bKey]}`);
++    const label = group
++      .map((s) => `${s.name}的亮度是「${s.brightness}」${BRIGHTNESS_PLAIN[s.brightness] ? `(${BRIGHTNESS_PLAIN[s.brightness]})` : ''}`)
++      .join('、');
++    parts.push(`${label},${palaceStarDb['亮度疊加'][bKey]}`);
+   }
+ 
+   for (const s of stars) {
+@@ -189,33 +195,47 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
+   });
+ 
+   // 第6段:當前焦點(大限 + 流年,current-focus-section.json)
++  // 大限宮位與流年宮位偶爾會剛好相同,此時要先比對、合併成一次完整解讀,
++  // 不要大限、流年各自完整輸出一次同一段星曜解讀(跟八字大運流年類別重複是同一種bug)。
+   const limit = ziWei.majorLimits.find((l) => {
+     const [a, b] = l.ageRange.split('~').map(Number);
+     return age >= a && age <= b;
+   });
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
++  const gz = yearGanZhi(year);
++  const annualPalace = byBranch[gz[1]];
++  const annualReading = palaceReadingOf(ziWei, annualPalace);
++
+   const s6lines = [FOCUS['開頭句']];
+   let limitPalace = null;
++  let sameAsAnnual = false;
+   if (limit) {
+     limitPalace = byBranch[limit.ganZhi[1]];
++    sameAsAnnual = limitPalace.name === annualPalace.name;
+     const [startAge, endAge] = limit.ageRange.split('~');
+-    s6lines.push(fill(FOCUS['大限句模板'], {
+-      startAge, endAge,
+-      大限干支: limit.ganZhi,
+-      大限宮位名稱: limitPalace.name,
+-      大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace).text,
+-    }));
++    if (sameAsAnnual) {
++      s6lines.push(fill(FOCUS['大限流年同宮模板'], {
++        startAge, endAge, 大限干支: limit.ganZhi,
++        西元年: year, 流年干支: gz,
++        宮位名稱: annualPalace.name,
++        宮位星曜解釋: annualReading.text,
++      }));
++    } else {
++      s6lines.push(fill(FOCUS['大限句模板'], {
++        startAge, endAge,
++        大限干支: limit.ganZhi,
++        大限宮位名稱: limitPalace.name,
++        大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace).text,
++      }));
++    }
+   }
+-  const gz = yearGanZhi(year);
+-  const annualPalace = byBranch[gz[1]];
+-  s6lines.push(fill(FOCUS['流年句模板'], {
+-    西元年: year,
+-    流年干支: gz,
+-    流年宮位名稱: annualPalace.name,
+-    流年宮位星曜解釋: palaceReadingOf(ziWei, annualPalace).text,
+-  }));
+-  if (limitPalace && limitPalace.name === annualPalace.name) {
+-    s6lines.push(fill(FOCUS['重疊提醒句'], { 宮位名稱: annualPalace.name }));
++  if (!sameAsAnnual) {
++    s6lines.push(fill(FOCUS['流年句模板'], {
++      西元年: year,
++      流年干支: gz,
++      流年宮位名稱: annualPalace.name,
++      流年宮位星曜解釋: annualReading.text,
++    }));
+   }
+   s6lines.push(FOCUS['結尾句']);
+   sections.push({ title: '六、當前焦點', text: s6lines.join('') });
+diff --git a/src/main.js b/src/main.js
+index 4545361..94c8a22 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -478,10 +478,11 @@ function renderEmpty() {
+ 
+ // ---------- 初始化 ----------
+ function setupControls() {
+-  // 時辰選單(預設未時)
++  // 時辰選單(預設子時,列表第一個選項,避免下拉選單一開始就停在中間某個時辰,
++  // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選,這裡只是給一個不易混淆的起始值)
+   $('#birth-hour').innerHTML = SHICHEN
+     .map((s) => `<option value="${s.hour}">${s.label}</option>`).join('');
+-  $('#birth-hour').value = '13';
++  $('#birth-hour').value = '0';
+ 
+   // 藥丸切換
+   for (const [id, key] of [['#cal-toggle', 'cal'], ['#gender-toggle', 'gender']]) {

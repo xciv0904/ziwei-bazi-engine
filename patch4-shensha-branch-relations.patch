@@ -1,0 +1,968 @@
+diff --git a/smoke.mjs b/smoke.mjs
+index ad32af7..a2088e6 100644
+--- a/smoke.mjs
++++ b/smoke.mjs
+@@ -61,9 +61,12 @@ check('預設展開日主分析', $('#view-report .acc-item.open .acc-title').te
+ // --- 命盤解析(綜合報告) ---
+ $$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
+ check('解析視圖顯示', !$('#view-comprehensive').hidden);
+-check('紫微6段+八字3段', $$('#view-comprehensive .acc-item').length === 9);
++check('紫微6段+八字6段(含全盤概覽/地支關係/神煞)', $$('#view-comprehensive .acc-item').length === 12);
+ check('含當前焦點段', $('#view-comprehensive').textContent.includes('當前焦點'));
+ check('含八字財官流向段', $('#view-comprehensive').textContent.includes('財官流向'));
++check('含全盤概覽段', $('#view-comprehensive').textContent.includes('全盤概覽'));
++check('含地支關係段', $('#view-comprehensive').textContent.includes('地支關係'));
++check('含神煞段', $('#view-comprehensive').textContent.includes('神煞'));
+ 
+ // --- 分享命卡 ---
+ $$('.nav-item').find((n) => n.dataset.view === 'share').click();
+@@ -71,6 +74,16 @@ check('命卡姓名', $('.fate-name').textContent === 'Shelly');
+ check('命宮主星標籤(空宮借星)', $('.fate-tags').textContent.includes('借'));
+ check('日主標籤 乙木', $('.fate-tags').textContent.includes('乙木'));
+ 
++// --- 大眾版/學習版切換(命盤解析、解讀報告、命盤總覽單宮說明都要吃這個開關) ---
++$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
++check('預設大眾版,小教室不含依據句', !$('.classroom-body').textContent.includes('亮度是'));
++$('.mode-pill[data-mode="study"]').click();
++check('切學習版,小教室含依據句', $('.classroom-body').textContent.includes('亮度是') || $('.classroom-body').textContent.includes('借對宮'));
++$$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
++check('學習版命盤解析含十神依據(細節上)', $('#view-comprehensive').textContent.includes('細節上'));
++$('.mode-pill[data-mode="public"]').click();
++check('切回大眾版,命盤解析不再含十神依據', !$('#view-comprehensive').textContent.includes('細節上'));
++
+ // --- 重新排盤(換男生日期) ---
+ $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+ $('#birth-date').value = '1998-03-15';
+diff --git a/src/data/branch-interactions-analysis.json b/src/data/branch-interactions-analysis.json
+new file mode 100644
+index 0000000..a9bb7fa
+--- /dev/null
++++ b/src/data/branch-interactions-analysis.json
+@@ -0,0 +1,33 @@
++{
++  "說明": "此表用於解讀四柱地支之間的合/沖/害/刑/拱/暗合/半會等關係。組裝邏輯:找出命盤中實際出現的地支關係 -> 判斷涉及哪兩柱 -> 套用關係類型解讀 -> 疊加柱位背景句(沿用ten-gods-meanings-v2.json的柱位背景句)。若同一組地支同時觸發多種關係類型(例如午未既是六合也是半會火),請合併成一句,不要各自輸出一次完整解讀。",
++
++  "關係類型解讀": {
++    "六合": "代表兩個力量傾向互相配合、彼此支援,關係中帶有和諧、黏著的性質,遇到事情容易互相體諒、找到共識。",
++    "六沖": "代表兩股力量互相牽制、容易產生對立或變動,這組關係涉及的領域容易出現波動、需要調整或重新協商。",
++    "六害": "代表兩者表面上有牽連,但底層帶有耗損或猜忌的性質,這組關係涉及的領域需要留意誤會或消耗的累積。",
++    "三刑": "代表關係中帶有磨合甚至衝突的張力,容易在互動中產生壓力或反覆的糾結,需要更多耐心去化解。",
++    "相破": "代表原本看似穩固的關係,容易因為某個環節鬆動而受到影響,提醒這組領域需要留意細節維護。",
++    "暗合": "代表表面上沒有直接關聯,但底層其實存在一種隱性的牽引或吸引力,這組關係常常在不經意間發揮影響。",
++    "拱": "代表兩端夾住中間形成的一股加乘力量,象徵這組地支所在的領域,會因為周邊條件配合而被拱托、放大。",
++    "半合": "代表兩者形成局部但仍具方向性的合力,力量不如三合完整,但仍有正向助益的傾向。",
++    "半會": "代表兩者形成局部的同類氣場加乘,同五行或同屬性的力量會被強化,個性或該領域的特質會更加鮮明。"
++  },
++
++  "合併規則": {
++    "說明": "當同一組地支(例如午與未)同時符合兩種以上的關係類型時(例如既是六合、又是半會火),不要各自輸出完整解讀,改成合併句",
++    "合併模板": "{地支A}與{地支B}之間同時存在{關係類型1}與{關係類型2}的關係,{綜合說明:結合兩種關係類型的核心意義,只講一次,不重複堆疊}"
++  },
++
++  "組裝流程": [
++    "1. 取得排盤引擎輸出的『地支關係』資料(年支/月支/日支/時支之間的合沖害刑等)",
++    "2. 判斷涉及哪兩個柱位(例如年支與時支)",
++    "3. 檢查是否有多重關係疊加在同一組地支上,若有先套用合併規則",
++    "4. 套用關係類型解讀,並疊加涉及柱位的背景意義(來自柱位背景句表:年柱/月柱/日柱/時柱各自代表的人生面向)",
++    "5. 若命盤中出現多組不同的地支關係,依序組裝成一段,不需要每組都寫成獨立段落,可用連接詞串起(例如『同時』『另外』)"
++  ],
++
++  "套用範例": {
++    "說明": "以Shelly的地支關係為例(午未六合+午未半會火、申亥害、午亥暗合、亥未拱木)",
++    "生成範例句": "年支午與時支未之間同時存在六合與半會火的關係,顯示這兩個時期(早年與晚年/子女緣分)之間有著和諧配合又同氣加乘的連結,火的特質會在這個連結中被放大。另外,月支申與日支亥之間相害,提醒你自身核心(日柱)與成長環境、事業土壤(月柱)之間,可能存在一些底層的耗損或需要留意的摩擦。同時,午支與亥支之間有暗合,代表早年根基與自身核心之間,存在一種不明顯但持續發揮作用的隱性牽引。此外,亥與未拱木,代表日柱與時柱之間夾出木的力量,對應到成長行動力與開創性的加乘效果。"
++  }
++}
+diff --git a/src/data/shensha-analysis.json b/src/data/shensha-analysis.json
+new file mode 100644
+index 0000000..dc8674d
+--- /dev/null
++++ b/src/data/shensha-analysis.json
+@@ -0,0 +1,48 @@
++{
++  "說明": "此表用於解讀四柱中出現的神煞(貴人星與煞星)。組裝邏輯:找出該柱出現的神煞 -> 套用神煞核心意義 -> 疊加柱位背景句(說明這個神煞影響的是人生哪個階段/面向)。若同一柱出現多個神煞,合併成一句,避免逐條重複輸出柱位背景說明。",
++
++  "貴人星解讀": {
++    "文昌貴人": "代表文書、學識與考運方面的加分,利於讀書考試、文書作業或需要邏輯表達的場合。",
++    "太極貴人": "代表與玄學、宗教或精神修養有緣分,容易對命理、哲學或內在探索產生興趣並有所領悟。",
++    "天廚貴人": "代表衣食無缺、口福機緣佳,也象徵在飲食、餐旅相關領域容易有好的際遇。",
++    "學堂": "代表學習能力強、求知欲旺盛,利於長期進修或需要累積專業知識的路線。",
++    "月德貴人": "代表遇事容易逢凶化吉,尤其在女性長輩或母系親屬方面容易得到助力與庇蔭。",
++    "天乙貴人": "命理中最重要的貴人星之一,代表整體運勢容易在關鍵時刻得到他人相助,化解危機。",
++    "天德合": "與月德類似,代表逢凶化吉的助力,尤其在需要他人幫忙緩頰或調解的場合特別有效。",
++    "國印貴人": "代表容易獲得掌權者或體制內的認可與提拔,適合往體制內、公部門或需要正式資格的路線發展。",
++    "福星貴人": "代表整體福分深厚,遇到困難時容易有轉機,晚年運勢也相對穩定安逸。",
++    "天德貴人": "代表為人寬厚、逢凶化吉,也象徵這個人身上帶有一種讓人安心信賴的特質。"
++  },
++
++  "煞星解讀": {
++    "紅艷煞": "代表異性緣佳、魅力外顯,但也提醒需留意感情關係中過於氾濫或難以拒絕的傾向。",
++    "孤辰": "代表容易感到孤獨疏離,人際或感情關係中可能有一種難以言喻的距離感,需要主動經營才不會顯得孤立。",
++    "空亡": "代表這個柱位所代表的領域,容易出現力道落空、事倍功半或不踏實的感覺,需要更務實地經營才能落地。",
++    "喪門": "傳統上與喪事、低潮情緒有關,現代解讀上更多象徵需要留意情緒低落或需要調適心情的階段。",
++    "劫煞": "代表容易遇到突發的破財、意外或需要應變的狀況,提醒行事宜謹慎,避免衝動決策。",
++    "元辰": "代表運勢中容易出現陰錯陽差、事與願違的狀況,需要多一份耐心去面對計畫外的變化。",
++    "十靈": "代表帶有一種特殊的靈性直覺或第六感,對於氛圍與人心的變化較為敏銳。",
++    "將星": "代表天生帶有領導特質與統御能力,遇到需要扛責任、帶領團隊的場合容易發揮所長。"
++  },
++
++  "柱位修飾": {
++    "說明": "沿用ten-gods-meanings-v2.json的柱位背景句,說明這個神煞主要影響人生哪個階段/面向",
++    "年柱": "這與你早年的家庭背景、祖上根基有關。",
++    "月柱": "這與你的成長環境、社交圈與事業土壤有關。",
++    "日柱": "這與你自身核心特質及配偶緣分關係最直接。",
++    "時柱": "這與你的晚年運勢、子女緣分及人生後半段有關。"
++  },
++
++  "組裝流程": [
++    "1. 取得該柱出現的所有神煞(來自排盤引擎的神煞資料)",
++    "2. 逐一比對貴人星解讀或煞星解讀,取得核心意義",
++    "3. 若該柱有多個神煞,合併成一句話,例如『年柱同時帶有將星、文昌貴人、太極貴人、天廚貴人、學堂、月德貴人,』,再接著把每個神煞的核心意義用逗號串接,不要每個神煞都重複講一次『這與你早年的家庭背景有關』",
++    "4. 柱位背景句只在該柱的神煞敘述最後講一次"
++  ],
++
++  "套用範例": {
++    "說明": "以Shelly年柱神煞為例(將星、文昌貴人、太極貴人、天廚貴人、學堂、月德貴人)",
++    "生成範例句": "年柱同時帶有將星、文昌貴人、太極貴人、天廚貴人、學堂與月德貴人——具備領導特質與統御能力,文書學識方面容易有加分表現,對玄學或精神探索有緣分,衣食無缺、口福機緣佳,學習能力強、求知欲旺盛,遇事也容易逢凶化吉、得女性長輩庇蔭。這些特質都與你早年的家庭背景、祖上根基有關,顯示你的成長根基相當扎實且資源豐富。",
++    "日柱範例": "日柱帶有劫煞、國印貴人、福星貴人、元辰與十靈——容易遇到突發需要應變的狀況,但也容易獲得掌權者或體制內的認可,整體福分深厚、遇困難有轉機,不過運勢中也可能出現陰錯陽差的狀況,同時帶有較敏銳的靈性直覺。這些都與你自身核心特質及配偶緣分關係最直接。"
++  }
++}
+diff --git a/src/engines/bazi.js b/src/engines/bazi.js
+index eebd998..d61937e 100644
+--- a/src/engines/bazi.js
++++ b/src/engines/bazi.js
+@@ -5,6 +5,7 @@ import lunarPkg from 'lunar-javascript';
+ const { Solar } = lunarPkg;
+ 
+ const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
++const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+ 
+ const STEM_ELEMENT = {
+   甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth',
+@@ -25,6 +26,27 @@ const LIU_HAI = [['子', '未'], ['丑', '午'], ['寅', '巳'], ['卯', '辰'],
+ const LIU_CHONG = [['子', '午'], ['丑', '未'], ['寅', '申'], ['卯', '酉'], ['辰', '戌'], ['巳', '亥']];
+ // 三刑(寅巳申、丑戌未)與子卯相刑;辰午酉亥自刑僅在重複出現時成立,此處不列
+ const XING = [['寅', '巳'], ['巳', '申'], ['申', '寅'], ['丑', '戌'], ['戌', '未'], ['未', '丑'], ['子', '卯']];
++// 相破(六破)
++const XIANG_PO = [['子', '酉'], ['卯', '午'], ['辰', '丑'], ['戌', '未'], ['寅', '亥'], ['巳', '申']];
++// 暗合(採信度最高的「通合」組合,另加通祿合中同樣有多來源佐證的巳酉;
++//  「子巳」等孤證組合因來源不一致,不列入,避免誤判)
++const AN_HE = [['寅', '丑'], ['午', '亥'], ['卯', '申'], ['巳', '酉']];
++// 半合(三合局中含帝旺/中神的相鄰兩支)
++const BAN_HE = [
++  ['申', '子'], ['子', '辰'], // 三合水局(申子辰)
++  ['巳', '酉'], ['酉', '丑'], // 三合金局(巳酉丑)
++  ['寅', '午'], ['午', '戌'], // 三合火局(寅午戌)
++  ['亥', '卯'], ['卯', '未'], // 三合木局(亥卯未)
++];
++// 拱(三合局中缺中神的兩端外支)
++const GONG = [['申', '辰'], ['巳', '丑'], ['寅', '戌'], ['亥', '未']];
++// 半會(三會方局任兩支)
++const BAN_HUI = [
++  ['寅', '卯'], ['卯', '辰'], ['寅', '辰'], // 三會木方(寅卯辰)
++  ['巳', '午'], ['午', '未'], ['巳', '未'], // 三會火方(巳午未)
++  ['申', '酉'], ['酉', '戌'], ['申', '戌'], // 三會金方(申酉戌)
++  ['亥', '子'], ['子', '丑'], ['亥', '丑'], // 三會水方(亥子丑)
++];
+ 
+ // 月令司令分野(人元用事):節入後第 N 天由哪個藏干司令
+ const MONTH_COMMANDER = {
+@@ -42,22 +64,73 @@ const MONTH_COMMANDER = {
+   丑: [['癸', 9], ['辛', 3], ['己', 18]],
+ };
+ 
+-/** 月令司令:依節入天數查分野表,失敗時退回月支本氣 */
+-function commanderOf(lunar, solar, monthBranch, fallback) {
+-  try {
+-    const jie = lunar.getPrevJie(true).getSolar();
+-    const d0 = Date.UTC(jie.getYear(), jie.getMonth() - 1, jie.getDay());
+-    const d1 = Date.UTC(solar.getYear(), solar.getMonth() - 1, solar.getDay());
+-    let day = Math.floor((d1 - d0) / 86400000) + 1;
+-    for (const [gan, span] of MONTH_COMMANDER[monthBranch]) {
+-      if (day <= span) return gan;
+-      day -= span;
+-    }
+-    return MONTH_COMMANDER[monthBranch].at(-1)[0];
+-  } catch {
+-    return fallback;
+-  }
+-}
++// ---------------------------------------------------------------------------
++// 十八神煞查表邏輯(除既有 12 運神煞外的 16 種,均以「日干/年支/月支/日柱」為錨點查表)
++// ---------------------------------------------------------------------------
++
++// 以日干為錨點 → 目標地支(可能不只一個),四柱地支逐一比對
++const DAY_STEM_TARGET_BRANCH = {
++  天乙貴人: {
++    甲: ['丑', '未'], 戊: ['丑', '未'], 庚: ['丑', '未'],
++    乙: ['子', '申'], 己: ['子', '申'],
++    丙: ['亥', '酉'], 丁: ['亥', '酉'],
++    壬: ['卯', '巳'], 癸: ['卯', '巳'],
++    辛: ['寅', '午'],
++  },
++  太極貴人: {
++    甲: ['子', '午'], 乙: ['子', '午'],
++    丙: ['卯', '酉'], 丁: ['卯', '酉'],
++    戊: ['辰', '戌', '丑', '未'], 己: ['辰', '戌', '丑', '未'],
++    庚: ['寅', '亥'], 辛: ['寅', '亥'],
++    壬: ['巳', '申'], 癸: ['巳', '申'],
++  },
++  文昌貴人: { 甲: ['巳'], 乙: ['午'], 丙: ['申'], 丁: ['酉'], 戊: ['申'], 己: ['酉'], 庚: ['亥'], 辛: ['子'], 壬: ['寅'], 癸: ['卯'] },
++  天廚貴人: { 甲: ['巳'], 乙: ['午'], 丙: ['巳'], 丁: ['午'], 戊: ['申'], 己: ['酉'], 庚: ['亥'], 辛: ['子'], 壬: ['寅'], 癸: ['卯'] },
++  學堂: { 甲: ['亥'], 乙: ['午'], 丙: ['寅'], 丁: ['酉'], 戊: ['寅'], 己: ['酉'], 庚: ['巳'], 辛: ['子'], 壬: ['申'], 癸: ['卯'] },
++  紅艷煞: { 甲: ['午'], 乙: ['申'], 丙: ['寅'], 丁: ['未'], 戊: ['辰'], 己: ['辰'], 庚: ['戌'], 辛: ['酉'], 壬: ['子'], 癸: ['申'] },
++  國印貴人: { 甲: ['戌'], 乙: ['亥'], 丙: ['丑'], 丁: ['寅'], 戊: ['丑'], 己: ['寅'], 庚: ['辰'], 辛: ['巳'], 壬: ['未'], 癸: ['申'] },
++  福星貴人: {
++    甲: ['寅', '子'], 丙: ['寅', '子'],
++    乙: ['卯', '丑'], 癸: ['卯', '丑'],
++    丁: ['亥'], 戊: ['申'], 己: ['未'], 庚: ['午'], 辛: ['巳'], 壬: ['辰'],
++  },
++};
++
++// 以月支為錨點 → 目標(可能是天干或地支),四柱天干或地支逐一比對
++const MONTH_BRANCH_TARGET = {
++  月德貴人: {
++    寅: { type: 'stem', value: '丙' }, 午: { type: 'stem', value: '丙' }, 戌: { type: 'stem', value: '丙' },
++    申: { type: 'stem', value: '壬' }, 子: { type: 'stem', value: '壬' }, 辰: { type: 'stem', value: '壬' },
++    亥: { type: 'stem', value: '甲' }, 卯: { type: 'stem', value: '甲' }, 未: { type: 'stem', value: '甲' },
++    巳: { type: 'stem', value: '庚' }, 酉: { type: 'stem', value: '庚' }, 丑: { type: 'stem', value: '庚' },
++  },
++  天德貴人: {
++    寅: { type: 'stem', value: '丁' }, 卯: { type: 'branch', value: '申' }, 辰: { type: 'stem', value: '壬' },
++    巳: { type: 'stem', value: '辛' }, 午: { type: 'branch', value: '亥' }, 未: { type: 'stem', value: '甲' },
++    申: { type: 'stem', value: '癸' }, 酉: { type: 'branch', value: '寅' }, 戌: { type: 'stem', value: '丙' },
++    亥: { type: 'stem', value: '乙' }, 子: { type: 'branch', value: '巳' }, 丑: { type: 'stem', value: '庚' },
++  },
++  天德合: {
++    寅: { type: 'stem', value: '壬' }, 卯: { type: 'branch', value: '巳' }, 辰: { type: 'stem', value: '丁' },
++    巳: { type: 'stem', value: '丙' }, 午: { type: 'branch', value: '寅' }, 未: { type: 'stem', value: '己' },
++    申: { type: 'stem', value: '戊' }, 酉: { type: 'branch', value: '亥' }, 戌: { type: 'stem', value: '辛' },
++    亥: { type: 'stem', value: '庚' }, 子: { type: 'branch', value: '申' }, 丑: { type: 'stem', value: '乙' },
++  },
++};
++
++// 以年支為錨點(年支所屬三合組)→ 孤辰目標地支
++const GU_CHEN_GROUP = [
++  { group: ['亥', '子', '丑'], target: '寅' },
++  { group: ['寅', '卯', '辰'], target: '巳' },
++  { group: ['巳', '午', '未'], target: '申' },
++  { group: ['申', '酉', '戌'], target: '亥' },
++];
++// 喪門:年支順行第 2 位
++const SANG_MEN = { 子: '寅', 丑: '卯', 寅: '辰', 卯: '巳', 辰: '午', 巳: '未', 午: '申', 未: '酉', 申: '戌', 酉: '亥', 戌: '子', 亥: '丑' };
++// 元辰
++const YUAN_CHEN = { 子: '未', 丑: '午', 寅: '酉', 卯: '申', 辰: '亥', 巳: '戌', 午: '丑', 未: '子', 申: '卯', 酉: '寅', 戌: '巳', 亥: '辰' };
++// 十靈日(固定日柱干支組合)
++const SHI_LING_DAYS = ['甲辰', '乙亥', '丙辰', '丁酉', '戊午', '庚寅', '庚戌', '辛亥', '壬寅', '癸未'];
+ 
+ // lunar-javascript 輸出為簡體,轉為繁體(僅涵蓋十神/納音/十二長生會用到的字)
+ const S2T = {
+@@ -87,6 +160,99 @@ function pillar(ganZhi) {
+   return { stem: ganZhi[0], branch: ganZhi[1] };
+ }
+ 
++/**
++ * 計算完整十八神煞:回傳每柱出現的所有神煞名稱陣列(含既有 12 運神煞)
++ * @param {{yearPillar:{stem,branch}, monthPillar:{stem,branch}, dayPillar:{stem,branch}, hourPillar:{stem,branch}}} pillars
++ * @param {{yearPillar:string, monthPillar:string, dayPillar:string, hourPillar:string}} cycleShensha 既有12運神煞
++ */
++function computeShenShaList(pillars, cycleShensha) {
++  const keys = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar'];
++  const list = { yearPillar: [], monthPillar: [], dayPillar: [], hourPillar: [] };
++
++  // 1. 併入既有 12 運神煞(劫煞/災煞/.../將星/.../華蓋)
++  for (const k of keys) list[k].push(cycleShensha[k]);
++
++  const dayStem = pillars.dayPillar.stem;
++  const monthBranch = pillars.monthPillar.branch;
++  const yearBranch = pillars.yearPillar.branch;
++
++  // 2. 以日干為錨點的貴人/煞星(四柱地支逐一比對,含日柱本身地支)
++  for (const [name, table] of Object.entries(DAY_STEM_TARGET_BRANCH)) {
++    const targets = table[dayStem];
++    if (!targets) continue;
++    for (const k of keys) {
++      if (targets.includes(pillars[k].branch)) list[k].push(name);
++    }
++  }
++
++  // 3. 以月支為錨點的貴人(四柱天干或地支逐一比對)
++  for (const [name, table] of Object.entries(MONTH_BRANCH_TARGET)) {
++    const target = table[monthBranch];
++    if (!target) continue;
++    for (const k of keys) {
++      const hit = target.type === 'stem' ? pillars[k].stem === target.value : pillars[k].branch === target.value;
++      if (hit) list[k].push(name);
++    }
++  }
++
++  // 4. 以年支為錨點的煞星(孤辰/喪門/元辰),檢查其餘三柱地支(排除年柱自身)
++  const guChen = GU_CHEN_GROUP.find((g) => g.group.includes(yearBranch))?.target;
++  const sangMen = SANG_MEN[yearBranch];
++  const yuanChen = YUAN_CHEN[yearBranch];
++  for (const k of keys) {
++    if (k === 'yearPillar') continue;
++    const b = pillars[k].branch;
++    if (guChen && b === guChen) list[k].push('孤辰');
++    if (sangMen && b === sangMen) list[k].push('喪門');
++    if (yuanChen && b === yuanChen) list[k].push('元辰');
++  }
++
++  // 5. 十靈日(固定日柱干支組合,僅日柱可能命中)
++  if (SHI_LING_DAYS.includes(pillars.dayPillar.stem + pillars.dayPillar.branch)) {
++    list.dayPillar.push('十靈');
++  }
++
++  return list;
++}
++
++/** 空亡(旬空):以年柱/日柱各自的旬空地支,檢查其餘三柱地支是否落空 */
++function computeVoidHits(pillars, voidBranches) {
++  const keys = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar'];
++  const hits = { yearPillar: false, monthPillar: false, dayPillar: false, hourPillar: false };
++  const yearVoid = voidBranches.year ? [...voidBranches.year] : [];
++  const dayVoid = voidBranches.day ? [...voidBranches.day] : [];
++  for (const k of keys) {
++    const b = pillars[k].branch;
++    if ((k !== 'yearPillar' && yearVoid.includes(b)) || (k !== 'dayPillar' && dayVoid.includes(b))) {
++      hits[k] = true;
++    }
++  }
++  return hits;
++}
++
++/** 地支關係總表:六合/害/沖/刑 + 相破/暗合/半合/拱/半會,回傳每組關係(含合併多重關係) */
++function computeBranchRelations(branches) {
++  const keys = ['yearBranch', 'monthBranch', 'dayBranch', 'hourBranch'];
++  const tables = [
++    [LIU_HE, '六合'], [LIU_HAI, '害'], [LIU_CHONG, '沖'], [XING, '刑'],
++    [XIANG_PO, '相破'], [AN_HE, '暗合'], [BAN_HE, '半合'], [GONG, '拱'], [BAN_HUI, '半會'],
++  ];
++  const raw = [];
++  for (const a of keys) {
++    for (const b of keys) {
++      if (a === b) continue;
++      for (const [table, relation] of tables) {
++        if (table.some(([x, y]) =>
++          (x === branches[a] && y === branches[b]) || (y === branches[a] && x === branches[b]))) {
++          const pairArr = [branches[a], branches[b]].sort((x, y) => BRANCHES.indexOf(x) - BRANCHES.indexOf(y));
++          raw.push({ branch: a, relation, with: b, pair: pairArr.join('') });
++        }
++      }
++    }
++  }
++  return raw;
++}
++
+ /**
+  * @param {object} input
+  * @param {number} input.year   西元年
+@@ -109,7 +275,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
+     hourBranch: ec.getTimeZhi(),
+   };
+ 
+-  // --- 神煞:年柱以日支起,其餘各柱以年支起 ---
++  // --- 神煞(既有12運):年柱以日支起,其餘各柱以年支起 ---
+   const shensha = {
+     yearPillar: shenShaOf(branches.dayBranch, branches.yearBranch),
+     monthPillar: shenShaOf(branches.yearBranch, branches.monthBranch),
+@@ -117,24 +283,26 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
+     hourPillar: shenShaOf(branches.yearBranch, branches.hourBranch),
+   };
+ 
+-  // --- 地支關係(六合/害/沖) ---
+-  const keys = ['yearBranch', 'monthBranch', 'dayBranch', 'hourBranch'];
+-  const tables = [[LIU_HE, '六合'], [LIU_HAI, '害'], [LIU_CHONG, '沖'], [XING, '刑']];
+-  const branchRelations = [];
+-  for (const a of keys) {
+-    for (const b of keys) {
+-      if (a === b) continue;
+-      for (const [table, relation] of tables) {
+-        if (table.some(([x, y]) =>
+-          (x === branches[a] && y === branches[b]) || (y === branches[a] && x === branches[b]))) {
+-          const pairArr = [branches[a], branches[b]]
+-            .sort((x, y) => BRANCHES.indexOf(x) - BRANCHES.indexOf(y));
+-          branchRelations.push({ branch: a, relation, with: b, pair: pairArr.join('') });
+-        }
+-      }
+-    }
++  const fourPillars = {
++    yearPillar: pillar(ec.getYear()),
++    monthPillar: pillar(ec.getMonth()),
++    dayPillar: pillar(ec.getDay()),
++    hourPillar: pillar(ec.getTime()),
++  };
++
++  // --- 完整十八神煞(每柱可能多個) ---
++  const shenshaList = computeShenShaList(fourPillars, shensha);
++
++  const voidBranches = { year: ec.getYearXunKong(), day: ec.getDayXunKong() };
++  const voidHits = computeVoidHits(fourPillars, voidBranches);
++  const voidKeyToName = { yearPillar: '年', monthPillar: '月', dayPillar: '日', hourPillar: '時' };
++  for (const k of Object.keys(voidHits)) {
++    if (voidHits[k]) shenshaList[k].push('空亡');
+   }
+ 
++  // --- 地支關係(六合/害/沖/刑 + 相破/暗合/半合/拱/半會) ---
++  const branchRelations = computeBranchRelations(branches);
++
+   // --- 五行分布(四干四支共八字) ---
+   const dist = { wood: 0, fire: 0, earth: 0, metal: 0, water: 0 };
+   for (const g of [ec.getYearGan(), ec.getMonthGan(), ec.getDayGan(), ec.getTimeGan()]) dist[STEM_ELEMENT[g]]++;
+@@ -163,12 +331,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
+   }
+ 
+   return {
+-    fourPillars: {
+-      yearPillar: pillar(ec.getYear()),
+-      monthPillar: pillar(ec.getMonth()),
+-      dayPillar: pillar(ec.getDay()),
+-      hourPillar: pillar(ec.getTime()),
+-    },
++    fourPillars,
+     hiddenStems: {
+       yearBranch: zipHidden(ec.getYearHideGan(), ec.getYearShiShenZhi()),
+       monthBranch: zipHidden(ec.getMonthHideGan(), ec.getMonthShiShenZhi()),
+@@ -191,10 +354,11 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
+       dayPillar: { nayin: t(ec.getDayNaYin()), twelveStages: t(ec.getDayDiShi()), shensha: shensha.dayPillar },
+       hourPillar: { nayin: t(ec.getTimeNaYin()), twelveStages: t(ec.getTimeDiShi()), shensha: shensha.hourPillar },
+     },
++    shenshaList,
+     branchRelations,
+     fiveElementDistribution: dist,
+     coreValues: {
+-      voidBranches: { year: ec.getYearXunKong(), day: ec.getDayXunKong() },
++      voidBranches,
+       monthCommander: commanderOf(solar.getLunar(), solar, branches.monthBranch, ec.getMonthHideGan()[0]),
+       greatLuckStartAge: daYun[0] ? daYun[0].getStartYear() - year : null,
+     },
+@@ -203,3 +367,20 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
+     greatLuckCycles,
+   };
+ }
++
++/** 月令司令:依節入天數查分野表,失敗時退回月支本氣 */
++function commanderOf(lunar, solar, monthBranch, fallback) {
++  try {
++    const jie = lunar.getPrevJie(true).getSolar();
++    const d0 = Date.UTC(jie.getYear(), jie.getMonth() - 1, jie.getDay());
++    const d1 = Date.UTC(solar.getYear(), solar.getMonth() - 1, solar.getDay());
++    let day = Math.floor((d1 - d0) / 86400000) + 1;
++    for (const [gan, span] of MONTH_COMMANDER[monthBranch]) {
++      if (day <= span) return gan;
++      day -= span;
++    }
++    return MONTH_COMMANDER[monthBranch].at(-1)[0];
++  } catch {
++    return fallback;
++  }
++}
+diff --git a/src/engines/compose-branch-relations.js b/src/engines/compose-branch-relations.js
+new file mode 100644
+index 0000000..5c9e88f
+--- /dev/null
++++ b/src/engines/compose-branch-relations.js
+@@ -0,0 +1,82 @@
++// src/engines/compose-branch-relations.js — 地支關係(合沖害刑拱暗合半合半會)解讀組裝引擎
++// 組裝邏輯(照 branch-interactions-analysis.json):
++//   同一組地支若同時觸發多種關係類型(例如午未既是六合也是半會),合併成一句,
++//   不各自輸出一次完整解讀;每個柱位的背景意涵在整段中只點出一次,避免重複堆疊。
++import db from '../data/branch-interactions-analysis.json' with { type: 'json' };
++
++const MEANING_RAW = db['關係類型解讀'];
++// bazi.js 引擎輸出的關係代號與 branch-interactions-analysis.json 的鍵名不完全一致(六合/害/沖/刑 vs 六合/六害/六沖/三刑),需要對應轉換
++const RELATION_ALIAS = { 六合: '六合', 害: '六害', 沖: '六沖', 刑: '三刑', 相破: '相破', 暗合: '暗合', 半合: '半合', 拱: '拱', 半會: '半會' };
++const displayName = (rel) => RELATION_ALIAS[rel] ?? rel;
++const MEANING = new Proxy({}, { get: (_, rel) => MEANING_RAW[RELATION_ALIAS[rel] ?? rel] });
++
++const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
++// 柱位背景意涵(短語版,僅在整段中第一次提及該柱時附註一次)
++const PILLAR_HINT = {
++  yearBranch: '早年家庭根基',
++  monthBranch: '成長環境與事業土壤',
++  dayBranch: '自身核心特質',
++  hourBranch: '晚年與子女緣分',
++};
++// 固定柱位配對順序,確保輸出穩定
++const PAIR_ORDER = [
++  ['yearBranch', 'monthBranch'], ['yearBranch', 'dayBranch'], ['yearBranch', 'hourBranch'],
++  ['monthBranch', 'dayBranch'], ['monthBranch', 'hourBranch'], ['dayBranch', 'hourBranch'],
++];
++
++const stripPeriod = (s) => s.replace(/。\s*$/, '');
++
++/**
++ * 組裝地支關係解讀:先依柱位配對分組(合併同一組地支的多重關係類型),
++ * 再依固定順序輸出,每個柱位的背景意涵只在第一次出現時附註。
++ * @param {object} baZi convertToBaZi() 輸出(需含 branchRelations)
++ * @returns {{ groups: Array<{pillars, relations, pair, text}>, text: string }}
++ */
++export function composeBranchRelationsReading(baZi) {
++  const raw = baZi.branchRelations ?? [];
++  if (!raw.length) return { groups: [], text: '四柱地支之間沒有明顯的合沖害刑拱暗合半合半會等特殊關係。' };
++
++  // 依柱位配對(不分方向)分組,收集該配對觸發的所有關係類型(去重)
++  const byPair = new Map();
++  for (const r of raw) {
++    const key = [r.branch, r.with].sort().join('-');
++    if (!byPair.has(key)) byPair.set(key, { pillars: [r.branch, r.with].sort(), pair: r.pair, relations: new Set() });
++    byPair.get(key).relations.add(r.relation);
++  }
++
++  const mentionedPillar = new Set();
++  const groups = [];
++  for (const [a, b] of PAIR_ORDER) {
++    const key = [a, b].sort().join('-');
++    const g = byPair.get(key);
++    if (!g) continue;
++
++    const relations = [...g.relations];
++    const labelA = BRANCH_LABEL[a];
++    const labelB = BRANCH_LABEL[b];
++
++    // 柱位背景意涵只在整段中第一次提及該柱時附註,避免同一柱在多組關係裡重複講解釋
++    const hintParts = [];
++    for (const p of [a, b]) {
++      if (!mentionedPillar.has(p)) {
++        hintParts.push(`${BRANCH_LABEL[p]}(${PILLAR_HINT[p]})`);
++        mentionedPillar.add(p);
++      }
++    }
++    const hint = hintParts.length ? `(${hintParts.join('、')})` : '';
++
++    let text;
++    if (relations.length === 1) {
++      text = `${labelA}與${labelB}${hint}之間為${displayName(relations[0])}關係(${g.pair}),${MEANING[relations[0]] ?? ''}`;
++    } else {
++      // 合併規則:同一組地支同時觸發多種關係類型時,合併成一句,不各自輸出完整解讀
++      const meanings = relations.map((r) => MEANING[r] ?? '').filter(Boolean);
++      const combined = meanings.map((m, i) => (i < meanings.length - 1 ? stripPeriod(m) : m)).join(',');
++      text = `${labelA}與${labelB}${hint}之間同時存在${relations.map(displayName).join('與')}的關係(${g.pair}),${combined}`;
++    }
++
++    groups.push({ pillars: [a, b], relations, pair: g.pair, text });
++  }
++
++  return { groups, text: groups.map((g) => g.text).join(' 另外,') };
++}
+diff --git a/src/engines/compose-shensha.js b/src/engines/compose-shensha.js
+new file mode 100644
+index 0000000..aff9972
+--- /dev/null
++++ b/src/engines/compose-shensha.js
+@@ -0,0 +1,52 @@
++// src/engines/compose-shensha.js — 神煞(貴人星/煞星)解讀組裝引擎
++// 組裝邏輯(照 shensha-analysis.json):
++//   以「柱」為單位輸出,同一柱若有多個神煞,合併成一句,
++//   柱位背景句只在該柱的敘述最後講一次,不逐條重複。
++import db from '../data/shensha-analysis.json' with { type: 'json' };
++
++const CORE = { ...db['貴人星解讀'], ...db['煞星解讀'] };
++const PILLAR_BG = db['柱位修飾'];
++
++const PILLARS = [
++  { key: 'yearPillar', label: '年柱' },
++  { key: 'monthPillar', label: '月柱' },
++  { key: 'dayPillar', label: '日柱' },
++  { key: 'hourPillar', label: '時柱' },
++];
++
++const stripPeriod = (s) => s.replace(/。\s*$/, '');
++const stripLead = (s) => s.replace(/^代表/, '');
++
++/** 單一柱的神煞合併句:多個神煞的核心意義逗號串接,柱位背景句只講一次 */
++function composePillarShensha(label, bg, names) {
++  const known = names.filter((n) => CORE[n]);
++  if (!known.length) return null;
++
++  const nameList = known.length === 1
++    ? known[0]
++    : `${known.slice(0, -1).join('、')}與${known.at(-1)}`;
++
++  const meanings = known.map((n) => stripLead(CORE[n]));
++  const meaningJoined = meanings.map((m, i) => (i < meanings.length - 1 ? stripPeriod(m) : m)).join(',');
++
++  return {
++    pillar: label,
++    shensha: known,
++    text: `${label}${known.length > 1 ? '同時帶有' : '帶有'}${nameList}——${meaningJoined}${bg}`,
++  };
++}
++
++/**
++ * 組裝四柱神煞解讀
++ * @param {object} baZi convertToBaZi() 輸出(需含 shenshaList)
++ * @returns {{ entries: Array<{pillar, shensha, text}>, text: string }}
++ */
++export function composeShenShaReading(baZi) {
++  const shenshaList = baZi.shenshaList ?? {};
++  const entries = [];
++  for (const { key, label } of PILLARS) {
++    const e = composePillarShensha(label, PILLAR_BG[label], shenshaList[key] ?? []);
++    if (e) entries.push(e);
++  }
++  return { entries, text: entries.map((e) => e.text).join(' ') };
++}
+diff --git a/src/engines/comprehensive.js b/src/engines/comprehensive.js
+index 00c9fa1..ad0cae3 100644
+--- a/src/engines/comprehensive.js
++++ b/src/engines/comprehensive.js
+@@ -10,17 +10,21 @@ import focusSection from '../data/current-focus-section.json' with { type: 'json
+ import baziReading from '../data/bazi-comprehensive-reading.json' with { type: 'json' };
+ import elementDb from '../data/five-element-analysis.json' with { type: 'json' };
+ import tenGodsDb from '../data/ten-gods-meanings.json' with { type: 'json' };
+-import overlays from '../data/luck-cycle-overlays.json' with { type: 'json' };
+ import { BRIGHTNESS_ALIAS } from './compose.js';
+-import { tenGodOf } from './compose-luck.js';
++import { tenGodOf, composeBaZiCycleOverlay, categoryOf } from './compose-luck.js';
+ import { composeElementAnalysis } from './compose-elements.js';
++import { composeShenShaReading } from './compose-shensha.js';
++import { composeBranchRelationsReading } from './compose-branch-relations.js';
++import luckOverlayDb from '../data/luck-cycle-overlays.json' with { type: 'json' };
++import shenshaDb from '../data/shensha-analysis.json' with { type: 'json' };
+ 
+ const COMBOS = doubleStarDb['雙主星組合'];
+ const TAGS = traitTags['主星特質標籤'];
+ const STAR_ORDER = doubleLogic['星曜正規化排序表']['順序'];
+ const ADVICE = assembly['條件式建議句庫'];
+ const FOCUS = focusSection['第6段_當前焦點'];
+-const BZ_CAT = overlays['八字大運流年類別疊加'];
++const LUCK_CATEGORY_DESC = luckOverlayDb['八字大運流年類別疊加']['類別解讀'];
++const SHENSHA_CORE = { ...shenshaDb['貴人星解讀'], ...shenshaDb['煞星解讀'] };
+ 
+ const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+ const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+@@ -48,15 +52,35 @@ function resolveMainText(contextPalace, starNames) {
+   return `${get(pair[0])}同時,${get(pair[1])}`;
+ }
+ 
+-/** 主句之後依序疊加亮度、四化(與四化亮度疊加的優先順序) */
+-function applyOverlays(text, stars) {
++const BRIGHTNESS_PLAIN = palaceStarDb['亮度原始等級白話'];
++
++/**
++ * 主句之後依序疊加亮度、四化(與四化亮度疊加的優先順序)。
++ * 亮度疊加句是通用模板(依廟旺平陷分四級),若同一宮位有多顆星落在同一級距,
++ * 直接各自套用會變成同一句話重複兩次、只換星名——比照五行分析的修正原則,
++ * 改成先依等級分組,同級距的星合併成一句,避免重複段落。
++ * 另外原本「星名亮度得——此星的特質穩定發揮」這種寫法太術語化,
++ * 一般使用者看不懂「得」是什麼,改成白話說明(廟旺得利平不陷各自的白話 + 具體影響)。
++ */
++function applyOverlays(text, stars, mode = 'public') {
+   const parts = [text];
++  if (mode !== 'study') return parts.join(' '); // 大眾版:只留結論句,不引用亮度/四化依據
++
++  const brightnessGroups = new Map(); // bKey -> [star,...]
+   for (const s of stars) {
+     const bKey = BRIGHTNESS_ALIAS[s.brightness];
+     if (bKey && palaceStarDb['亮度疊加'][bKey]) {
+-      parts.push(`${s.name}亮度${s.brightness}——${palaceStarDb['亮度疊加'][bKey]}`);
++      if (!brightnessGroups.has(bKey)) brightnessGroups.set(bKey, []);
++      brightnessGroups.get(bKey).push(s);
+     }
+   }
++  for (const [bKey, group] of brightnessGroups) {
++    const label = group
++      .map((s) => `${s.name}的亮度是「${s.brightness}」${BRIGHTNESS_PLAIN[s.brightness] ? `(${BRIGHTNESS_PLAIN[s.brightness]})` : ''}`)
++      .join('、');
++    parts.push(`${label},${palaceStarDb['亮度疊加'][bKey]}`);
++  }
++
+   for (const s of stars) {
+     if (!s.transformation) continue;
+     const key = `化${s.transformation}`;
+@@ -66,7 +90,7 @@ function applyOverlays(text, stars) {
+ }
+ 
+ /** 取某宮位的完整解釋(空宮自動借對宮,文案用對宮情境) */
+-function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true } = {}) {
++function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true, mode = 'public' } = {}) {
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
+   let stars = palace.majorStars;
+   let ctx = palace.name;
+@@ -78,7 +102,7 @@ function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true } = {})
+   }
+   const main = resolveMainText(ctx, stars.map((s) => s.name));
+   return {
+-    text: withOverlays ? applyOverlays(main, stars) : main,
++    text: withOverlays ? applyOverlays(main, stars, mode) : main,
+     stars: stars.map((s) => s.name),
+     borrowed,
+   };
+@@ -103,19 +127,23 @@ function resonanceSentence(starsA, starsB) {
+  * @param {object} [opts] { year, age }
+  * @returns {{ sections: Array<{title, text}>, text: string }}
+  */
+-export function generateZiweiComprehensiveReading(ziWei, { year = new Date().getFullYear(), age = ziWei.age } = {}) {
++export function generateZiweiComprehensiveReading(ziWei, { year = new Date().getFullYear(), age = ziWei.age, mode = 'public' } = {}) {
+   const byName = Object.fromEntries(ziWei.palaces.map((p) => [p.name, p]));
+-  const reading = (name, opt) => palaceReadingOf(ziWei, byName[name], opt);
++  const reading = (name, opt) => palaceReadingOf(ziWei, byName[name], { ...opt, mode });
+   const sections = [];
+ 
+   // 第1段:性格才華(命宮 + 身宮)
++  // 身宮偶爾會與命宮落在同一宮(同宮),此時直接各自完整輸出會變成同一段星曜解釋重複兩次,
++  // 需先檢查兩者是否同宮,同宮時合併講一次並點出『高度疊合』的意義,而非各自平鋪直述。
+   const life = reading('命宮');
+   const bodyPalace = ziWei.palaces.find((p) => p.isBodyPalace);
+-  const body = reading(bodyPalace.name);
++  const bodyIsLifePalace = bodyPalace.name === '命宮';
+   const s1p = assembly['第1段_性格才華'];
+   const s1lines = [
+     (life.borrowed ? s1p['命宮空宮時開頭'] : s1p['命宮有主星時開頭']) + life.text,
+-    fill(s1p['連接句模板'][1], { 身宮宮位名稱: bodyPalace.name, 身宮解釋: body.text }),
++    bodyIsLifePalace
++      ? fill(s1p['身宮與命宮同宮時'], { 命宮解釋: life.text })
++      : fill(s1p['連接句模板'][1], { 身宮宮位名稱: bodyPalace.name, 身宮解釋: reading(bodyPalace.name).text }),
+   ];
+   sections.push({ title: '一、性格與才華', text: s1lines.join('') });
+ 
+@@ -135,7 +163,7 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
+   // 第3段:戀愛婚姻(夫妻宮 + 四化)
+   const s3p = assembly['第3段_戀愛婚姻'];
+   const spousePalace = byName['夫妻宮'];
+-  const spouse = palaceReadingOf(ziWei, spousePalace, { overlays: false });
++  const spouse = palaceReadingOf(ziWei, spousePalace, { overlays: false, mode });
+   const spouseMutagens = spousePalace.majorStars.filter((s) => s.transformation);
+   const s3lines = [fill(s3p['連接句模板'][0], { 夫妻宮解釋: spouse.text })];
+   if (spouseMutagens.length) {
+@@ -174,33 +202,47 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
+   });
+ 
+   // 第6段:當前焦點(大限 + 流年,current-focus-section.json)
++  // 大限宮位與流年宮位偶爾會剛好相同,此時要先比對、合併成一次完整解讀,
++  // 不要大限、流年各自完整輸出一次同一段星曜解讀(跟八字大運流年類別重複是同一種bug)。
+   const limit = ziWei.majorLimits.find((l) => {
+     const [a, b] = l.ageRange.split('~').map(Number);
+     return age >= a && age <= b;
+   });
+   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
++  const gz = yearGanZhi(year);
++  const annualPalace = byBranch[gz[1]];
++  const annualReading = palaceReadingOf(ziWei, annualPalace, { mode });
++
+   const s6lines = [FOCUS['開頭句']];
+   let limitPalace = null;
++  let sameAsAnnual = false;
+   if (limit) {
+     limitPalace = byBranch[limit.ganZhi[1]];
++    sameAsAnnual = limitPalace.name === annualPalace.name;
+     const [startAge, endAge] = limit.ageRange.split('~');
+-    s6lines.push(fill(FOCUS['大限句模板'], {
+-      startAge, endAge,
+-      大限干支: limit.ganZhi,
+-      大限宮位名稱: limitPalace.name,
+-      大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace).text,
+-    }));
++    if (sameAsAnnual) {
++      s6lines.push(fill(FOCUS['大限流年同宮模板'], {
++        startAge, endAge, 大限干支: limit.ganZhi,
++        西元年: year, 流年干支: gz,
++        宮位名稱: annualPalace.name,
++        宮位星曜解釋: annualReading.text,
++      }));
++    } else {
++      s6lines.push(fill(FOCUS['大限句模板'], {
++        startAge, endAge,
++        大限干支: limit.ganZhi,
++        大限宮位名稱: limitPalace.name,
++        大限宮位星曜解釋: palaceReadingOf(ziWei, limitPalace, { mode }).text,
++      }));
++    }
+   }
+-  const gz = yearGanZhi(year);
+-  const annualPalace = byBranch[gz[1]];
+-  s6lines.push(fill(FOCUS['流年句模板'], {
+-    西元年: year,
+-    流年干支: gz,
+-    流年宮位名稱: annualPalace.name,
+-    流年宮位星曜解釋: palaceReadingOf(ziWei, annualPalace).text,
+-  }));
+-  if (limitPalace && limitPalace.name === annualPalace.name) {
+-    s6lines.push(fill(FOCUS['重疊提醒句'], { 宮位名稱: annualPalace.name }));
++  if (!sameAsAnnual) {
++    s6lines.push(fill(FOCUS['流年句模板'], {
++      西元年: year,
++      流年干支: gz,
++      流年宮位名稱: annualPalace.name,
++      流年宮位星曜解釋: annualReading.text,
++    }));
+   }
+   s6lines.push(FOCUS['結尾句']);
+   sections.push({ title: '六、當前焦點', text: s6lines.join('') });
+@@ -225,16 +267,36 @@ function findGod(tenGods, wanted) {
+ }
+ 
+ /**
++ * 五行分析總結句:大眾版只用結論(composeElementAnalysis().summary);
++ * 學習版額外附上五行數量依據(依據:木1、火1、土2、金1、水3),方便學習判斷邏輯怎麼算出來的。
++ */
++function elementSummaryForAnalysis(analysis, mode) {
++  if (mode !== 'study') return analysis.summary;
++  const counts = Object.entries(analysis.classification).map(([el, c]) => `${el}${c.count}`).join('、');
++  return `${analysis.summary}(依據:${counts})`;
++}
++
++/**
++ * mode = 'public'(預設):結論句為主,不引用五行數量、十神完整依據;
++ * mode = 'study':第二段附上五行數量依據,第三段附上大運/流年十神的完整依據句。
+  * @param {object} baZi  convertToBaZi() 輸出
+- * @param {object} [opts] { year }
++ * @param {object} [opts] { year, mode = 'public' | 'study' }
+  * @returns {{ sections: Array<{title, text}>, text: string }}
+  */
+-export function generateBaziComprehensiveReading(baZi, { year = new Date().getFullYear() } = {}) {
++export function generateBaziComprehensiveReading(baZi, { year = new Date().getFullYear(), mode = 'public' } = {}) {
+   const sections = [];
+   const dayStem = baZi.fourPillars.dayPillar.stem;
+   const dayEl = STEM_EL[dayStem];
+   const core = (god) => tenGodsDb['十神核心意義'][god]?.core ?? '';
+   const t1 = baziReading['第1段_個性本質']['連接句模板'];
++  const firstSentence = (s) => (s ? (s.match(/^[^。]*。/)?.[0] ?? s) : '');
++  // 概覽用:取第一個逗號/頓號前的短句(不是完整句子),確保「一句話重點」真的簡短,並去掉開頭的「代表」贅字
++  const firstClause = (s) => {
++    if (!s) return '';
++    const bare = s.replace(/^代表/, '');
++    const m = bare.match(/^[^,，、。]*[,，、]?/);
++    return (m?.[0] ?? bare).replace(/[,，、]$/, '');
++  };
+ 
+   // 第1段:個性本質
+   const s1lines = [
+@@ -249,6 +311,7 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
+   const t2 = baziReading['第2段_財官流向'];
+   const wealthHit = findGod(baZi.tenGods, ['正財', '偏財']);
+   const officerHit = findGod(baZi.tenGods, ['正官', '七殺']);
++  const elementAnalysis = composeElementAnalysis(baZi.fiveElementDistribution);
+   const s2lines = [
+     wealthHit
+       ? fill(t2['連接句模板'][0], { 財星出現位置: wealthHit.label, 財星十神: wealthHit.god, 財星核心解釋: core(wealthHit.god) })
+@@ -256,7 +319,7 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
+     officerHit
+       ? fill(t2['連接句模板'][1], { 官殺出現位置: officerHit.label, 官殺十神: officerHit.god, 官殺核心解釋: core(officerHit.god) })
+       : t2['無官殺時'],
+-    fill(t2['連接句模板'][2], { '五行分析總結句(來自five-element-analysis.json的整體平衡建議模板)': composeElementAnalysis(baZi.fiveElementDistribution).summary }),
++    fill(t2['連接句模板'][2], { '五行分析總結句(來自five-element-analysis.json的整體平衡建議模板)': elementSummaryForAnalysis(elementAnalysis, mode) }),
+   ];
+   sections.push({ title: '二、財官流向', text: s2lines.join('') });
+ 
+@@ -272,26 +335,105 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
+   }
+   const relSummary = relParts.length ? relParts.join('、') : '四柱地支之間沒有明顯的合沖刑害';
+ 
+-  const categoryOf = (god) =>
+-    Object.entries(BZ_CAT['類別對應']).find(([, gods]) => gods.includes(god))?.[0] ?? null;
++  // 大運類別與流年類別先比對是否相同:相同時合併成一段並點出疊加意義,
++  // 不同時用對比句銜接,避免像舊版一樣各自完整輸出造成重複段落(共用 compose-luck.js 的判斷邏輯)
+   const cycle = baZi.greatLuckCycles.find((c) => year >= c.startYear && year < c.startYear + 10);
+-  const s3lines = [fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary })];
+-  let decadalCat = null;
++  let decadalInfo = null;
+   if (cycle) {
+-    decadalCat = categoryOf(tenGodOf(dayStem, cycle.ganZhi[0]));
+-    s3lines.push(fill(t3['連接句模板'][1], {
+-      大運干支: cycle.ganZhi, 起訖年齡: `${cycle.ageRange}歲`,
+-      大運類別: decadalCat, 大運類別解讀: BZ_CAT['類別解讀'][decadalCat],
+-    }));
++    const god = tenGodOf(dayStem, cycle.ganZhi[0]);
++    const category = categoryOf(god);
++    if (category) decadalInfo = { ganZhi: cycle.ganZhi, ageRange: cycle.ageRange, god, category };
+   }
+   const gz = baZi.annualPillars[year] ?? yearGanZhi(year);
+-  const annualCat = categoryOf(tenGodOf(dayStem, gz[0]));
+-  s3lines.push(fill(t3['連接句模板'][2], {
+-    西元年: year, 流年干支: gz,
+-    流年類別: annualCat, 流年類別解讀: BZ_CAT['類別解讀'][annualCat],
+-  }));
+-  s3lines.push(fill(t3['結尾行動建議句'], { 有利類別: decadalCat ?? annualCat, 需留意類別: annualCat }));
++  let annualInfo = null;
++  {
++    const god = tenGodOf(dayStem, gz[0]);
++    const category = categoryOf(god);
++    if (category) annualInfo = { ganZhi: gz, year, god, category };
++  }
++  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo);
++  const favorableCategory = decadalInfo?.category ?? annualInfo?.category;
++  const cautiousCategory = annualInfo?.category ?? decadalInfo?.category;
++
++  // 大運類別與流年類別相同時,結尾建議句也不該再講「把握A、同時對A謹慎」這種同一個類別講兩次的怪句子,
++  // 改用「這段期間A格外集中,把握機會但留意過猶不及」的收斂版本。
++  const closingLine = overlay?.merged
++    ? fill(t3['結尾行動建議句_大運流年類別相同時'], { 有利類別: favorableCategory })
++    : fill(t3['結尾行動建議句'], { 有利類別: favorableCategory, 需留意類別: cautiousCategory });
++
++  const citeGod = (god) => `細節上,${god}——${tenGodsDb['十神核心意義'][god].core}`;
++  const godCitations = [];
++  if (mode === 'study') {
++    if (decadalInfo) godCitations.push(citeGod(decadalInfo.god));
++    if (annualInfo && !(decadalInfo && overlay?.merged && decadalInfo.god === annualInfo.god)) {
++      godCitations.push(citeGod(annualInfo.god));
++    }
++  }
++
++  const s3lines = [
++    fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary }),
++    overlay?.text ?? '',
++    ...godCitations,
++    closingLine,
++  ].filter(Boolean);
+   sections.push({ title: '三、人際健康與行動建議', text: s3lines.join('') });
+ 
++  // 第4段:地支關係(六合/害/沖/刑/相破/暗合/半合/拱/半會)
++  // 同一組地支若同時觸發多種關係類型,compose-branch-relations.js 已依合併規則處理,不重複輸出
++  const branchRelReading = composeBranchRelationsReading(baZi);
++  sections.push({ title: '四、地支關係', text: branchRelReading.text });
++
++  // 第5段:神煞(貴人星/煞星)
++  // 同一柱若有多個神煞,compose-shensha.js 已合併成一句,柱位背景句只講一次
++  const shenshaReading = composeShenShaReading(baZi);
++  sections.push({ title: '五、神煞', text: shenshaReading.text });
++
++  // ---- 全盤概覽:純粹排版/組裝順序調整,不做新的資料運算,完全取材自上面已算好的內容 ----
++  const PHRASE = tenGodsDb['十神短語'];
++  const coreLine = `日主${dayStem}(${dayEl}日生),${firstSentence(elementAnalysis.summary)}`;
++
++  const careerLine = officerHit
++    ? `事業:${officerHit.god}當令,${PHRASE[officerHit.god] ?? firstClause(core(officerHit.god))}。`
++    : `事業:命局中官殺不顯,${firstClause(t2['無官殺時'])}。`;
++
++  const wealthLine = wealthHit
++    ? `財運:${wealthHit.god}入柱,${PHRASE[wealthHit.god] ?? firstClause(core(wealthHit.god))}。`
++    : `財運:命局中財星不顯,${firstClause(t2['無財星時'])}。`;
++
++  // 感情:優先看日柱/時柱是否有桃花類神煞(紅艷煞),沒有就退回日柱地支十神(配偶宮本氣)
++  const loveShenshaHit = ['紅艷煞'].find(
++    (n) => (baZi.shenshaList?.dayPillar ?? []).includes(n) || (baZi.shenshaList?.hourPillar ?? []).includes(n),
++  );
++  const loveLine = loveShenshaHit
++    ? `感情:帶${loveShenshaHit},${firstClause(SHENSHA_CORE[loveShenshaHit])}。`
++    : `感情:日支見${baZi.tenGods.dayBranch},${PHRASE[baZi.tenGods.dayBranch] ?? firstClause(core(baZi.tenGods.dayBranch))}。`;
++
++  // 健康與情緒調節:取五行分佈中最鮮明(過旺/退回取數量最高)的一項
++  const healthEl = elementAnalysis.dominant[0];
++  const healthLine = `健康:${healthEl}偏多,${firstClause(elementAnalysis.classification[healthEl]?.levelNote ?? '')}。`;
++
++  // 家庭與原生背景:優先看年柱/月柱是否有孤辰/喪門,沒有就退回年干十神
++  const familyShenshaHit = ['孤辰', '喪門'].find(
++    (n) => (baZi.shenshaList?.yearPillar ?? []).includes(n) || (baZi.shenshaList?.monthPillar ?? []).includes(n),
++  );
++  const familyLine = familyShenshaHit
++    ? `家庭:年月柱帶${familyShenshaHit},${firstClause(SHENSHA_CORE[familyShenshaHit])}。`
++    : `家庭:年干見${baZi.tenGods.yearStem},${PHRASE[baZi.tenGods.yearStem] ?? firstClause(core(baZi.tenGods.yearStem))}。`;
++
++  // 當前大運與今年流年重點:重用第三段已算好的 decadalInfo/annualInfo/overlay,不重新運算
++  let luckLine;
++  if (decadalInfo && annualInfo && overlay?.merged) {
++    luckLine = `大運流年:兩者同屬${favorableCategory},${firstClause(LUCK_CATEGORY_DESC[favorableCategory] ?? '')},際遇格外集中的一年。`;
++  } else if (decadalInfo && annualInfo) {
++    luckLine = `大運流年:大運屬${decadalInfo.category},今年流年轉向${annualInfo.category},建議兼顧長期方向與這一年的短期焦點。`;
++  } else if (decadalInfo) {
++    luckLine = `大運:目前屬${decadalInfo.category},${firstClause(LUCK_CATEGORY_DESC[decadalInfo.category] ?? '')}。`;
++  } else {
++    luckLine = '大運流年:資料不足,暫無法概覽。';
++  }
++
++  const overviewLines = [coreLine, careerLine, wealthLine, loveLine, healthLine, familyLine, luckLine];
++  sections.unshift({ title: '全盤概覽', text: overviewLines.join(' ') });
++
+   return { sections, text: sections.map((s) => `【${s.title}】\n${s.text}`).join('\n\n') };
+ }
