@@ -79,6 +79,17 @@ async function computeAll() {
   const { convertToZiWei, convertToBaZi, Solar, Lunar } = await loadEngines();
   const name = $('#name-input').value.trim() || '命主';
   let [y, m, d] = $('#birth-date').value.split('-').map(Number);
+  // 日期合法性驗證:表單的日期選擇器擋得住,但分享連結的 ?date= 參數擋不住
+  // (例如 1949-02-29 這種不存在的日期,引擎不會報錯、會靜默排出錯的盤)
+  const probe = new Date(y, m - 1, d);
+  if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) {
+    toast('這個日期不存在,請重新選擇');
+    return false;
+  }
+  if (y < 1900 || y > 2100) {
+    toast('目前支援 1900–2100 年之間的生日');
+    return false;
+  }
   const hour = Number($('#birth-hour').value);
   if (state.cal === 'lunar') {
     const solar = Lunar.fromYmd(y, m, d).getSolar();
@@ -422,6 +433,13 @@ function shareUrl() {
   return `${location.origin}${location.pathname}?${params}`;
 }
 
+// 宮位 → 白話人生焦點(命卡金句用:收到命卡的人多半不懂「大限行至夫妻宮」是什麼)
+const PALACE_FOCUS = {
+  命宮: '自我成長', 兄弟宮: '手足與同儕', 夫妻宮: '感情與婚姻', 子女宮: '子女與創作',
+  財帛宮: '財務理財', 疾厄宮: '健康調養', 遷移宮: '向外發展', 僕役宮: '人脈與合作',
+  官祿宮: '事業衝刺', 田宅宮: '安家與居所', 福德宮: '身心平衡', 父母宮: '家中長輩',
+};
+
 function renderShare() {
   const { name, input, ziWei, baZi, zwLuck, byBranch } = state.data;
   const lifePalace = ziWei.palaces.find((p) => p.name === '命宮');
@@ -432,8 +450,16 @@ function renderShare() {
   const dayStem = baZi.fourPillars.dayPillar.stem;
   const shichen = SHICHEN.find((s) => s.hour === input.hour);
 
-  const quote = `「命宮${lifeStars.startsWith('空宮') ? '無主星、格局隨緣而變' : `${lifeStars}坐守`},` +
-    `現行大限行至${zwLuck.decadal?.palaceName ?? '—'},流年落${zwLuck.annual.palaceName},宜順勢經營、穩健佈局。」`;
+  // 金句走白話:命格一句 + 十年重心/今年焦點(同宮時合併),不出現大限/流年等術語
+  const decadalFocus = zwLuck.decadal ? PALACE_FOCUS[zwLuck.decadal.palaceName] : null;
+  const annualFocus = zwLuck.annual ? PALACE_FOCUS[zwLuck.annual.palaceName] : decadalFocus;
+  const opener = lifeStars.startsWith('空宮')
+    ? '天生彈性大、能隨環境調整自己的命格'
+    : `帶著${lifeStars}特質的命格`;
+  const focusPart = decadalFocus && annualFocus && decadalFocus !== annualFocus
+    ? `這十年的重心在${decadalFocus},今年的焦點則在${annualFocus}`
+    : `這十年與今年的焦點都落在${annualFocus ?? decadalFocus}`;
+  const quote = `「${opener},${focusPart},宜順勢經營、穩健佈局。」`;
 
   $('#view-share').innerHTML = `<div class="share-wrap">
     <div class="fate-card" id="fate-card">
