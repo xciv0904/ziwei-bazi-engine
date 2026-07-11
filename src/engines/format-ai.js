@@ -3,6 +3,7 @@
 // 人類與LLM都好讀的純文字,附上固定的解讀指令,讓使用者可以直接貼給任何一個對話式AI。
 
 import { relationDisplayName } from './compose-branch-relations.js';
+import { computeYongShen } from './compose-yongshen.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
@@ -134,6 +135,14 @@ function formatBaZiSection(baZi, baseYear = null) {
   lines.push(line('日柱空亡', baZi.coreValues.voidBranches.day));
   lines.push(line('月令司令', baZi.coreValues.monthCommander));
   lines.push(line('大運起運歲數', baZi.coreValues.greatLuckStartAge != null ? `${baZi.coreValues.greatLuckStartAge}歲` : '未知'));
+  {
+    // 喜用神/忌神(扶抑法,附身強弱判定)
+    const ys = computeYongShen(baZi);
+    const fmt = (arr) => arr.map((x) => `${x.element}(${x.role})`).join('、');
+    lines.push(line('日主強弱', `${ys.strength}(幫身${ys.helpScore}/抑身${ys.opposeScore},月令加權,扶抑法)`));
+    lines.push(line('喜用神', fmt(ys.favorable)));
+    lines.push(line('忌神', fmt(ys.unfavorable)));
+  }
   lines.push('');
 
   lines.push('◆ 流年列表');

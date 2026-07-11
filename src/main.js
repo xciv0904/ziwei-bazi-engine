@@ -5,7 +5,8 @@ import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI } from './engines/format-ai.js';
-import { composeAnnualChange } from './engines/compose-annual.js';
+import { composeAnnualChange, composeZiWeiAnnualChange } from './engines/compose-annual.js';
+import { composeYongShenReading } from './engines/compose-yongshen.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 
@@ -295,6 +296,7 @@ function renderLuckBrowser() {
       </div>
       <div class="reading-line"><span class="lead gold">大限重心（${esc(daxianPalace)}）　</span>${esc(flat(readingOf(daxianPalace).text))}</div>
       <div class="reading-line"><span class="lead red">流年命宮（${esc(liunianPalace)}）　</span>${esc(flat(readingOf(liunianPalace).text))}</div>
+      <div class="reading-line"><span class="lead red">流年變動（紫微）　</span>${esc(flat(composeZiWeiAnnualChange(state.data.ziWei, sel.year, { mode: state.readingMode }).text))}</div>
       <div class="reading-line"><span class="lead gold">流年變動（八字）　</span>${esc(flat(composeAnnualChange(state.data.baZi, sel.year, { mode: state.readingMode }).text))}</div>
     </div>
   </div>`;
@@ -361,6 +363,7 @@ function reportItems() {
   const bazi = [
     { key: 'zhu', color: 'var(--gold)', letter: '主', title: '日主分析', text: [tenGods.dayMaster, dayEntries].filter(Boolean).join('\n') },
     { key: 'xiji', color: 'var(--red)', letter: '喜', title: '五行喜忌', text: state.readingMode === 'study' ? elements.text : elements.summary },
+    { key: 'yongshen', color: 'var(--gold)', letter: '用', title: '喜用神與忌神', text: composeYongShenReading(state.data.baZi, { mode: state.readingMode }).text },
     { key: 'shishen', color: 'var(--gold)', letter: '神', title: '十神配置', text: tenGods.entries.map((e) => e.text).join('\n') },
     { key: 'dayun', color: 'var(--red)', letter: '運', title: '大運概況', text: [bzLuck.decadal?.text, bzLuck.annual?.text].filter(Boolean).join('\n\n') },
   ];

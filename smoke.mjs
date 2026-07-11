@@ -49,7 +49,9 @@ check('點財帛宮 → 小教室切換', $('.classroom-title').textContent.incl
 check('小教室含機巨雙星補充', $('.classroom-body').textContent.includes('雙星組合'));
 
 // 大限流年互動
-check('流年變動(八字)區塊', $('.luck-detail').textContent.includes('流年變動'));
+check('流年變動(八字)區塊', $('.luck-detail').textContent.includes('流年變動（八字）'));
+check('流年變動(紫微)區塊', $('.luck-detail').textContent.includes('流年變動（紫微）'));
+check('紫微流年含四化落宮', $('.luck-detail').textContent.includes('化祿落在') || $('.luck-detail').textContent.includes('化祿,落本命'));
 check('宮位 AI 提示詞按鈕', !!$('#copy-palace-prompt'));
 check('流年 AI 提示詞按鈕', !!$('#copy-annual-prompt'));
 $$('[data-limit]')[0].click();
@@ -62,8 +64,9 @@ check('報告視圖顯示', !$('#view-report').hidden);
 check('紫微手風琴 6 項', $$('#view-report .acc-item').length === 6);
 check('預設展開命宮總論', $('#view-report .acc-item.open .acc-title').textContent.includes('命宮總論'));
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
-check('八字手風琴 4 項', $$('#view-report .acc-item').length === 4);
+check('八字手風琴 5 項(含喜用神)', $$('#view-report .acc-item').length === 5);
 check('預設展開日主分析', $('#view-report .acc-item.open .acc-title').textContent.includes('日主分析'));
+check('含喜用神與忌神項', $$('#view-report .acc-title').some((t) => t.textContent.includes('喜用神與忌神')));
 
 // --- 命盤解析(綜合報告) ---
 $$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();

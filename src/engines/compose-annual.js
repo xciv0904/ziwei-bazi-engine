@@ -92,3 +92,71 @@ export function composeAnnualChange(baZi, year, { mode = 'public' } = {}) {
 
   return { year, ganZhi: gz, god, category, hits, text: lines.join('\n') };
 }
+
+// ---------- 紫微:流年四化 ----------
+// 流年天干使四顆星化祿/權/科/忌(中州派,與 iztro 生年四化同一張表),
+// 找出這四顆星落在本命盤哪個宮位 → 該宮位領域就是這一年被「點亮/施壓」的地方。
+const FLOW_SIHUA = {
+  甲: { 祿: '廉貞', 權: '破軍', 科: '武曲', 忌: '太陽' },
+  乙: { 祿: '天機', 權: '天梁', 科: '紫微', 忌: '太陰' },
+  丙: { 祿: '天同', 權: '天機', 科: '文昌', 忌: '廉貞' },
+  丁: { 祿: '太陰', 權: '天同', 科: '天機', 忌: '巨門' },
+  戊: { 祿: '貪狼', 權: '太陰', 科: '右弼', 忌: '天機' },
+  己: { 祿: '武曲', 權: '貪狼', 科: '天梁', 忌: '文曲' },
+  庚: { 祿: '太陽', 權: '武曲', 科: '太陰', 忌: '天同' },
+  辛: { 祿: '巨門', 權: '太陽', 科: '文曲', 忌: '文昌' },
+  壬: { 祿: '天梁', 權: '紫微', 科: '左輔', 忌: '武曲' },
+  癸: { 祿: '破軍', 權: '巨門', 科: '太陰', 忌: '貪狼' },
+};
+
+// 宮位 → 白話領域(流年四化落點用)
+const ZW_DOMAIN = {
+  命宮: '你自己的整體狀態', 兄弟宮: '手足與平輩', 夫妻宮: '感情與婚姻', 子女宮: '子女、晚輩與創作',
+  財帛宮: '財務理財', 疾厄宮: '健康', 遷移宮: '外出與際遇', 僕役宮: '人脈與合作',
+  官祿宮: '事業', 田宅宮: '家庭與居所', 福德宮: '心境與精神生活', 父母宮: '長輩與上司',
+};
+
+const SIHUA_PLAIN = {
+  祿: (D) => `有明顯的順風與貴人,${D}值得主動經營`,
+  權: (D) => `${D}的話語權與推進力增強,適合承擔更多、拍板做決定`,
+  科: (D) => `${D}容易獲得肯定與好名聲,適合曝光、累積口碑`,
+  忌: (D) => `考驗與糾結集中在${D},這塊今年宜謹慎緩行、留餘裕`,
+};
+
+/** 在本命盤找出某顆星所在的宮位(主星找 majorStars,輔星找 minorStars 的名稱前綴) */
+function palaceOfStar(ziWei, starName) {
+  return ziWei.palaces.find((p) =>
+    p.majorStars.some((s) => s.name === starName)
+    || p.minorStars.some((s) => s.replace(/[((].*$/, '') === starName));
+}
+
+/**
+ * 紫微流年變動:流年四化落宮
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @param {number} year  西元年
+ * @param {object} [opts] { mode = 'public' | 'study' }
+ * @returns {{ year, ganZhi, entries, text }}
+ */
+export function composeZiWeiAnnualChange(ziWei, year, { mode = 'public' } = {}) {
+  const gz = yearGanZhi(year);
+  const sihua = FLOW_SIHUA[gz[0]];
+  const lines = [];
+  const entries = [];
+
+  for (const [mut, starName] of Object.entries(sihua)) {
+    const palace = palaceOfStar(ziWei, starName);
+    if (!palace) continue;
+    entries.push({ mutagen: mut, star: starName, palace: palace.name });
+    if (mode === 'study') {
+      lines.push(`${gz[0]}干${starName}化${mut},落本命${palace.name}(${palace.position})。`);
+    } else {
+      lines.push(`化${mut}落在${palace.name}:${SIHUA_PLAIN[mut](ZW_DOMAIN[palace.name] ?? palace.name)}。`);
+    }
+  }
+
+  const header = mode === 'study'
+    ? `${year}年(${gz}年)流年四化:`
+    : `${year}年,命盤裡被「點亮」與「施壓」的地方:`;
+
+  return { year, ganZhi: gz, entries, text: [header, ...lines].join('\n') };
+}
