@@ -417,13 +417,13 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
   sections.push({ title: '三、人際健康與行動建議', text: s3lines.join('') });
 
   // 第4段:地支關係(六合/害/沖/刑/相破/暗合/半合/拱/半會)
-  // 同一組地支若同時觸發多種關係類型,compose-branch-relations.js 已依合併規則處理,不重複輸出
-  const branchRelReading = composeBranchRelationsReading(baZi);
+  // 大眾版:白話句(不出現術語與干支);學習版:完整版(關係名+干支+解讀)
+  const branchRelReading = composeBranchRelationsReading(baZi, { mode });
   sections.push({ title: '四、地支關係', text: branchRelReading.text });
 
   // 第5段:神煞(貴人星/煞星)
-  // 同一柱若有多個神煞,compose-shensha.js 已合併成一句,柱位背景句只講一次
-  const shenshaReading = composeShenShaReading(baZi);
+  // 大眾版:每柱「加分/留意」白話總結;學習版:神煞名稱——解釋逐條列出
+  const shenshaReading = composeShenShaReading(baZi, { mode });
   sections.push({ title: '五、神煞', text: shenshaReading.text });
 
   // ---- 全盤概覽:純粹排版/組裝順序調整,不做新的資料運算,完全取材自上面已算好的內容 ----
