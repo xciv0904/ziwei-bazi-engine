@@ -4,7 +4,8 @@ import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
-import { formatChartForAI } from './engines/format-ai.js';
+import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI } from './engines/format-ai.js';
+import { composeAnnualChange } from './engines/compose-annual.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 
@@ -246,6 +247,7 @@ function renderClassroom() {
     <div class="classroom-head">
       <div class="round-icon">宮</div>
       <div class="classroom-title">${esc(state.selectedPalace)}　<small>地支：${esc(branch)}　星曜：${esc(stars)}</small></div>
+      <button type="button" class="mini-btn" id="copy-palace-prompt">複製此宮位 AI 提示詞</button>
     </div>
     <div class="classroom-hint">點選左側命盤十二宮，可切換查看不同宮位的說明 — 這是命盤小教室</div>
     <div class="classroom-body">
@@ -288,9 +290,12 @@ function renderLuckBrowser() {
     <div class="chip-label">流年（${esc(limit.ageRange.replace('~', '–'))} 歲・${esc(daxianPalace)}大限）</div>
     <div class="chip-row">${yearChips}</div>
     <div class="luck-detail">
-      <div class="luck-year">${sel.year} 年　${esc(sel.gz)}　${sel.age} 歲</div>
+      <div class="luck-year">${sel.year} 年　${esc(sel.gz)}　${sel.age} 歲
+        <button type="button" class="mini-btn" id="copy-annual-prompt">複製此流年 AI 提示詞</button>
+      </div>
       <div class="reading-line"><span class="lead gold">大限重心（${esc(daxianPalace)}）　</span>${esc(flat(readingOf(daxianPalace).text))}</div>
       <div class="reading-line"><span class="lead red">流年命宮（${esc(liunianPalace)}）　</span>${esc(flat(readingOf(liunianPalace).text))}</div>
+      <div class="reading-line"><span class="lead gold">流年變動（八字）　</span>${esc(flat(composeAnnualChange(state.data.baZi, sel.year, { mode: state.readingMode }).text))}</div>
     </div>
   </div>`;
 }
@@ -315,6 +320,30 @@ function renderDashboard() {
     chip.addEventListener('click', () => { state.limitIdx = Number(chip.dataset.limit); state.yearIdx = 0; renderDashboard(); }));
   $$('#view-dashboard [data-year]').forEach((chip) =>
     chip.addEventListener('click', () => { state.yearIdx = Number(chip.dataset.year); renderDashboard(); }));
+
+  // 複製「宮位中心」AI 提示詞(以命盤小教室目前選中的宮位為中心)
+  $('#copy-palace-prompt')?.addEventListener('click', async () => {
+    const { input, ziWei } = state.data;
+    const text = formatPalacePromptForAI({ input, ziWei, palaceName: state.selectedPalace });
+    if (!text) return toast('此宮位暫無提示詞模板');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`已複製${state.selectedPalace}分析提示詞,可貼給AI`);
+    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+  });
+
+  // 複製「流年中心」AI 提示詞(以大限流年瀏覽目前選中的年份為基準)
+  $('#copy-annual-prompt')?.addEventListener('click', async () => {
+    const { input, baZi, ziWei } = state.data;
+    const limit = ziWei.majorLimits[state.limitIdx];
+    const startAge = Number(limit.ageRange.split('~')[0]);
+    const selYear = input.year + startAge + state.yearIdx - 1;
+    const text = formatAnnualPromptForAI({ input, baZi, year: selYear });
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`已複製 ${selYear} 流年分析提示詞,可貼給AI`);
+    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+  });
 }
 
 // ---------- 分頁二:解讀報告 ----------

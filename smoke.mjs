@@ -49,8 +49,12 @@ check('點財帛宮 → 小教室切換', $('.classroom-title').textContent.incl
 check('小教室含機巨雙星補充', $('.classroom-body').textContent.includes('雙星組合'));
 
 // 大限流年互動
+check('流年變動(八字)區塊', $('.luck-detail').textContent.includes('流年變動'));
+check('宮位 AI 提示詞按鈕', !!$('#copy-palace-prompt'));
+check('流年 AI 提示詞按鈕', !!$('#copy-annual-prompt'));
 $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
+check('切大限後流年變動仍在', $('.luck-detail').textContent.includes('流年變動'));
 
 // --- 解讀報告 ---
 $$('.nav-item').find((n) => n.dataset.view === 'report').click();
