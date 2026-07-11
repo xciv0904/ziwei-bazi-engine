@@ -17,7 +17,10 @@ const PILLARS = [
 const stripPeriod = (s) => s.replace(/。\s*$/, '');
 const stripLead = (s) => s.replace(/^代表/, '');
 
-/** 單一柱的神煞合併句:多個神煞的核心意義逗號串接,柱位背景句只講一次 */
+/**
+ * 單一柱的神煞合併句:柱位背景句只講一次,但每個神煞「名稱——解釋」各自獨立、
+ * 以分號隔開(舊版把 5、6 個神煞的解釋用逗號黏成一句 200 字無句號的長句,難以閱讀)
+ */
 function composePillarShensha(label, bg, names) {
   const known = names.filter((n) => CORE[n]);
   if (!known.length) return null;
@@ -26,13 +29,14 @@ function composePillarShensha(label, bg, names) {
     ? known[0]
     : `${known.slice(0, -1).join('、')}與${known.at(-1)}`;
 
-  const meanings = known.map((n) => stripLead(CORE[n]));
-  const meaningJoined = meanings.map((m, i) => (i < meanings.length - 1 ? stripPeriod(m) : m)).join(',');
+  const detail = known
+    .map((n) => `${n}——${stripPeriod(stripLead(CORE[n]))}`)
+    .join(';');
 
   return {
     pillar: label,
     shensha: known,
-    text: `${label}${known.length > 1 ? '同時帶有' : '帶有'}${nameList}——${meaningJoined}${bg}`,
+    text: `${label}${known.length > 1 ? '同時帶有' : '帶有'}${nameList}:${detail}。${bg}`,
   };
 }
 
@@ -48,5 +52,5 @@ export function composeShenShaReading(baZi) {
     const e = composePillarShensha(label, PILLAR_BG[label], shenshaList[key] ?? []);
     if (e) entries.push(e);
   }
-  return { entries, text: entries.map((e) => e.text).join(' ') };
+  return { entries, text: entries.map((e) => e.text).join('\n') }; // 每柱換行,搭配 UI 的 pre-line 呈現
 }

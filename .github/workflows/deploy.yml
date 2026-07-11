@@ -25,7 +25,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node test.js          # 排盤核心值回歸
+      - run: node test.js                                # 排盤核心值回歸
+      - run: node cross-test.mjs                         # 紫微交叉驗證(弟弟命盤)
+      - run: node cross-test-bazi.mjs                    # 八字交叉驗證(弟弟命盤)
+      - run: node --import ./css-hook.mjs smoke.mjs      # UI 冒煙測試(happy-dom)
       - run: npx vite build        # base './' 已設定,適用 user.github.io/repo/ 路徑
       - uses: actions/upload-pages-artifact@v3
         with:

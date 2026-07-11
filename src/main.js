@@ -1,9 +1,4 @@
 import './style.css';
-import lunarPkg from 'lunar-javascript';
-import QRCode from 'qrcode';
-import { toPng } from 'html-to-image';
-import { convertToZiWei } from './engines/ziwei.js';
-import { convertToBaZi } from './engines/bazi.js';
 import { composeChartReading } from './engines/compose.js';
 import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
@@ -13,7 +8,26 @@ import { formatChartForAI } from './engines/format-ai.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 
-const { Solar, Lunar } = lunarPkg;
+// 排盤引擎(iztro、lunar-javascript 合計約 700KB)改為動態載入:
+// 訪客進站先看到歡迎頁,不需要馬上載排盤庫;第一次按「排盤」時才抓,之後快取重用。
+// qrcode / html-to-image 也一樣,只在分享命卡用到時才載。
+let enginesPromise = null;
+function loadEngines() {
+  enginesPromise ??= Promise.all([
+    import('./engines/ziwei.js'),
+    import('./engines/bazi.js'),
+    import('lunar-javascript'),
+  ]).then(([z, b, l]) => {
+    const lunarPkg = l.default ?? l;
+    return {
+      convertToZiWei: z.convertToZiWei,
+      convertToBaZi: b.convertToBaZi,
+      Solar: lunarPkg.Solar,
+      Lunar: lunarPkg.Lunar,
+    };
+  });
+  return enginesPromise;
+}
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -57,11 +71,12 @@ const state = {
 };
 
 // ---------- 排盤 ----------
-function computeAll() {
+async function computeAll() {
   if (!$('#birth-date').value) {
     toast('請先選擇出生日期');
     return false;
   }
+  const { convertToZiWei, convertToBaZi, Solar, Lunar } = await loadEngines();
   const name = $('#name-input').value.trim() || '命主';
   let [y, m, d] = $('#birth-date').value.split('-').map(Number);
   const hour = Number($('#birth-hour').value);
@@ -75,8 +90,12 @@ function computeAll() {
   const baZi = convertToBaZi(input);
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
 
+  // 頁首的農曆日期字串在這裡先算好(renderHead 不再依賴 lunar 套件,方便動態載入)
+  const lunarDate = Solar.fromYmd(y, m, d).getLunar();
+  const lunarDateStr = `${lunarDate.getMonthInChinese()}月${lunarDate.getDayInChinese()}`;
+
   state.data = {
-    name, input, ziWei, baZi, byBranch,
+    name, input, ziWei, baZi, byBranch, lunarDateStr,
     elements: composeElementAnalysis(baZi.fiveElementDistribution), // 兩版本共用同一份,顯示時再依mode選summary/text
   };
   applyReadingMode();
@@ -112,15 +131,14 @@ const readingOf = (palaceName) =>
 
 // ---------- 頁首 ----------
 function renderHead() {
-  const { name, input, ziWei, baZi } = state.data;
+  const { name, input, ziWei, baZi, lunarDateStr } = state.data;
   $('#page-title').textContent = `${name}　的命盤`;
   $('#copy-ai-btn').hidden = false;
   $('#reading-mode-toggle').hidden = false;
-  const lunar = Solar.fromYmd(input.year, input.month, input.day).getLunar();
   const shichen = SHICHEN.find((s) => s.hour === input.hour);
   $('#birth-summary').textContent =
     `${baZi.fourPillars.yearPillar.stem}${baZi.fourPillars.yearPillar.branch}年` +
-    `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}　${shichen.name}　` +
+    `${lunarDateStr}　${shichen.name}　` +
     `${input.gender === 'female' ? '女' : '男'}　${ziWei.fiveElementBureau}`;
 }
 
@@ -442,14 +460,16 @@ function renderShare() {
     </div>
   </div>`;
 
-  // 真實 QR Code(內容 = 可分享的命盤連結)
-  QRCode.toDataURL(shareUrl(), {
-    width: 168, margin: 1,
-    color: { dark: '#2b2621', light: '#fbf6ec' },
-  }).then((url) => {
-    $('#qr-box').style.background = 'none';
-    $('#qr-box').innerHTML = `<img src="${url}" alt="命盤連結 QR Code" width="84" height="84" />`;
-  }).catch(() => { /* 保留佔位圖 */ });
+  // 真實 QR Code(內容 = 可分享的命盤連結;qrcode 套件動態載入)
+  import('qrcode')
+    .then((m) => (m.default ?? m).toDataURL(shareUrl(), {
+      width: 168, margin: 1,
+      color: { dark: '#2b2621', light: '#fbf6ec' },
+    }))
+    .then((url) => {
+      $('#qr-box').style.background = 'none';
+      $('#qr-box').innerHTML = `<img src="${url}" alt="命盤連結 QR Code" width="84" height="84" />`;
+    }).catch(() => { /* 保留佔位圖 */ });
 
   $('#btn-copy').addEventListener('click', async () => {
     try {
@@ -462,6 +482,7 @@ function renderShare() {
   $('#btn-download').addEventListener('click', async () => {
     try {
       toast('產生圖片中…');
+      const { toPng } = await import('html-to-image');
       const dataUrl = await toPng($('#fate-card'), { pixelRatio: 2, backgroundColor: '#fbf6ec' });
       const a = document.createElement('a');
       a.href = dataUrl;
@@ -554,9 +575,9 @@ function setupControls() {
     }
   });
 
-  $('#birth-form').addEventListener('submit', (e) => {
+  $('#birth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (computeAll()) renderAll();
+    if (await computeAll()) renderAll();
   });
 
   // 分享連結參數回填(有參數才直接排盤)
@@ -575,5 +596,7 @@ function setupControls() {
 }
 
 const hasSharedParams = setupControls();
-if (hasSharedParams && computeAll()) renderAll();
-else renderEmpty();
+renderEmpty(); // 先渲染歡迎畫面(不需要排盤庫);分享連結進站則在引擎載完後自動蓋掉
+if (hasSharedParams) {
+  computeAll().then((ok) => { if (ok) renderAll(); });
+}

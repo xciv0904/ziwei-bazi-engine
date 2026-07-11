@@ -18,6 +18,8 @@ const $$ = (s) => [...doc.querySelectorAll(s)];
 
 let failed = 0;
 const check = (label, ok) => { console.log(`${ok ? '✅' : '❌'} ${label}`); if (!ok) failed++; };
+// 排盤引擎改為動態載入(submit 後非同步),送出表單後需等引擎載入+渲染完成
+const settle = () => new Promise((r) => setTimeout(r, 300));
 
 // --- 進站空白狀態(未排盤) ---
 check('進站顯示歡迎畫面', $('#view-dashboard').textContent.includes('開始排盤'));
@@ -28,6 +30,7 @@ $('#name-input').value = 'Shelly';
 $('#birth-date').value = '2002-09-04';
 $('#birth-hour').value = '13';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
 
 // --- 命盤總覽 ---
 check('12 宮位格', $$('.palace-cell').length === 12);
@@ -105,6 +108,7 @@ $('#birth-date').value = '1998-03-15';
 $('#birth-hour').value = '11';
 $$('#gender-toggle .pill').find((p) => p.dataset.value === 'male').click();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
 check('重排後摘要更新(戊寅年)', $('#birth-summary').textContent.includes('戊寅年'));
 check('重排後仍 12 宮', $$('.palace-cell').length === 12);
 

@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 dist-single
+docs
 actual-chart-data.json
 *.local
 

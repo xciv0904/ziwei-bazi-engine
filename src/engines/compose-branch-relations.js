@@ -7,8 +7,27 @@ import db from '../data/branch-interactions-analysis.json' with { type: 'json' }
 const MEANING_RAW = db['關係類型解讀'];
 // bazi.js 引擎輸出的關係代號與 branch-interactions-analysis.json 的鍵名不完全一致(六合/害/沖/刑 vs 六合/六害/六沖/三刑),需要對應轉換
 const RELATION_ALIAS = { 六合: '六合', 害: '六害', 沖: '六沖', 刑: '三刑', 相破: '相破', 暗合: '暗合', 半合: '半合', 拱: '拱', 半會: '半會' };
-const displayName = (rel) => RELATION_ALIAS[rel] ?? rel;
 const MEANING = new Proxy({}, { get: (_, rel) => MEANING_RAW[RELATION_ALIAS[rel] ?? rel] });
+
+// 三合局(拱=缺中間一支的兩端外支,標示出被拱的支才有意義,例如亥未拱卯)
+const SAN_HE = [['申', '子', '辰'], ['巳', '酉', '丑'], ['寅', '午', '戌'], ['亥', '卯', '未']];
+
+/** 拱局中被拱出來的那一支(pair 形如「未亥」) */
+export function gongTarget(pair) {
+  const group = SAN_HE.find((g) => g.includes(pair[0]) && g.includes(pair[1]));
+  return group?.find((b) => b !== pair[0] && b !== pair[1]) ?? '';
+}
+
+/**
+ * 關係顯示名稱(統一供本檔、comprehensive.js、format-ai.js 使用,避免各處叫法不一)
+ * 拱會附上被拱之支:拱卯
+ */
+export function relationDisplayName(rel, pair = '') {
+  if (rel === '拱' && pair) return `拱${gongTarget(pair)}`;
+  return RELATION_ALIAS[rel] ?? rel;
+}
+
+const displayName = relationDisplayName;
 
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
 // 柱位背景意涵(短語版,僅在整段中第一次提及該柱時附註一次)
@@ -52,27 +71,25 @@ export function composeBranchRelationsReading(baZi) {
     if (!g) continue;
 
     const relations = [...g.relations];
-    const labelA = BRANCH_LABEL[a];
-    const labelB = BRANCH_LABEL[b];
 
-    // 柱位背景意涵只在整段中第一次提及該柱時附註,避免同一柱在多組關係裡重複講解釋
-    const hintParts = [];
-    for (const p of [a, b]) {
-      if (!mentionedPillar.has(p)) {
-        hintParts.push(`${BRANCH_LABEL[p]}(${PILLAR_HINT[p]})`);
-        mentionedPillar.add(p);
-      }
-    }
-    const hint = hintParts.length ? `(${hintParts.join('、')})` : '';
+    // 柱位背景意涵直接接在該柱名稱後(年支(早年家庭根基)),且只在整段中第一次提及該柱時附註,
+    // 避免舊版「年支與日支(年支(…)、日支(…))」雙層括號的拗口寫法
+    const labelWithHint = (p) => {
+      if (mentionedPillar.has(p)) return BRANCH_LABEL[p];
+      mentionedPillar.add(p);
+      return `${BRANCH_LABEL[p]}(${PILLAR_HINT[p]})`;
+    };
+    const labelA = labelWithHint(a);
+    const labelB = labelWithHint(b);
 
     let text;
     if (relations.length === 1) {
-      text = `${labelA}與${labelB}${hint}之間為${displayName(relations[0])}關係(${g.pair}),${MEANING[relations[0]] ?? ''}`;
+      text = `${labelA}與${labelB}之間為${displayName(relations[0], g.pair)}關係(${g.pair}),${MEANING[relations[0]] ?? ''}`;
     } else {
       // 合併規則:同一組地支同時觸發多種關係類型時,合併成一句,不各自輸出完整解讀
       const meanings = relations.map((r) => MEANING[r] ?? '').filter(Boolean);
       const combined = meanings.map((m, i) => (i < meanings.length - 1 ? stripPeriod(m) : m)).join(',');
-      text = `${labelA}與${labelB}${hint}之間同時存在${relations.map(displayName).join('與')}的關係(${g.pair}),${combined}`;
+      text = `${labelA}與${labelB}之間同時存在${relations.map((r) => displayName(r, g.pair)).join('與')}的關係(${g.pair}),${combined}`;
     }
 
     groups.push({ pillars: [a, b], relations, pair: g.pair, text });

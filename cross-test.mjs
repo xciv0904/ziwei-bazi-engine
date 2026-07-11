@@ -48,8 +48,11 @@ const expPalaces = {
   田宅宮: ['庚子', '太陽(陷)'],
   官祿宮: ['辛丑', '天府(廟)'],
 };
+// 亮度階制正規化:iztro 為七階(廟旺得利平不陷),參考網站為四階(廟旺平陷),
+// 對照 BRIGHTNESS_ALIAS(得→旺、利→平、不→陷)後比對,兩套說法等價
+const B_ALIAS = { 廟: '廟', 旺: '旺', 得: '旺', 利: '平', 平: '平', 不: '陷', 陷: '陷' };
 const fmt = (p) => p.majorStars.length
-  ? p.majorStars.map(s => `${s.name}(${s.brightness}${s.transformation ? ',' + s.transformation : ''})`).join(' ')
+  ? p.majorStars.map(s => `${s.name}(${B_ALIAS[s.brightness] ?? s.brightness}${s.transformation ? ',' + s.transformation : ''})`).join(' ')
   : '無主星';
 for (const [name, [pos, stars]] of Object.entries(expPalaces)) {
   const p = z.palaces.find(x => x.name === name);
@@ -58,3 +61,4 @@ for (const [name, [pos, stars]] of Object.entries(expPalaces)) {
 }
 
 console.log(`\n合計:${pass} 通過 / ${fail} 不一致`);
+process.exit(fail === 0 ? 0 : 1); // 供 CI 當部署門檻

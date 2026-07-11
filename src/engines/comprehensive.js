@@ -14,7 +14,7 @@ import { BRIGHTNESS_ALIAS } from './compose.js';
 import { tenGodOf, composeBaZiCycleOverlay, categoryOf } from './compose-luck.js';
 import { composeElementAnalysis } from './compose-elements.js';
 import { composeShenShaReading } from './compose-shensha.js';
-import { composeBranchRelationsReading } from './compose-branch-relations.js';
+import { composeBranchRelationsReading, relationDisplayName } from './compose-branch-relations.js';
 import luckOverlayDb from '../data/luck-cycle-overlays.json' with { type: 'json' };
 import shenshaDb from '../data/shensha-analysis.json' with { type: 'json' };
 
@@ -105,8 +105,25 @@ function palaceReadingOf(ziWei, palace, { overlays: withOverlays = true, mode = 
     text: withOverlays ? applyOverlays(main, stars, mode) : main,
     stars: stars.map((s) => s.name),
     borrowed,
+    ctx, // 借星時 = 借用的對宮名稱,否則 = 本宮名稱
   };
 }
+
+// ---------- 四化行動建議 fallback(條件式建議句庫未覆蓋的宮位,用「宮位領域×四化語氣」通用模板) ----------
+
+const PALACE_DOMAIN = {
+  命宮: '整體狀態與個人發揮', 兄弟宮: '手足與平輩關係', 夫妻宮: '感情關係',
+  子女宮: '子女、晚輩與創作', 財帛宮: '財務', 疾厄宮: '健康',
+  遷移宮: '外出與外在際遇', 僕役宮: '人際與合作', 官祿宮: '事業',
+  田宅宮: '家庭與不動產', 福德宮: '心境與精神生活', 父母宮: '與長輩的互動',
+};
+
+const ADVICE_FALLBACK = {
+  祿: (p) => `${p}化祿,${PALACE_DOMAIN[p]}方面有順遂加分的跡象,適合主動經營、把握機會。`,
+  權: (p) => `${p}化權,${PALACE_DOMAIN[p]}方面的主導性與企圖心增強,可以多承擔一些,但留意姿態別過於強勢。`,
+  科: (p) => `${p}化科,${PALACE_DOMAIN[p]}方面容易獲得肯定與貴人助力,適合累積口碑與形象。`,
+  忌: (p) => `${p}化忌,${PALACE_DOMAIN[p]}方面容易出現糾結或阻礙,建議放慢腳步、謹慎應對。`,
+};
 
 // ---------- 特質標籤呼應判斷(star-trait-tags.json) ----------
 
@@ -132,6 +149,18 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
   const reading = (name, opt) => palaceReadingOf(ziWei, byName[name], { ...opt, mode });
   const sections = [];
 
+  // 段落內去重:空宮借對宮時,若被借的對宮在同一段落已經完整講過,
+  // 不再貼一次一模一樣的整段文字,改用短句指回(例:福德宮借財帛宮,而財帛宮上一句才剛講完)
+  const readingDeduped = (name, seen, opt) => {
+    const r = reading(name, opt);
+    if (r.borrowed && seen.has(r.ctx)) {
+      seen.add(name);
+      return { ...r, text: `本宮無主星,借對宮${r.ctx}的${r.stars.join('、')}參看,方向與前述${r.ctx}的特質一致。` };
+    }
+    seen.add(name);
+    return r;
+  };
+
   // 第1段:性格才華(命宮 + 身宮)
   // 身宮偶爾會與命宮落在同一宮(同宮),此時直接各自完整輸出會變成同一段星曜解釋重複兩次,
   // 需先檢查兩者是否同宮,同宮時合併講一次並點出『高度疊合』的意義,而非各自平鋪直述。
@@ -149,13 +178,14 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
 
   // 第2段:事業金錢(官祿 → 財帛 → 福德 → 田宅 + 呼應判斷)
   const s2p = assembly['第2段_事業金錢'];
-  const career = reading('官祿宮');
-  const wealth = reading('財帛宮');
+  const s2seen = new Set();
+  const career = readingDeduped('官祿宮', s2seen);
+  const wealth = readingDeduped('財帛宮', s2seen);
   const s2lines = [
     fill(s2p['連接句模板'][0], { 官祿宮解釋: career.text }),
     fill(s2p['連接句模板'][1], { 財帛宮解釋: wealth.text }),
-    fill(s2p['連接句模板'][2], { 福德宮解釋: reading('福德宮').text }),
-    fill(s2p['連接句模板'][3], { 田宅宮解釋: reading('田宅宮').text }),
+    fill(s2p['連接句模板'][2], { 福德宮解釋: readingDeduped('福德宮', s2seen).text }),
+    fill(s2p['連接句模板'][3], { 田宅宮解釋: readingDeduped('田宅宮', s2seen).text }),
     fill(s2p['連接句模板'][4], { 是否呼應判斷句: resonanceSentence(career.stars, wealth.stars) }),
   ];
   sections.push({ title: '二、事業與金錢', text: s2lines.join('') });
@@ -178,21 +208,24 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
 
   // 第4段:健康家庭人際(疾厄 → 父母 → 田宅 → 交友/僕役)
   const s4p = assembly['第4段_健康家庭人際'];
+  const s4seen = new Set();
   const s4lines = [
-    fill(s4p['連接句模板'][0], { 疾厄宮解釋: reading('疾厄宮').text }),
-    fill(s4p['連接句模板'][1], { 父母宮解釋: reading('父母宮').text }),
-    fill(s4p['連接句模板'][2], { 田宅宮解釋: reading('田宅宮', { overlays: false }).text }),
-    fill(s4p['連接句模板'][3], { 交友宮解釋: reading('僕役宮').text }),
+    fill(s4p['連接句模板'][0], { 疾厄宮解釋: readingDeduped('疾厄宮', s4seen).text }),
+    fill(s4p['連接句模板'][1], { 父母宮解釋: readingDeduped('父母宮', s4seen).text }),
+    fill(s4p['連接句模板'][2], { 田宅宮解釋: readingDeduped('田宅宮', s4seen, { overlays: false }).text }),
+    fill(s4p['連接句模板'][3], { 交友宮解釋: readingDeduped('僕役宮', s4seen).text }),
   ];
   sections.push({ title: '四、健康、家庭與人際', text: s4lines.join('') });
 
-  // 第5段:行動建議(掃描 12 宮四化 → 條件式建議句庫)
+  // 第5段:行動建議(掃描 12 宮四化 → 條件式建議句庫;句庫沒有的宮位組合退回通用模板,
+  // 避免像舊版一樣紫微化權(子女宮)、武曲化忌(僕役宮)因缺 key 被整條跳過)
   const s5p = assembly['第5段_行動建議'];
   const hits = [];
   for (const p of ziWei.palaces) {
     for (const s of p.majorStars) {
       if (!s.transformation) continue;
-      const sentence = ADVICE[`化${s.transformation}_${p.name}`];
+      const sentence = ADVICE[`化${s.transformation}_${p.name}`]
+        ?? ADVICE_FALLBACK[s.transformation]?.(p.name);
       if (sentence && !hits.includes(sentence)) hits.push(sentence);
     }
   }
@@ -256,8 +289,13 @@ const POSITIONS = [
   ['年柱天干', 'yearStem'], ['月柱天干', 'monthStem'], ['時柱天干', 'hourStem'],
   ['年支主氣', 'yearBranch'], ['月支主氣', 'monthBranch'], ['日支主氣', 'dayBranch'], ['時支主氣', 'hourBranch'],
 ];
-const REL_NAME = { 六合: '六合', 害: '相害', 沖: '相沖', 刑: '相刑' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
+
+// 五行 → 對應臟腑/身心保養重點(全盤概覽健康欄用;舊版誤把五行性格描述放進健康欄)
+const ELEMENT_HEALTH = {
+  木: '肝膽與筋骨', 火: '心血管、眼睛與睡眠', 土: '脾胃與消化',
+  金: '呼吸道與皮膚', 水: '腎氣、泌尿與內分泌',
+};
 
 function findGod(tenGods, wanted) {
   for (const [label, key] of POSITIONS) {
@@ -331,7 +369,7 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
     const key = [r.branch, r.with].sort().join();
     if (seen.has(key)) continue;
     seen.add(key);
-    relParts.push(`${BRANCH_LABEL[r.branch]}與${BRANCH_LABEL[r.with]}${REL_NAME[r.relation] ?? r.relation}(${r.pair})`);
+    relParts.push(`${BRANCH_LABEL[r.branch]}與${BRANCH_LABEL[r.with]}${relationDisplayName(r.relation, r.pair)}(${r.pair})`);
   }
   const relSummary = relParts.length ? relParts.join('、') : '四柱地支之間沒有明顯的合沖刑害';
 
@@ -408,9 +446,12 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
     ? `感情:帶${loveShenshaHit},${firstClause(SHENSHA_CORE[loveShenshaHit])}。`
     : `感情:日支見${baZi.tenGods.dayBranch},${PHRASE[baZi.tenGods.dayBranch] ?? firstClause(core(baZi.tenGods.dayBranch))}。`;
 
-  // 健康與情緒調節:取五行分佈中最鮮明(過旺/退回取數量最高)的一項
+  // 健康:改用五行 → 臟腑保養重點(舊版誤放性格描述,標籤與內容對不上)
+  // 取最鮮明的一項講保養重點,若有偏弱五行再點出第一個偏弱項的照顧面向
   const healthEl = elementAnalysis.dominant[0];
-  const healthLine = `健康:${healthEl}偏多,${firstClause(elementAnalysis.classification[healthEl]?.levelNote ?? '')}。`;
+  const weakEl = elementAnalysis.weak[0];
+  const healthLine = `健康:五行${healthEl}偏多,保養重點在${ELEMENT_HEALTH[healthEl]}`
+    + (weakEl ? `;另${weakEl}偏弱,也留意${ELEMENT_HEALTH[weakEl]}的照顧。` : '。');
 
   // 家庭與原生背景:優先看年柱/月柱是否有孤辰/喪門,沒有就退回年干十神
   const familyShenshaHit = ['孤辰', '喪門'].find(

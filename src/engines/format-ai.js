@@ -2,9 +2,10 @@
 // 用途:「複製給AI解讀」按鈕,把 convertToZiWei() / convertToBaZi() 的原始輸出攤平成
 // 人類與LLM都好讀的純文字,附上固定的解讀指令,讓使用者可以直接貼給任何一個對話式AI。
 
+import { relationDisplayName } from './compose-branch-relations.js';
+
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
-const REL_NAME = { 六合: '六合', 害: '相害', 沖: '相沖', 刑: '相刑' };
 const PILLAR_LABEL = { yearPillar: '年柱', monthPillar: '月柱', dayPillar: '日柱', hourPillar: '時柱' };
 
 const line = (label, value) => `${label}:${value}`;
@@ -102,8 +103,14 @@ function formatBaZiSection(baZi) {
 
   lines.push('◆ 地支關係');
   if (baZi.branchRelations.length) {
+    // 引擎輸出是雙向紀錄(A→B、B→A 各一筆),給 AI 的版本去重成單向,
+    // 關係名稱與網站顯示共用同一張對照表(六害/六沖/三刑…,拱附上被拱之支)
+    const seen = new Set();
     for (const r of baZi.branchRelations) {
-      lines.push(`${BRANCH_LABEL[r.branch]}與${BRANCH_LABEL[r.with]}${REL_NAME[r.relation] ?? r.relation}(${r.pair})`);
+      const key = [[r.branch, r.with].sort().join('-'), r.relation].join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      lines.push(`${BRANCH_LABEL[r.branch]}與${BRANCH_LABEL[r.with]}${relationDisplayName(r.relation, r.pair)}(${r.pair})`);
     }
   } else {
     lines.push('四柱地支之間沒有明顯的合沖刑害');
