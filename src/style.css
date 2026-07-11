@@ -335,9 +335,13 @@ a.nav-item { display: block; text-decoration: none; }
 .syn-form input, .syn-form select {
   padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
   background: #fff; font: 400 13px/1.2 var(--sans); color: var(--ink);
+  min-width: 0; width: 100%; /* 日期等欄位有固有寬度,必須允許在 grid 內收縮,否則手機版會爆版 */
 }
 .syn-submit { margin-top: 0; width: auto; padding: 9px 22px; }
-@media (max-width: 700px) { .syn-form { grid-template-columns: 1fr 1fr; } .syn-submit { grid-column: 1 / -1; } }
+@media (max-width: 700px) {
+  .syn-form { grid-template-columns: 1fr 1fr; }
+  #syn-name, #syn-date, .syn-submit { grid-column: 1 / -1; } /* 姓名、日期、按鈕各占整行,時辰+性別並排 */
+}
 .syn-score-card {
   margin-top: 14px; text-align: center; padding: 22px 16px;
   background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
