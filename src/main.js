@@ -5,7 +5,7 @@ import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI } from './engines/format-ai.js';
-import { composeAnnualChange, composeZiWeiAnnualChange } from './engines/compose-annual.js';
+import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './engines/compose-annual.js';
 import { composeYongShenReading } from './engines/compose-yongshen.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
@@ -142,12 +142,82 @@ function applyReadingMode() {
 const readingOf = (palaceName) =>
   state.data.readings.palaces.find((p) => p.palaceName === palaceName);
 
+/** 大限流年瀏覽目前選中的大限與西元年(命盤高亮、四化、提示詞共用) */
+function currentLuckSelection() {
+  const { ziWei, input } = state.data;
+  const limit = ziWei.majorLimits[state.limitIdx];
+  const startAge = Number(limit.ageRange.split('~')[0]);
+  return { limit, year: input.year + startAge + state.yearIdx - 1 };
+}
+
+// ---------- 命盤收藏(localStorage) ----------
+const SAVED_KEY = 'zwbz-saved-charts';
+
+function loadSavedCharts() {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY)) ?? []; } catch { return []; }
+}
+function persistSavedCharts(list) {
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(list.slice(0, 20))); } catch { /* 無痕模式等 */ }
+}
+
+function renderSavedList() {
+  const list = loadSavedCharts();
+  $('#saved-section').hidden = list.length === 0;
+  $('#saved-list').innerHTML = list.map((c, i) => `
+    <div class="saved-chip" data-load="${i}">
+      <span class="saved-name">${esc(c.name)}</span>
+      <span class="saved-meta">${esc(c.date)}</span>
+      <button type="button" class="saved-del" data-del="${i}" title="刪除">×</button>
+    </div>`).join('');
+
+  $$('#saved-list [data-load]').forEach((chip) =>
+    chip.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-del]')) return;
+      const c = loadSavedCharts()[Number(chip.dataset.load)];
+      if (!c) return;
+      $('#name-input').value = c.name;
+      $('#birth-date').value = c.date;
+      $('#birth-hour').value = String(c.hour);
+      state.gender = c.gender;
+      $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === c.gender));
+      state.cal = c.cal ?? 'solar';
+      $$('#cal-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === state.cal));
+      if (await computeAll()) renderAll();
+    }));
+  $$('#saved-list [data-del]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const list2 = loadSavedCharts();
+      list2.splice(Number(btn.dataset.del), 1);
+      persistSavedCharts(list2);
+      renderSavedList();
+    }));
+}
+
+function saveCurrentChart() {
+  if (!state.data) return;
+  const { name, input } = state.data;
+  const entry = {
+    name,
+    date: `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`,
+    hour: input.hour,
+    gender: input.gender,
+    cal: 'solar', // computeAll 已把農曆轉成陽曆,存陽曆版本最不易混淆
+  };
+  const list = loadSavedCharts().filter((c) =>
+    !(c.date === entry.date && c.hour === entry.hour && c.gender === entry.gender));
+  list.unshift(entry);
+  persistSavedCharts(list);
+  renderSavedList();
+  toast(`已儲存「${name}」的命盤`);
+}
+
 // ---------- 頁首 ----------
 function renderHead() {
   const { name, input, ziWei, baZi, lunarDateStr } = state.data;
   $('#page-title').textContent = `${name}　的命盤`;
   $('#copy-ai-btn').hidden = false;
   $('#reading-mode-toggle').hidden = false;
+  $('#save-chart-btn').hidden = false;
   const shichen = SHICHEN.find((s) => s.hour === input.hour);
   $('#birth-summary').textContent =
     `${baZi.fourPillars.yearPillar.stem}${baZi.fourPillars.yearPillar.branch}年` +
@@ -162,17 +232,46 @@ function elDot(char, isDay) {
   return `<div class="bz-el"><span class="dot" style="background:${EL_COLOR[el]}"></span><span style="color:${textColor}">${el}</span></div>`;
 }
 
+const MUT_CLASS = { 祿: 'lu', 權: 'quan', 科: 'ke', 忌: 'ji' };
+
 function renderZiWeiCard() {
   const { ziWei, name } = state.data;
+
+  // 盤面連動:大限宮位、流年命宮、流年四化落點、所選宮位的三方四正
+  const { limit, year } = currentLuckSelection();
+  const decadalBranch = limit.ganZhi[1];
+  const annualBranch = yearGanZhi(year)[1];
+  const sihuaByPalace = {};
+  for (const e of composeZiWeiAnnualChange(ziWei, year).entries) {
+    (sihuaByPalace[e.palace] ??= []).push(e.mutagen);
+  }
+  const selBranch = ziWei.palaces.find((p) => p.name === state.selectedPalace)?.position[1];
+  const relatedBranches = new Set(
+    selBranch ? [4, 6, 8].map((off) => BRANCHES[(BRANCHES.indexOf(selBranch) + off) % 12]) : [],
+  );
+
   const cells = ziWei.palaces.map((p) => {
     const branch = p.position[1];
     const pos = LAYOUT_POSITIONS[branch];
     const stars = p.majorStars.map((s) => s.name + (s.transformation ? `<sup>${s.transformation}</sup>` : '')).join('');
-    const cls = ['palace-cell', p.name === '命宮' ? 'self' : '', p.name === state.selectedPalace ? 'selected' : ''].join(' ');
+    const cls = [
+      'palace-cell',
+      p.name === '命宮' ? 'self' : '',
+      p.name === state.selectedPalace ? 'selected' : '',
+      branch === decadalBranch ? 'decadal-palace' : '',
+      branch === annualBranch ? 'annual-palace' : '',
+      relatedBranches.has(branch) ? 'related' : '',
+    ].join(' ');
+    const luckTags = [
+      branch === decadalBranch ? '<span class="luck-tag decadal">限</span>' : '',
+      branch === annualBranch ? '<span class="luck-tag annual">年</span>' : '',
+    ].join('');
+    const mutMarks = (sihuaByPalace[p.name] ?? [])
+      .map((m) => `<span class="flow-mut ${MUT_CLASS[m]}">${m}</span>`).join('');
     return `<button type="button" class="${cls}" data-palace="${esc(p.name)}"
       style="grid-row:${pos.row};grid-column:${pos.col}">
-      <div class="p-name">${esc(p.name)} ${esc(branch)}${p.isBodyPalace ? '<span class="body-mark">・身</span>' : ''}</div>
-      <div class="p-stars">${stars || ''}</div>
+      <div class="p-name">${esc(p.name)} ${esc(branch)}${p.isBodyPalace ? '<span class="body-mark">・身</span>' : ''}${luckTags}</div>
+      <div class="p-stars">${stars || ''}${mutMarks}</div>
       <div class="p-minor">${p.minorStars.slice(0, 4).map((s) => esc(s.replace(/\(.*?\)/, ''))).join(' ')}</div>
     </button>`;
   }).join('');
@@ -186,6 +285,7 @@ function renderZiWeiCard() {
         <div class="c-meta">命主：${esc(state.data.ziWei.lifeMaster)}　身主：${esc(state.data.ziWei.bodyMaster)}<br>${esc(state.data.ziWei.fiveElementBureau)}</div>
       </div>
     </div></div>
+    <div class="chart-legend">限＝所選大限宮位　年＝${year} 流年命宮　祿權科忌＝${year} 流年四化落點　虛線框＝所選宮位的三方四正</div>
   </div>`;
 }
 
@@ -295,6 +395,7 @@ function renderLuckBrowser() {
         <button type="button" class="mini-btn" id="copy-annual-prompt">複製此流年 AI 提示詞</button>
       </div>
       <div class="reading-line"><span class="lead gold">大限重心（${esc(daxianPalace)}）　</span>${esc(flat(readingOf(daxianPalace).text))}</div>
+      <div class="reading-line"><span class="lead gold">大限四化（紫微）　</span>${esc(flat(composeZiWeiDecadalChange(state.data.ziWei, limit, { mode: state.readingMode }).text))}</div>
       <div class="reading-line"><span class="lead red">流年命宮（${esc(liunianPalace)}）　</span>${esc(flat(readingOf(liunianPalace).text))}</div>
       <div class="reading-line"><span class="lead red">流年變動（紫微）　</span>${esc(flat(composeZiWeiAnnualChange(state.data.ziWei, sel.year, { mode: state.readingMode }).text))}</div>
       <div class="reading-line"><span class="lead gold">流年變動（八字）　</span>${esc(flat(composeAnnualChange(state.data.baZi, sel.year, { mode: state.readingMode }).text))}</div>
@@ -336,10 +437,8 @@ function renderDashboard() {
 
   // 複製「流年中心」AI 提示詞(以大限流年瀏覽目前選中的年份為基準)
   $('#copy-annual-prompt')?.addEventListener('click', async () => {
-    const { input, baZi, ziWei } = state.data;
-    const limit = ziWei.majorLimits[state.limitIdx];
-    const startAge = Number(limit.ageRange.split('~')[0]);
-    const selYear = input.year + startAge + state.yearIdx - 1;
+    const { input, baZi } = state.data;
+    const { year: selYear } = currentLuckSelection();
     const text = formatAnnualPromptForAI({ input, baZi, year: selYear });
     try {
       await navigator.clipboard.writeText(text);
@@ -590,6 +689,7 @@ function renderEmpty() {
   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
   $('#copy-ai-btn').hidden = true;
   $('#reading-mode-toggle').hidden = true;
+  $('#save-chart-btn').hidden = true;
 }
 
 // ---------- 初始化 ----------
@@ -611,6 +711,9 @@ function setupControls() {
   }
 
   $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+
+  $('#save-chart-btn').addEventListener('click', saveCurrentChart);
+  renderSavedList();
 
   $('#reading-mode-toggle').addEventListener('click', (e) => {
     const btn = e.target.closest('.mode-pill');

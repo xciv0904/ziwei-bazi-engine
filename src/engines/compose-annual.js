@@ -120,7 +120,7 @@ const SIHUA_PLAIN = {
   祿: (D) => `有明顯的順風與貴人,${D}值得主動經營`,
   權: (D) => `${D}的話語權與推進力增強,適合承擔更多、拍板做決定`,
   科: (D) => `${D}容易獲得肯定與好名聲,適合曝光、累積口碑`,
-  忌: (D) => `考驗與糾結集中在${D},這塊今年宜謹慎緩行、留餘裕`,
+  忌: (D) => `考驗與糾結集中在${D},宜謹慎緩行、留餘裕`, // 措辭中性,大限(十年)與流年共用
 };
 
 /** 在本命盤找出某顆星所在的宮位(主星找 majorStars,輔星找 minorStars 的名稱前綴) */
@@ -128,6 +128,21 @@ function palaceOfStar(ziWei, starName) {
   return ziWei.palaces.find((p) =>
     p.majorStars.some((s) => s.name === starName)
     || p.minorStars.some((s) => s.replace(/[((].*$/, '') === starName));
+}
+
+/** 某天干的四化落宮(大限/流年共用核心) */
+function sihuaEntriesOf(ziWei, stem, mode) {
+  const lines = [];
+  const entries = [];
+  for (const [mut, starName] of Object.entries(FLOW_SIHUA[stem] ?? {})) {
+    const palace = palaceOfStar(ziWei, starName);
+    if (!palace) continue;
+    entries.push({ mutagen: mut, star: starName, palace: palace.name });
+    lines.push(mode === 'study'
+      ? `${stem}干${starName}化${mut},落本命${palace.name}(${palace.position})。`
+      : `化${mut}落在${palace.name}:${SIHUA_PLAIN[mut](ZW_DOMAIN[palace.name] ?? palace.name)}。`);
+  }
+  return { entries, lines };
 }
 
 /**
@@ -139,24 +154,25 @@ function palaceOfStar(ziWei, starName) {
  */
 export function composeZiWeiAnnualChange(ziWei, year, { mode = 'public' } = {}) {
   const gz = yearGanZhi(year);
-  const sihua = FLOW_SIHUA[gz[0]];
-  const lines = [];
-  const entries = [];
-
-  for (const [mut, starName] of Object.entries(sihua)) {
-    const palace = palaceOfStar(ziWei, starName);
-    if (!palace) continue;
-    entries.push({ mutagen: mut, star: starName, palace: palace.name });
-    if (mode === 'study') {
-      lines.push(`${gz[0]}干${starName}化${mut},落本命${palace.name}(${palace.position})。`);
-    } else {
-      lines.push(`化${mut}落在${palace.name}:${SIHUA_PLAIN[mut](ZW_DOMAIN[palace.name] ?? palace.name)}。`);
-    }
-  }
-
+  const { entries, lines } = sihuaEntriesOf(ziWei, gz[0], mode);
   const header = mode === 'study'
     ? `${year}年(${gz}年)流年四化:`
     : `${year}年,命盤裡被「點亮」與「施壓」的地方:`;
-
   return { year, ganZhi: gz, entries, text: [header, ...lines].join('\n') };
+}
+
+/**
+ * 紫微大限四化:大限天干使哪四顆星化祿權科忌、落在哪些宮位(十年層)
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @param {object} limit ziWei.majorLimits 的元素({ ganZhi, ageRange })
+ * @param {object} [opts] { mode = 'public' | 'study' }
+ * @returns {{ ganZhi, ageRange, entries, text }}
+ */
+export function composeZiWeiDecadalChange(ziWei, limit, { mode = 'public' } = {}) {
+  const stem = limit.ganZhi[0];
+  const { entries, lines } = sihuaEntriesOf(ziWei, stem, mode);
+  const header = mode === 'study'
+    ? `${limit.ganZhi}限(${limit.ageRange}歲)大限四化:`
+    : `這十年(${limit.ageRange.replace('~', '–')}歲),長期被「點亮」與「施壓」的地方:`;
+  return { ganZhi: limit.ganZhi, ageRange: limit.ageRange, entries, text: [header, ...lines].join('\n') };
 }
