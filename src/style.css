@@ -326,6 +326,28 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .welcome-text { font: 400 13.5px/2 var(--sans); color: rgba(43, 38, 33, .65); margin: 0 0 8px; }
 .welcome-text.muted { font-size: 11.5px; color: var(--ink-40); }
 
+/* ---------- 雙人合盤 ---------- */
+a.nav-item { display: block; text-decoration: none; }
+.nav-external { color: var(--cream-45); font-size: 12px; }
+.syn-form {
+  display: grid; grid-template-columns: 1.2fr 1.2fr 1fr .7fr auto; gap: 8px; align-items: center;
+}
+.syn-form input, .syn-form select {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; font: 400 13px/1.2 var(--sans); color: var(--ink);
+}
+.syn-submit { margin-top: 0; width: auto; padding: 9px 22px; }
+@media (max-width: 700px) { .syn-form { grid-template-columns: 1fr 1fr; } .syn-submit { grid-column: 1 / -1; } }
+.syn-score-card {
+  margin-top: 14px; text-align: center; padding: 22px 16px;
+  background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
+}
+.syn-names { font: 600 13px/1 var(--serif); color: var(--ink-60); margin-bottom: 10px; }
+.syn-score { font: 900 44px/1 var(--serif); color: var(--red); }
+.syn-score small { font-size: 16px; color: var(--ink-40); font-weight: 400; }
+.syn-tier { font: 700 15px/1 var(--serif); color: var(--gold); margin: 10px 0 12px; }
+.syn-score-card .mini-btn { margin-left: 0; }
+
 /* ---------- 頁尾免責聲明 ---------- */
 .site-footer {
   margin-top: 28px; padding: 14px 0 4px;

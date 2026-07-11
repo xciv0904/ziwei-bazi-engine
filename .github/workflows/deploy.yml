@@ -29,7 +29,7 @@ jobs:
       - run: node cross-test.mjs                         # 紫微交叉驗證(弟弟命盤)
       - run: node cross-test-bazi.mjs                    # 八字交叉驗證(弟弟命盤)
       - run: node --import ./css-hook.mjs smoke.mjs      # UI 冒煙測試(happy-dom)
-      - run: npx vite build        # base './' 已設定,適用 user.github.io/repo/ 路徑
+      - run: npm run build         # 先生成命理小百科靜態頁+sitemap,再 vite build(base './')
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

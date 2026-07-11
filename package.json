@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/build-wiki.mjs && vite build",
     "preview": "vite preview",
     "test": "node test.js",
-    "smoke": "node --import ./css-hook.mjs smoke.mjs"
+    "smoke": "node --import ./css-hook.mjs smoke.mjs",
+    "wiki": "node scripts/build-wiki.mjs"
   },
   "devDependencies": {
     "happy-dom": "^20.10.6",

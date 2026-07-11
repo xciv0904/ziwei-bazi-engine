@@ -2,7 +2,7 @@
 // 用途:「複製給AI解讀」按鈕,把 convertToZiWei() / convertToBaZi() 的原始輸出攤平成
 // 人類與LLM都好讀的純文字,附上固定的解讀指令,讓使用者可以直接貼給任何一個對話式AI。
 
-import { relationDisplayName } from './compose-branch-relations.js';
+import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
@@ -382,6 +382,71 @@ export function formatPalacePromptForAI({ input, ziWei, palaceName }) {
     `5) ${t.strategy}`,
     '',
     '請以上述資料為唯一事實來源,未顯示的星曜與四化不要推測;輸出以對當事人有用的結論與具體建議為主,依據簡短附在關鍵結論後即可。',
+  ].join('\n');
+}
+
+// ---------- 雙人合盤提示詞 ----------
+
+const STEM_EL_AI = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
+const BR = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+
+/** 單人濃縮摘要(合盤用,不塞完整十二宮避免提示詞過長) */
+function personSummary({ name, input, baZi, ziWei }) {
+  const fp = baZi.fourPillars;
+  const ys = computeYongShen(baZi);
+  const fmt = (arr) => arr.map((x) => `${x.element}(${x.role})`).join('、');
+  const eff = (palaceName) => {
+    const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+    const p = ziWei.palaces.find((x) => x.name === palaceName);
+    const stars = p.majorStars.map(formatMajorStar).join(' ');
+    if (stars) return `${stars}(${p.position})`;
+    const opp = byBranch[BR[(BR.indexOf(p.position[1]) + 6) % 12]];
+    return `空宮,借對宮${opp.majorStars.map(formatMajorStar).join(' ')}(${p.position})`;
+  };
+  return [
+    `■ ${name}(${input.gender === 'female' ? '女' : '男'},${input.year}年${input.month}月${input.day}日 ${input.hour}時)`,
+    `四柱:${fp.yearPillar.stem}${fp.yearPillar.branch} ${fp.monthPillar.stem}${fp.monthPillar.branch} ${fp.dayPillar.stem}${fp.dayPillar.branch} ${fp.hourPillar.stem}${fp.hourPillar.branch}`,
+    `日主:${fp.dayPillar.stem}(${STEM_EL_AI[fp.dayPillar.stem]})|${ys.strength}|喜用神:${fmt(ys.favorable)}|忌神:${fmt(ys.unfavorable)}`,
+    `紫微命宮:${eff('命宮')}`,
+    `紫微夫妻宮:${eff('夫妻宮')}`,
+  ].join('\n');
+}
+
+/**
+ * 雙人合盤 AI 提示詞:兩人濃縮命盤 + 已算好的地支關係事實 + 判讀順序。
+ * @param {object} data { a: {name,input,baZi,ziWei}, b: {name,input,baZi,ziWei} }
+ */
+export function formatSynastryPromptForAI({ a, b }) {
+  const rel = (brA, brB) => {
+    if (brA === brB) return `相同(${brA},伏吟)`;
+    const rels = relationsBetween(brA, brB);
+    return rels.length ? rels.map((r) => relationDisplayName(r, brA + brB)).join('、') + `(${brA}${brB})` : `無特殊關係(${brA}×${brB})`;
+  };
+  const dayA = a.baZi.fourPillars.dayPillar.branch;
+  const dayB = b.baZi.fourPillars.dayPillar.branch;
+  const yearA = a.baZi.fourPillars.yearPillar.branch;
+  const yearB = b.baZi.fourPillars.yearPillar.branch;
+
+  return [
+    `這是雙人合盤(${a.name} × ${b.name})解讀提示詞。`,
+    '',
+    personSummary(a),
+    '',
+    personSummary(b),
+    '',
+    '◆ 兩人地支關係(已排定,請勿重算)',
+    `日支×日支:${rel(dayA, dayB)}`,
+    `年支×年支:${rel(yearA, yearB)}`,
+    '',
+    `問題: 請分析 ${a.name} 與 ${b.name} 的關係相性:相處模式、彼此扮演的角色、互補與消耗之處、長期經營的建議。`,
+    '判讀順序:',
+    '1) 以兩人日主五行的生剋比和,判斷關係的基本互動方向(誰滋養誰、誰推動誰)。',
+    '2) 以日支關係看親密相處的頻道,年支關係看家庭與背景層的緣分。',
+    '3) 以喜用神互補判斷「誰的存在天生補得到誰」,忌神方向則是需要留意的消耗。',
+    '4) 以一方的紫微夫妻宮星曜對照另一方的命宮星曜(雙向各做一次),分析「理想伴侶輪廓 vs 真實本性」的落差與接納空間。',
+    '5) 不要做「合/不合」的斷語,而要具體化為相處中的強項、容易起摩擦的情境、以及雙方各自可以調整的做法。',
+    '',
+    '請以上述資料為唯一事實來源,不要重新排盤;輸出以兩人實際相處會遇到的場景與建議為主,依據簡短附在關鍵結論後即可。',
   ].join('\n');
 }
 

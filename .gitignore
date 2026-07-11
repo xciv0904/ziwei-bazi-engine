@@ -25,3 +25,6 @@ actual-chart-data.json
 *.njsproj
 *.sln
 *.sw?
+public/wiki
+public/sitemap.xml
+public/robots.txt

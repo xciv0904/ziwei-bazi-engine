@@ -108,6 +108,24 @@ check('再點一次收合回去', !branchRelItemCollapsed.classList.contains('op
 // 主要4段(全盤概覽/個性本質/財官流向/人際健康建議)不受影響,預設仍全部展開
 check('全盤概覽等主要段落預設仍展開', $$('#view-comprehensive .acc-item.open').length === 12 - 2);
 
+// --- 雙人合盤 ---
+$$('.nav-item').find((n) => n.dataset.view === 'synastry').click();
+check('合盤視圖顯示', !$('#view-synastry').hidden);
+check('合盤表單存在', !!$('#syn-date') && !!$('#syn-run'));
+check('已存命盤可帶入乙方', $$('#view-synastry [data-syn-load]').length >= 1);
+$('#syn-name').value = '弟弟'; $('#syn-name').dispatchEvent(new w.Event('input'));
+$('#syn-date').value = '2006-07-12'; $('#syn-date').dispatchEvent(new w.Event('input'));
+$('#syn-hour').value = '19'; $('#syn-hour').dispatchEvent(new w.Event('input'));
+$('#syn-gender').value = 'male'; $('#syn-gender').dispatchEvent(new w.Event('input'));
+$('#syn-run').click();
+await settle();
+check('合盤結果含契合指數', $('#view-synastry').textContent.includes('契合指數'));
+check('合盤結果五段', $$('#view-synastry .acc-item').length === 5);
+check('合盤 AI 提示詞按鈕', !!$('#copy-syn-prompt'));
+
+// --- 命理小百科連結 ---
+check('側欄有小百科連結', !!$('.nav-external'));
+
 // --- 分享命卡 ---
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
 check('命卡姓名', $('.fate-name').textContent === 'Shelly');

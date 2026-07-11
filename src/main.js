@@ -4,9 +4,10 @@ import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
-import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI } from './engines/format-ai.js';
+import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './engines/compose-annual.js';
 import { composeYongShenReading } from './engines/compose-yongshen.js';
+import { composeSynastry } from './engines/compose-synastry.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 
@@ -69,6 +70,8 @@ const state = {
   // 命盤解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
   // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
+  // 雙人合盤:乙方表單值與已排好的乙方命盤
+  synastry: { form: { name: '', date: '', hour: '0', gender: 'female' }, b: null },
   data: null, // { name, input, ziWei, baZi, readings, elements, zwLuck, bzLuck, tenGods, byBranch }
 };
 
@@ -163,6 +166,8 @@ function persistSavedCharts(list) {
 function renderSavedList() {
   const list = loadSavedCharts();
   $('#saved-section').hidden = list.length === 0;
+  // 合盤頁的「從已存命盤帶入」列表與側欄收藏同步
+  if (state.data) renderSynastry();
   $('#saved-list').innerHTML = list.map((c, i) => `
     <div class="saved-chip" data-load="${i}">
       <span class="saved-name">${esc(c.name)}</span>
@@ -552,6 +557,87 @@ function renderComprehensive() {
     }));
 }
 
+// ---------- 分頁:雙人合盤 ----------
+async function runSynastry() {
+  const f = state.synastry.form;
+  if (!f.date) return toast('請先選擇乙方出生日期');
+  const [y, m, d] = f.date.split('-').map(Number);
+  const probe = new Date(y, m - 1, d);
+  if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) return toast('這個日期不存在,請重新選擇');
+  if (y < 1900 || y > 2100) return toast('目前支援 1900–2100 年之間的生日');
+  const { convertToZiWei, convertToBaZi } = await loadEngines();
+  const input = { year: y, month: m, day: d, hour: Number(f.hour), gender: f.gender };
+  state.synastry.b = {
+    name: f.name.trim() || '乙方',
+    input,
+    baZi: convertToBaZi(input),
+    ziWei: convertToZiWei(input),
+  };
+  renderSynastry();
+}
+
+function renderSynastry() {
+  const f = state.synastry.form;
+  const a = { name: state.data.name, input: state.data.input, baZi: state.data.baZi, ziWei: state.data.ziWei };
+  const saved = loadSavedCharts();
+  const savedChips = saved.map((c, i) =>
+    `<button type="button" class="chip" data-syn-load="${i}">${esc(c.name)}</button>`).join('');
+
+  let resultHtml = '';
+  if (state.synastry.b) {
+    const res = composeSynastry(a, state.synastry.b, { mode: state.readingMode });
+    resultHtml = `
+      <div class="card syn-score-card">
+        <div class="syn-names">${esc(a.name)} × ${esc(state.synastry.b.name)}</div>
+        <div class="syn-score">${res.score}<small>/100</small></div>
+        <div class="syn-tier">${esc(res.tier)}</div>
+        <button type="button" class="mini-btn" id="copy-syn-prompt">複製合盤 AI 提示詞</button>
+      </div>
+      <div class="accordion" style="margin-top:12px">${res.sections.map((s) => `
+        <div class="acc-item open">
+          <div class="acc-row"><div class="acc-title">${esc(s.title)}</div></div>
+          <div class="acc-body">${esc(s.text)}</div>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  $('#view-synastry').innerHTML = `
+    <div class="card">
+      <div class="card-label">雙人合盤</div>
+      <div class="card-hint">甲方=目前排盤的「${esc(a.name)}」;輸入乙方生辰,或從已存命盤帶入,看兩人的相性結構</div>
+      <div class="syn-form">
+        <input id="syn-name" type="text" placeholder="乙方姓名" value="${esc(f.name)}" />
+        <input id="syn-date" type="date" value="${esc(f.date)}" />
+        <select id="syn-hour">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}</select>
+        <select id="syn-gender"><option value="female">女</option><option value="male">男</option></select>
+        <button type="button" class="submit-btn syn-submit" id="syn-run">合盤</button>
+      </div>
+      ${saved.length ? `<div class="chip-label" style="margin-top:12px">從已存命盤帶入乙方</div><div class="chip-row">${savedChips}</div>` : ''}
+    </div>
+    ${resultHtml}`;
+
+  $('#syn-hour').value = f.hour;
+  $('#syn-gender').value = f.gender;
+  for (const [id, key] of [['#syn-name', 'name'], ['#syn-date', 'date'], ['#syn-hour', 'hour'], ['#syn-gender', 'gender']]) {
+    $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
+  }
+  $$('#view-synastry [data-syn-load]').forEach((chip) =>
+    chip.addEventListener('click', () => {
+      const c = loadSavedCharts()[Number(chip.dataset.synLoad)];
+      if (!c) return;
+      Object.assign(f, { name: c.name, date: c.date, hour: String(c.hour), gender: c.gender });
+      renderSynastry();
+    }));
+  $('#syn-run').addEventListener('click', runSynastry);
+  $('#copy-syn-prompt')?.addEventListener('click', async () => {
+    const text = formatSynastryPromptForAI({ a, b: state.synastry.b });
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('已複製合盤提示詞,可貼給AI');
+    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+  });
+}
+
 // ---------- 分頁三:分享命卡 ----------
 function shareUrl() {
   const { input, name } = state.data;
@@ -660,11 +746,11 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
 }
 
-const VIEWS = ['dashboard', 'report', 'comprehensive', 'share'];
+const VIEWS = ['dashboard', 'report', 'comprehensive', 'synastry', 'share'];
 
 function switchView(view) {
   state.view = view;
-  $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.view === view));
+  $$('.nav-item[data-view]').forEach((n) => n.classList.toggle('active', n.dataset.view === view));
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
 }
 
@@ -673,6 +759,7 @@ function renderAll() {
   renderDashboard();
   renderReport();
   renderComprehensive();
+  renderSynastry();
   renderShare();
 }
 
@@ -710,7 +797,7 @@ function setupControls() {
     });
   }
 
-  $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+  $$('.nav-item[data-view]').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
 
   $('#save-chart-btn').addEventListener('click', saveCurrentChart);
   renderSavedList();
