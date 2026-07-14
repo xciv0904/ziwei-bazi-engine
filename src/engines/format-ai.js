@@ -4,6 +4,7 @@
 
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
+import { monthlyPillarsOf } from './compose-annual.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
@@ -14,26 +15,6 @@ const line = (label, value) => `${label}:${value}`;
 const STEMS_AI = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const BRANCHES_GZ = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const yearGanZhiOf = (y) => STEMS_AI[(y - 4) % 10] + BRANCHES_GZ[(y - 4) % 12];
-
-// 五虎遁:年干 → 該年寅月(國曆約2月)的月干
-const TIGER_MONTH_STEM = { 甲: '丙', 己: '丙', 乙: '戊', 庚: '戊', 丙: '庚', 辛: '庚', 丁: '壬', 壬: '壬', 戊: '甲', 癸: '甲' };
-
-/**
- * 任一西元年的流月干支(國曆月對應節氣月:1月=前一年丑月、2月=寅月…12月=子月)。
- * 已驗證與 lunar-javascript 排出的 monthlyPillars 一致;供基準年 ≠ 排盤當年時使用。
- */
-function monthlyPillarsOf(year) {
-  const monthGz = (startStem, offset, branchIdx) =>
-    STEMS_AI[(STEMS_AI.indexOf(startStem) + offset) % 10] + BRANCHES_GZ[branchIdx];
-  const result = {};
-  // 1月 = 前一年的丑月(寅月起算第 12 個月)
-  result['01'] = monthGz(TIGER_MONTH_STEM[yearGanZhiOf(year - 1)[0]], 11, 1);
-  for (let m = 2; m <= 12; m++) {
-    // 2月=寅(idx2)、3月=卯…12月=子(idx0)
-    result[String(m).padStart(2, '0')] = monthGz(TIGER_MONTH_STEM[yearGanZhiOf(year)[0]], m - 2, (m) % 12);
-  }
-  return result;
-}
 
 /** 單顆主星:名稱(亮度[,化X]) */
 function formatMajorStar(s) {

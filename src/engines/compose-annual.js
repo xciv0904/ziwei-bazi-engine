@@ -20,6 +20,21 @@ const PILLAR_KEYS = [
   ['hourPillar', '時柱', '晚輩與晚年布局'],
 ];
 
+// 五虎遁:年干 → 該年寅月(國曆約2月)的月干(流月干支計算用,與 lunar-javascript 驗證一致)
+const TIGER_MONTH_STEM = { 甲: '丙', 己: '丙', 乙: '戊', 庚: '戊', 丙: '庚', 辛: '庚', 丁: '壬', 壬: '壬', 戊: '甲', 癸: '甲' };
+
+/** 任一西元年的流月干支(國曆月對應節氣月:1月=前一年丑月、2月=寅月…12月=子月) */
+export function monthlyPillarsOf(year) {
+  const monthGz = (startStem, offset, branchIdx) =>
+    STEMS[(STEMS.indexOf(startStem) + offset) % 10] + BRANCHES[branchIdx];
+  const result = {};
+  result['01'] = monthGz(TIGER_MONTH_STEM[yearGanZhi(year - 1)[0]], 11, 1);
+  for (let m = 2; m <= 12; m++) {
+    result[String(m).padStart(2, '0')] = monthGz(TIGER_MONTH_STEM[yearGanZhi(year)[0]], m - 2, m % 12);
+  }
+  return result;
+}
+
 // 流年支引動某柱的白話句({D} = 領域詞)
 const ANNUAL_PLAIN_REL = {
   六合: (D) => `和「${D}」特別合拍,這方面的事容易順利推進、遇到願意幫忙的人`,
@@ -58,31 +73,9 @@ export function composeAnnualChange(baZi, year, { mode = 'public' } = {}) {
       : `${year}年對你整體是「${category.replace('運', '')}」性質的一年:${desc}`);
   }
 
-  // 2) 流年地支與四柱的引動
-  const annualBranch = gz[1];
-  const hits = [];
-  for (const [key, label, domain] of PILLAR_KEYS) {
-    const pillarBranch = baZi.fourPillars[key].branch;
-    if (pillarBranch === annualBranch) {
-      // 伏吟:流年支與本命柱支相同
-      hits.push({ pillar: label, domain, relations: ['伏吟'] });
-      lines.push(mode === 'study'
-        ? `流年地支${annualBranch}與${label}地支相同(伏吟),該柱所主之事重複顯象,舊事重提。`
-        : `「${domain}」這一年會特別有存在感,過去的老議題容易再浮上檯面。`);
-      continue;
-    }
-    const rels = relationsBetween(annualBranch, pillarBranch);
-    if (!rels.length) continue;
-    hits.push({ pillar: label, domain, relations: rels });
-    const displayed = rels.map((r) => relationDisplayName(r, annualBranch + pillarBranch));
-    const primary = PRIORITY.find((p) => rels.includes(p)) ?? rels[0];
-    if (mode === 'study') {
-      lines.push(`流年地支${annualBranch}與${label}地支${pillarBranch}構成${displayed.join('、')},引動${domain}相關領域。`);
-    } else {
-      const plain = ANNUAL_PLAIN_REL[primary];
-      if (plain) lines.push(`這一年${plain(domain)}。`);
-    }
-  }
+  // 2) 流年地支與四柱的引動(與流月共用同一套核心)
+  const { hits, lines: impactLines } = branchImpactLines(baZi, gz[1], mode, '這一年', '流年');
+  lines.push(...impactLines);
 
   if (!hits.length) {
     lines.push(mode === 'study'
@@ -128,6 +121,64 @@ function palaceOfStar(ziWei, starName) {
   return ziWei.palaces.find((p) =>
     p.majorStars.some((s) => s.name === starName)
     || p.minorStars.some((s) => s.replace(/[((].*$/, '') === starName));
+}
+
+/** 某地支對四柱的引動(流年/流月共用核心;periodWord = 這一年/這個月) */
+function branchImpactLines(baZi, targetBranch, mode, periodWord, periodLabel) {
+  const hits = [];
+  const lines = [];
+  for (const [key, label, domain] of PILLAR_KEYS) {
+    const pillarBranch = baZi.fourPillars[key].branch;
+    if (pillarBranch === targetBranch) {
+      hits.push({ pillar: label, domain, relations: ['伏吟'] });
+      lines.push(mode === 'study'
+        ? `${periodLabel}地支${targetBranch}與${label}地支相同(伏吟),該柱所主之事重複顯象,舊事重提。`
+        : `「${domain}」${periodWord}會特別有存在感,過去的老議題容易再浮上檯面。`);
+      continue;
+    }
+    const rels = relationsBetween(targetBranch, pillarBranch);
+    if (!rels.length) continue;
+    hits.push({ pillar: label, domain, relations: rels });
+    if (mode === 'study') {
+      const displayed = rels.map((r) => relationDisplayName(r, targetBranch + pillarBranch));
+      lines.push(`${periodLabel}地支${targetBranch}與${label}地支${pillarBranch}構成${displayed.join('、')},引動${domain}相關領域。`);
+    } else {
+      const primary = PRIORITY.find((p) => rels.includes(p)) ?? rels[0];
+      const plain = ANNUAL_PLAIN_REL[primary];
+      if (plain) lines.push(`${periodWord}${plain(domain)}。`);
+    }
+  }
+  return { hits, lines };
+}
+
+/**
+ * 八字流月變動:該月干支對日主的十神主軸 + 流月支與四柱的引動
+ * @param {object} baZi convertToBaZi() 輸出
+ * @param {number} year 西元年
+ * @param {number} month 國曆月(1-12)
+ * @param {object} [opts] { mode = 'public' | 'study' }
+ */
+export function composeMonthlyChange(baZi, year, month, { mode = 'public' } = {}) {
+  const gz = monthlyPillarsOf(year)[String(month).padStart(2, '0')];
+  const dayStem = baZi.fourPillars.dayPillar.stem;
+  const god = tenGodOf(dayStem, gz[0]);
+  const category = categoryOf(god);
+  const lines = [];
+
+  if (category) {
+    const desc = BZ['類別解讀'][category] ?? '';
+    lines.push(mode === 'study'
+      ? `${year}年${month}月(${gz}月)月干${gz[0]}對日主${dayStem}為${god},屬${category}——${desc}`
+      : `${month}月對你是「${category.replace('運', '')}」性質的月份:${desc}`);
+  }
+  const { hits, lines: impactLines } = branchImpactLines(baZi, gz[1], mode, '這個月', '流月');
+  lines.push(...impactLines);
+  if (!hits.length) {
+    lines.push(mode === 'study'
+      ? '流月地支與四柱地支之間沒有明顯的合沖刑害,屬於相對平穩的月份。'
+      : '這個月跟你命盤裡的各個領域沒有特別強烈的牽動,按自己的步調走就好。');
+  }
+  return { year, month, ganZhi: gz, god, category, hits, text: lines.join('\n') };
 }
 
 /** 某天干的四化落宮(大限/流年共用核心) */

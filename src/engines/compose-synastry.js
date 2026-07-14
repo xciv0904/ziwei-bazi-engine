@@ -24,18 +24,26 @@ const DAYMASTER_PLAIN = {
   A剋B: (a, b) => `${a}對${b}有塑造力——能推動${b}成長,但力道太強會變成壓力,拿捏分寸是這段關係的功課。`,
 };
 
-// 日支(親密層)關係白話
+// 關係型態:各自的用詞(相處層名稱、紫微對照宮位、「理想輪廓」說法)
+export const RELATION_TYPES = {
+  戀人: { layer: '親密', palace: '夫妻宮', ideal: '心中理想伴侶的樣貌' },
+  親子: { layer: '家人相處', palace: '子女宮', ideal: '心中期待的家人樣貌' },
+  朋友: { layer: '相處', palace: '僕役宮', ideal: '心中理想朋友的輪廓' },
+  同事: { layer: '共事', palace: '僕役宮', ideal: '心中理想隊友的輪廓' },
+};
+
+// 日支(相處層)關係白話({L} = 關係型態的相處層用詞)
 const DAY_BRANCH_PLAIN = {
-  六合: '兩人的親密頻道天生合拍,在一起自帶默契,不太需要解釋就懂彼此。',
-  半合: '相處同頻加分,興趣與步調容易走在一起。',
-  半會: '氣場同類相吸,愈熟愈像,是會互相強化的組合。',
-  暗合: '有種外冷內熱的隱形牽引,表面平淡、私下黏,緣分常在不知不覺中加深。',
-  拱: '兩人聯手時能量會聚焦,一起做事比各自努力更有成果。',
-  沖: '互相吸引也互相拉扯,聚散的節奏比較大,關係需要「留白」才走得久。',
-  刑: '容易在親密關係裡較勁,磨合期比別人長,急不得、吵不贏。',
-  害: '小誤會容易悄悄累積,要刻意保持溝通,別讓「以為對方知道」變成心結。',
-  相破: '生活節奏容易互相打亂,計畫多留彈性,少排死行程。',
-  伏吟: '日支相同,像遇到同款靈魂——相處舒服省力,但也少了點火花,需要主動製造新鮮感。',
+  六合: (L) => `兩人的${L}頻道天生合拍,在一起自帶默契,不太需要解釋就懂彼此。`,
+  半合: () => '相處同頻加分,興趣與步調容易走在一起。',
+  半會: () => '氣場同類相吸,愈熟愈像,是會互相強化的組合。',
+  暗合: () => '有種外冷內熱的隱形牽引,表面平淡、私下熟,緣分常在不知不覺中加深。',
+  拱: () => '兩人聯手時能量會聚焦,一起做事比各自努力更有成果。',
+  沖: () => '互相吸引也互相拉扯,聚散的節奏比較大,關係需要「留白」才走得久。',
+  刑: (L) => `容易在${L}關係裡較勁,磨合期比別人長,急不得、吵不贏。`,
+  害: () => '小誤會容易悄悄累積,要刻意保持溝通,別讓「以為對方知道」變成心結。',
+  相破: () => '生活節奏容易互相打亂,計畫多留彈性,少排死行程。',
+  伏吟: () => '日支相同,像遇到同款靈魂——相處舒服省力,但也少了點火花,需要主動製造新鮮感。',
 };
 
 // 年支(家庭與整體緣分層)關係白話
@@ -52,9 +60,9 @@ const YEAR_BRANCH_PLAIN = {
   伏吟: '年支相同,成長背景相似度高,家庭觀念容易一致。',
 };
 
-// 紫微「理想 vs 真實」呼應句
+// 紫微「理想 vs 真實」呼應句(ideal = 關係型態的「理想輪廓」用詞)
 const RESONANCE_PLAIN = {
-  high: (a, b) => `${a}心中理想伴侶的樣貌,和${b}的本性高度接近——這段關係「對頻」的成分是天生的。`,
+  high: (a, b, ideal) => `${a}${ideal},和${b}的本性高度接近——這段關係「對頻」的成分是天生的。`,
   mid: (a, b) => `${a}期待的相處樣貌和${b}的本性有部分重疊,合拍的地方很合,其餘要靠認識彼此的真實面。`,
   low: (a, b) => `${b}並不是${a}想像中的「類型」——但這不一定是壞事,代表這段關係是在認識一個真實的人,而不是套模板。`,
 };
@@ -89,7 +97,8 @@ const fmtEls = (arr) => arr.map((x) => x.element).join('、');
  * @param {object} [opts] { mode = 'public' | 'study' }
  * @returns {{ score, tier, sections: Array<{title, text}>, text }}
  */
-export function composeSynastry(A, B, { mode = 'public' } = {}) {
+export function composeSynastry(A, B, { mode = 'public', relation = '戀人' } = {}) {
+  const REL = RELATION_TYPES[relation] ?? RELATION_TYPES['戀人'];
   const sections = [];
   let score = 60;
 
@@ -117,11 +126,12 @@ export function composeSynastry(A, B, { mode = 'public' } = {}) {
     const WEIGHT = { 六合: 8, 半合: 5, 半會: 4, 暗合: 5, 拱: 4, 沖: -6, 刑: -5, 害: -4, 相破: -3 };
     const lines = [];
     if (same) {
-      lines.push(plainMap['伏吟']);
+      lines.push(typeof plainMap['伏吟'] === 'function' ? plainMap['伏吟'](REL.layer) : plainMap['伏吟']);
       score += Math.round(4 * weightMul);
     }
     for (const r of rels) {
-      if (plainMap[r]) lines.push(plainMap[r]);
+      const entry = plainMap[r];
+      if (entry) lines.push(typeof entry === 'function' ? entry(REL.layer) : entry);
       score += Math.round((WEIGHT[r] ?? 0) * weightMul);
     }
     return lines;
@@ -132,8 +142,8 @@ export function composeSynastry(A, B, { mode = 'public' } = {}) {
   const dayRels = relationsBetween(dayBrA, dayBrB);
   const dayLines = scoreRel(dayRels, dayBrA === dayBrB, DAY_BRANCH_PLAIN, 1);
   s2.push(dayLines.length
-    ? `親密層(日支):${dayLines.join(' ')}`
-    : '親密層(日支):兩人的日支沒有特別的合沖,相處走自然發展路線,沒有天生的加速器、也沒有地雷。');
+    ? `${REL.layer}層(日支):${dayLines.join(' ')}`
+    : `${REL.layer}層(日支):兩人的日支沒有特別的合沖,相處走自然發展路線,沒有天生的加速器、也沒有地雷。`);
 
   const yearBrA = A.baZi.fourPillars.yearPillar.branch;
   const yearBrB = B.baZi.fourPillars.yearPillar.branch;
@@ -168,17 +178,17 @@ export function composeSynastry(A, B, { mode = 'public' } = {}) {
   }
   sections.push({ title: '三、能量互補', text: s3.join('\n') });
 
-  // ---- 4. 理想與真實:紫微夫妻宮 × 對方命宮(雙向) ----
+  // ---- 4. 理想與真實:依關係型態選對照宮位(戀人=夫妻宮、親子=子女宮、朋友/同事=僕役宮)× 對方命宮(雙向) ----
   const s4 = [];
   const pair = (X, Y) => {
-    const spouse = effectiveStars(X.ziWei, '夫妻宮');
+    const spouse = effectiveStars(X.ziWei, REL.palace);
     const self = effectiveStars(Y.ziWei, '命宮');
     const overlap = tagOverlap(spouse.stars, self.stars);
     const tier = overlap >= 2 ? 'high' : overlap === 1 ? 'mid' : 'low';
     score += overlap >= 2 ? 5 : overlap === 1 ? 2 : 0;
-    let line = RESONANCE_PLAIN[tier](X.name, Y.name);
+    let line = RESONANCE_PLAIN[tier](X.name, Y.name, REL.ideal);
     if (mode === 'study') {
-      line += `(依據:${X.name}夫妻宮${spouse.stars.join('、')}${spouse.borrowed ? '(借)' : ''} × ${Y.name}命宮${self.stars.join('、')}${self.borrowed ? '(借)' : ''},特質交集${overlap}項)`;
+      line += `(依據:${X.name}${REL.palace}${spouse.stars.join('、')}${spouse.borrowed ? '(借)' : ''} × ${Y.name}命宮${self.stars.join('、')}${self.borrowed ? '(借)' : ''},特質交集${overlap}項)`;
     }
     return line;
   };

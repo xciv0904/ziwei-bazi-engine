@@ -126,6 +126,30 @@ check('合盤 AI 提示詞按鈕', !!$('#copy-syn-prompt'));
 // --- 命理小百科連結 ---
 check('側欄有小百科連結', !!$('.nav-external'));
 
+// --- 新功能批次:時辰未知/匯出入/合盤模式/流月/流年命卡 ---
+check('時辰選單含「不確定」', $$('#birth-hour option').some((o) => o.value === 'unknown'));
+check('收藏匯出/匯入按鈕', !!$('#export-charts') && !!$('#import-charts'));
+check('合盤關係型態選單', !!$('#syn-rel') && $$('#syn-rel option').length === 4);
+$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+$('#open-monthly')?.click();
+check('流月 chips 12 個', $$('[data-month]').length === 12);
+check('流月變動內容', $('.luck-detail').textContent.includes('流月變動'));
+$$('.nav-item').find((n) => n.dataset.view === 'share').click();
+$$('#view-share [data-card]').find((t) => t.dataset.card === 'annual')?.click();
+check('流年命卡切換', $('#view-share').textContent.includes('流年卡') && $('.fate-birth').textContent.includes('運勢重點'));
+$$('#view-share [data-card]').find((t) => t.dataset.card === 'life')?.click();
+
+// --- 時辰未知流程 ---
+$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+$('#birth-hour').value = 'unknown';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+check('時辰未知警示', $('#view-dashboard').textContent.includes('時辰未知'));
+check('摘要標示暫排', $('#birth-summary').textContent.includes('時辰未知'));
+$('#birth-hour').value = '13';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+
 // --- 分享命卡 ---
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
 check('命卡姓名', $('.fate-name').textContent === 'Shelly');

@@ -5,7 +5,7 @@ import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI } from './engines/format-ai.js';
-import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './engines/compose-annual.js';
+import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, monthlyPillarsOf } from './engines/compose-annual.js';
 import { composeYongShenReading } from './engines/compose-yongshen.js';
 import { composeSynastry } from './engines/compose-synastry.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
@@ -70,8 +70,10 @@ const state = {
   // 命盤解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
   // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
-  // 雙人合盤:乙方表單值與已排好的乙方命盤
-  synastry: { form: { name: '', date: '', hour: '0', gender: 'female' }, b: null },
+  // 雙人合盤:乙方表單值、關係型態與已排好的乙方命盤
+  synastry: { form: { name: '', date: '', hour: '0', gender: 'female', rel: '戀人' }, b: null },
+  monthIdx: null, // 流月瀏覽(null = 未展開)
+  shareCard: 'life', // 分享命卡:'life' 本命卡 | 'annual' 流年卡
   data: null, // { name, input, ziWei, baZi, readings, elements, zwLuck, bzLuck, tenGods, byBranch }
 };
 
@@ -83,6 +85,9 @@ async function computeAll() {
   }
   const { convertToZiWei, convertToBaZi, Solar, Lunar } = await loadEngines();
   const name = $('#name-input').value.trim() || '命主';
+  // 「不確定時辰」:以午時(11時)暫排,並在畫面明確標示僅供參考
+  const hourRaw = $('#birth-hour').value;
+  const hourUnknown = hourRaw === 'unknown';
   let [y, m, d] = $('#birth-date').value.split('-').map(Number);
   // 日期合法性驗證:表單的日期選擇器擋得住,但分享連結的 ?date= 參數擋不住
   // (例如 1949-02-29 這種不存在的日期,引擎不會報錯、會靜默排出錯的盤)
@@ -95,7 +100,7 @@ async function computeAll() {
     toast('目前支援 1900–2100 年之間的生日');
     return false;
   }
-  const hour = Number($('#birth-hour').value);
+  const hour = hourUnknown ? 11 : Number(hourRaw);
   if (state.cal === 'lunar') {
     const solar = Lunar.fromYmd(y, m, d).getSolar();
     [y, m, d] = [solar.getYear(), solar.getMonth(), solar.getDay()];
@@ -111,9 +116,11 @@ async function computeAll() {
   const lunarDateStr = `${lunarDate.getMonthInChinese()}月${lunarDate.getDayInChinese()}`;
 
   state.data = {
-    name, input, ziWei, baZi, byBranch, lunarDateStr,
+    name, input, ziWei, baZi, byBranch, lunarDateStr, hourUnknown,
     elements: composeElementAnalysis(baZi.fiveElementDistribution), // 兩版本共用同一份,顯示時再依mode選summary/text
   };
+  state.monthIdx = null;
+  state.shareCard = 'life';
   applyReadingMode();
 
   // 預設選中「現行」大限與流年
@@ -182,7 +189,7 @@ function renderSavedList() {
       if (!c) return;
       $('#name-input').value = c.name;
       $('#birth-date').value = c.date;
-      $('#birth-hour').value = String(c.hour);
+      $('#birth-hour').value = String(c.hour); // 'unknown' 也直接對應到「不確定時辰」選項
       state.gender = c.gender;
       $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === c.gender));
       state.cal = c.cal ?? 'solar';
@@ -198,13 +205,49 @@ function renderSavedList() {
     }));
 }
 
+// 匯出/匯入收藏(localStorage 不跨裝置,提供 JSON 檔搬家)
+function exportSavedCharts() {
+  const list = loadSavedCharts();
+  if (!list.length) return toast('目前沒有已存的命盤');
+  const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '命盤收藏.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`已匯出 ${list.length} 筆命盤`);
+}
+
+function importSavedCharts(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const incoming = JSON.parse(reader.result);
+      if (!Array.isArray(incoming)) throw new Error('格式錯誤');
+      const valid = incoming.filter((c) => c && c.name && c.date && c.gender && c.hour !== undefined);
+      const list = loadSavedCharts();
+      let added = 0;
+      for (const c of valid) {
+        if (!list.some((x) => x.date === c.date && x.hour === c.hour && x.gender === c.gender)) {
+          list.push({ name: String(c.name), date: c.date, hour: c.hour, gender: c.gender, cal: 'solar' });
+          added++;
+        }
+      }
+      persistSavedCharts(list);
+      renderSavedList();
+      toast(added ? `已匯入 ${added} 筆命盤` : '沒有新的命盤(皆已存在)');
+    } catch { toast('匯入失敗:檔案格式不正確'); }
+  };
+  reader.readAsText(file);
+}
+
 function saveCurrentChart() {
   if (!state.data) return;
   const { name, input } = state.data;
   const entry = {
     name,
     date: `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`,
-    hour: input.hour,
+    hour: state.data.hourUnknown ? 'unknown' : input.hour, // 時辰未知照實記錄,載入時維持「不確定」
     gender: input.gender,
     cal: 'solar', // computeAll 已把農曆轉成陽曆,存陽曆版本最不易混淆
   };
@@ -224,9 +267,10 @@ function renderHead() {
   $('#reading-mode-toggle').hidden = false;
   $('#save-chart-btn').hidden = false;
   const shichen = SHICHEN.find((s) => s.hour === input.hour);
+  const shichenLabel = state.data.hourUnknown ? '時辰未知(暫以午時排)' : shichen.name;
   $('#birth-summary').textContent =
     `${baZi.fourPillars.yearPillar.stem}${baZi.fourPillars.yearPillar.branch}年` +
-    `${lunarDateStr}　${shichen.name}　` +
+    `${lunarDateStr}　${shichenLabel}　` +
     `${input.gender === 'female' ? '女' : '男'}　${ziWei.fiveElementBureau}`;
 }
 
@@ -404,13 +448,36 @@ function renderLuckBrowser() {
       <div class="reading-line"><span class="lead red">流年命宮（${esc(liunianPalace)}）　</span>${esc(flat(readingOf(liunianPalace).text))}</div>
       <div class="reading-line"><span class="lead red">流年變動（紫微）　</span>${esc(flat(composeZiWeiAnnualChange(state.data.ziWei, sel.year, { mode: state.readingMode }).text))}</div>
       <div class="reading-line"><span class="lead gold">流年變動（八字）　</span>${esc(flat(composeAnnualChange(state.data.baZi, sel.year, { mode: state.readingMode }).text))}</div>
+      ${renderMonthlyBrowser(sel.year)}
     </div>
   </div>`;
 }
 
+/** 流月瀏覽(八字):選定年份內逐月查看變動,預設收合 */
+function renderMonthlyBrowser(year) {
+  if (state.monthIdx === null) {
+    return `<button type="button" class="mini-btn" id="open-monthly" style="align-self:flex-start;margin-left:0">＋ 展開 ${year} 逐月變動(八字流月)</button>`;
+  }
+  const monthly = monthlyPillarsOf(year);
+  const chips = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const gz = monthly[String(m).padStart(2, '0')];
+    return `<button type="button" class="chip${i === state.monthIdx ? ' active' : ''}" data-month="${i}">${m}月<br><small>${esc(gz)}</small></button>`;
+  }).join('');
+  const detail = composeMonthlyChange(state.data.baZi, year, state.monthIdx + 1, { mode: state.readingMode });
+  return `
+    <div class="chip-label" style="margin-top:4px">流月（${year} 年,國曆月對應節氣月）</div>
+    <div class="chip-row">${chips}</div>
+    <div class="reading-line"><span class="lead gold">流月變動（八字）　</span>${esc(flat(detail.text))}</div>`;
+}
+
 function renderDashboard() {
   const isZw = state.chartTab !== 'bazi';
+  const hourWarn = state.data.hourUnknown
+    ? `<div class="card" style="border-color:var(--gold)"><div class="card-hint" style="margin:0">⚠ 時辰未知:目前以「午時」暫排。紫微命盤的宮位與八字時柱會隨時辰改變,以下結果僅供參考;年柱、月柱、日柱與五行分佈不受影響,仍為準確資訊。</div></div>`
+    : '';
   $('#view-dashboard').innerHTML = `<div class="stack">
+    ${hourWarn}
     <div class="chart-tabs">
       <button type="button" class="chart-tab${isZw ? ' active' : ''}" data-chart="ziwei">紫微命盤</button>
       <button type="button" class="chart-tab${isZw ? '' : ' active'}" data-chart="bazi">八字四柱</button>
@@ -427,7 +494,15 @@ function renderDashboard() {
   $$('#view-dashboard [data-limit]').forEach((chip) =>
     chip.addEventListener('click', () => { state.limitIdx = Number(chip.dataset.limit); state.yearIdx = 0; renderDashboard(); }));
   $$('#view-dashboard [data-year]').forEach((chip) =>
-    chip.addEventListener('click', () => { state.yearIdx = Number(chip.dataset.year); renderDashboard(); }));
+    chip.addEventListener('click', () => { state.yearIdx = Number(chip.dataset.year); state.monthIdx = null; renderDashboard(); }));
+  $('#open-monthly')?.addEventListener('click', () => {
+    // 展開時預設選「現在的月份」(若瀏覽的是當年),否則 1 月
+    const { year } = currentLuckSelection();
+    state.monthIdx = year === new Date().getFullYear() ? new Date().getMonth() : 0;
+    renderDashboard();
+  });
+  $$('#view-dashboard [data-month]').forEach((chip) =>
+    chip.addEventListener('click', () => { state.monthIdx = Number(chip.dataset.month); renderDashboard(); }));
 
   // 複製「宮位中心」AI 提示詞(以命盤小教室目前選中的宮位為中心)
   $('#copy-palace-prompt')?.addEventListener('click', async () => {
@@ -585,7 +660,7 @@ function renderSynastry() {
 
   let resultHtml = '';
   if (state.synastry.b) {
-    const res = composeSynastry(a, state.synastry.b, { mode: state.readingMode });
+    const res = composeSynastry(a, state.synastry.b, { mode: state.readingMode, relation: f.rel });
     resultHtml = `
       <div class="card syn-score-card">
         <div class="syn-names">${esc(a.name)} × ${esc(state.synastry.b.name)}</div>
@@ -610,6 +685,7 @@ function renderSynastry() {
         <input id="syn-date" type="date" value="${esc(f.date)}" />
         <select id="syn-hour">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}</select>
         <select id="syn-gender"><option value="female">女</option><option value="male">男</option></select>
+        <select id="syn-rel"><option>戀人</option><option>親子</option><option>朋友</option><option>同事</option></select>
         <button type="button" class="submit-btn syn-submit" id="syn-run">合盤</button>
       </div>
       ${saved.length ? `<div class="chip-label" style="margin-top:12px">從已存命盤帶入乙方</div><div class="chip-row">${savedChips}</div>` : ''}
@@ -618,9 +694,15 @@ function renderSynastry() {
 
   $('#syn-hour').value = f.hour;
   $('#syn-gender').value = f.gender;
+  $('#syn-rel').value = f.rel;
   for (const [id, key] of [['#syn-name', 'name'], ['#syn-date', 'date'], ['#syn-hour', 'hour'], ['#syn-gender', 'gender']]) {
     $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
   }
+  // 換關係型態時,若已有結果直接以新口吻重算
+  $('#syn-rel').addEventListener('input', (e) => {
+    f.rel = e.target.value;
+    if (state.synastry.b) renderSynastry();
+  });
   $$('#view-synastry [data-syn-load]').forEach((chip) =>
     chip.addEventListener('click', () => {
       const c = loadSavedCharts()[Number(chip.dataset.synLoad)];
@@ -666,8 +748,10 @@ function renderShare() {
     : `空宮（借${opposite.majorStars.map((s) => s.name).join('・')}）`;
   const dayStem = baZi.fourPillars.dayPillar.stem;
   const shichen = SHICHEN.find((s) => s.hour === input.hour);
+  const isAnnualCard = state.shareCard === 'annual';
+  const nowYear = new Date().getFullYear();
 
-  // 金句走白話:命格一句 + 十年重心/今年焦點(同宮時合併),不出現大限/流年等術語
+  // 本命卡金句:命格一句 + 十年重心/今年焦點(同宮時合併),不出現大限/流年等術語
   const decadalFocus = zwLuck.decadal ? PALACE_FOCUS[zwLuck.decadal.palaceName] : null;
   const annualFocus = zwLuck.annual ? PALACE_FOCUS[zwLuck.annual.palaceName] : decadalFocus;
   const opener = lifeStars.startsWith('空宮')
@@ -676,17 +760,39 @@ function renderShare() {
   const focusPart = decadalFocus && annualFocus && decadalFocus !== annualFocus
     ? `這十年的重心在${decadalFocus},今年的焦點則在${annualFocus}`
     : `這十年與今年的焦點都落在${annualFocus ?? decadalFocus}`;
-  const quote = `「${opener},${focusPart},宜順勢經營、穩健佈局。」`;
+  let quote = `「${opener},${focusPart},宜順勢經營、穩健佈局。」`;
+
+  // 流年卡:標題、標籤與金句改為當年度重點(流年四化的祿/忌落點 + 八字流年性質)
+  let cardTitle = esc(name);
+  let cardSub = `${input.year}年${input.month}月${input.day}日 ${esc(shichen.name)}・${input.gender === 'female' ? '女' : '男'}`;
+  let tag1 = { label: '命宮主星', value: lifeStars };
+  let tag2 = { label: '日主', value: `${dayStem}${STEM_EL[dayStem]}` };
+  if (isAnnualCard) {
+    const zwAnnual = composeZiWeiAnnualChange(ziWei, nowYear);
+    const bzAnnual = composeAnnualChange(baZi, nowYear);
+    const luDomain = PALACE_FOCUS[zwAnnual.entries.find((e) => e.mutagen === '祿')?.palace] ?? null;
+    const jiDomain = PALACE_FOCUS[zwAnnual.entries.find((e) => e.mutagen === '忌')?.palace] ?? null;
+    const catWord = bzAnnual.category ? bzAnnual.category.replace('運', '') : null;
+    cardTitle = `${esc(name)}的 ${nowYear} 年`;
+    cardSub = `${esc(zwAnnual.ganZhi)}年運勢重點`;
+    tag1 = { label: '順風領域', value: luDomain ?? '平穩經營' };
+    tag2 = { label: '留意領域', value: jiDomain ?? '無明顯壓力點' };
+    quote = `「${nowYear}年${catWord ? `整體是「${catWord}」性質的一年` : '運勢平穩'}${luDomain ? `,${luDomain}迎來順風` : ''}${jiDomain ? `;${jiDomain}宜放慢腳步` : ''}。」`;
+  }
 
   $('#view-share').innerHTML = `<div class="share-wrap">
+    <div style="flex-basis:100%;display:flex;gap:10px">
+      <button type="button" class="report-tab${isAnnualCard ? '' : ' active'}" data-card="life">本命卡</button>
+      <button type="button" class="report-tab${isAnnualCard ? ' active' : ''}" data-card="annual">${nowYear} 流年卡</button>
+    </div>
     <div class="fate-card" id="fate-card">
       <div class="fate-brand"><div class="brand-icon">命</div><span>紫微斗數．八字排盤</span></div>
       <div class="fate-id">
-        <div class="fate-name">${esc(name)}</div>
-        <div class="fate-birth">${input.year}年${input.month}月${input.day}日 ${esc(shichen.name)}・${input.gender === 'female' ? '女' : '男'}</div>
+        <div class="fate-name">${cardTitle}</div>
+        <div class="fate-birth">${cardSub}</div>
         <div class="fate-tags">
-          <div class="fate-tag"><div class="t-label">命宮主星</div><div class="t-value">${esc(lifeStars)}</div></div>
-          <div class="fate-tag"><div class="t-label">日主</div><div class="t-value">${esc(dayStem)}${esc(STEM_EL[dayStem])}</div></div>
+          <div class="fate-tag"><div class="t-label">${esc(tag1.label)}</div><div class="t-value">${esc(tag1.value)}</div></div>
+          <div class="fate-tag"><div class="t-label">${esc(tag2.label)}</div><div class="t-value">${esc(tag2.value)}</div></div>
         </div>
       </div>
       <div class="fate-quote">${esc(quote)}</div>
@@ -702,6 +808,9 @@ function renderShare() {
       <button type="button" class="share-btn" id="btn-line"><span class="icon-diamond"></span>分享至 LINE</button>
     </div>
   </div>`;
+
+  $$('#view-share [data-card]').forEach((tab) =>
+    tab.addEventListener('click', () => { state.shareCard = tab.dataset.card; renderShare(); }));
 
   // 真實 QR Code(內容 = 可分享的命盤連結;qrcode 套件動態載入)
   import('qrcode')
@@ -729,7 +838,7 @@ function renderShare() {
       const dataUrl = await toPng($('#fate-card'), { pixelRatio: 2, backgroundColor: '#fbf6ec' });
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `${name}-命卡.png`;
+      a.download = isAnnualCard ? `${name}-${nowYear}流年卡.png` : `${name}-命卡.png`;
       a.click();
       toast('已下載命卡圖片');
     } catch { toast('圖片匯出失敗,請改用截圖'); }
@@ -784,7 +893,8 @@ function setupControls() {
   // 時辰選單(預設子時,列表第一個選項,避免下拉選單一開始就停在中間某個時辰,
   // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選,這裡只是給一個不易混淆的起始值)
   $('#birth-hour').innerHTML = SHICHEN
-    .map((s) => `<option value="${s.hour}">${s.label}</option>`).join('');
+    .map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')
+    + '<option value="unknown">不確定時辰(以午時暫排)</option>';
   $('#birth-hour').value = '0';
 
   // 藥丸切換
@@ -800,6 +910,12 @@ function setupControls() {
   $$('.nav-item[data-view]').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
 
   $('#save-chart-btn').addEventListener('click', saveCurrentChart);
+  $('#export-charts').addEventListener('click', exportSavedCharts);
+  $('#import-charts').addEventListener('click', () => $('#import-file').click());
+  $('#import-file').addEventListener('change', (e) => {
+    if (e.target.files?.[0]) importSavedCharts(e.target.files[0]);
+    e.target.value = '';
+  });
   renderSavedList();
 
   $('#reading-mode-toggle').addEventListener('click', (e) => {
