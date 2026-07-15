@@ -213,6 +213,45 @@ export function composeZiWeiAnnualChange(ziWei, year, { mode = 'public' } = {}) 
 }
 
 /**
+ * 流年斗君 → 紫微流月命宮
+ * 起法(最通行版):自流年太歲(流年支)所在宮起正月,逆數至生月;
+ * 再自該宮起子時,順數至生時——所落之宮即該流年「正月」的流月命宮(斗君),之後每月順行一宮。
+ * 公式:斗君宮支 = 流年支 − (農曆生月 − 1) + 生時支序 (mod 12)
+ * 注:流月各派起法略有差異,此為書載最常見定法;月份以「農曆月」計,與八字的節氣月月界略有不同。
+ * @param {object} ziWei convertToZiWei() 輸出(需含 lunarMonth、hourBranch)
+ * @param {number} year 西元年
+ * @param {number} month 第幾個月(1-12,農曆月序)
+ * @param {object} [opts] { mode = 'public' | 'study' }
+ */
+export function composeZiWeiMonthly(ziWei, year, month, { mode = 'public' } = {}) {
+  if (!ziWei.lunarMonth || !ziWei.hourBranch) {
+    return { text: mode === 'study' ? '缺少農曆生月或生時資料,無法起斗君。' : '此命盤缺少起流月所需的資料。', entries: [] };
+  }
+  const annualBranch = yearGanZhi(year)[1];
+  const douJunIdx = (BRANCHES.indexOf(annualBranch) - (ziWei.lunarMonth - 1) + BRANCHES.indexOf(ziWei.hourBranch) + 24) % 12;
+  const monthBranch = BRANCHES[(douJunIdx + (month - 1)) % 12];
+  const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+  const palace = byBranch[monthBranch];
+
+  const lines = [];
+  if (mode === 'study') {
+    lines.push(`斗君推導:自流年支${annualBranch}宮起正月,逆數至生月(農曆${ziWei.lunarMonth}月),再順數至生時(${ziWei.hourBranch}時),正月斗君在${BRANCHES[douJunIdx]}宮;第${month}個月順行至${monthBranch},即本命${palace.name}(${palace.position})。`);
+  } else {
+    lines.push(`這個月的際遇焦點落在${palace.name}:${ZW_DOMAIN[palace.name] ?? palace.name}是本月最有戲的領域,重要的事容易在這裡發生。`);
+  }
+
+  // 流月四化(以流月天干起四化,月干與八字流月共用五虎遁)
+  const monthStem = monthlyPillarsOf(year)[String(month).padStart(2, '0')][0];
+  const { entries, lines: sihuaLines } = sihuaEntriesOf(ziWei, monthStem, mode);
+  if (sihuaLines.length) {
+    lines.push(mode === 'study' ? `流月四化(${monthStem}干):` : '本月被「點亮」與「施壓」的地方:');
+    lines.push(...sihuaLines);
+  }
+
+  return { year, month, palaceName: palace.name, monthBranch, entries, text: lines.join('\n') };
+}
+
+/**
  * 紫微大限四化:大限天干使哪四顆星化祿權科忌、落在哪些宮位(十年層)
  * @param {object} ziWei convertToZiWei() 輸出
  * @param {object} limit ziWei.majorLimits 的元素({ ganZhi, ageRange })

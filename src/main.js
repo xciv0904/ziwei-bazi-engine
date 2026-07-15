@@ -5,7 +5,7 @@ import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI } from './engines/format-ai.js';
-import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, monthlyPillarsOf } from './engines/compose-annual.js';
+import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf } from './engines/compose-annual.js';
 import { composeYongShenReading } from './engines/compose-yongshen.js';
 import { composeSynastry } from './engines/compose-synastry.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
@@ -464,10 +464,13 @@ function renderMonthlyBrowser(year) {
     const gz = monthly[String(m).padStart(2, '0')];
     return `<button type="button" class="chip${i === state.monthIdx ? ' active' : ''}" data-month="${i}">${m}月<br><small>${esc(gz)}</small></button>`;
   }).join('');
-  const detail = composeMonthlyChange(state.data.baZi, year, state.monthIdx + 1, { mode: state.readingMode });
+  const m = state.monthIdx + 1;
+  const detail = composeMonthlyChange(state.data.baZi, year, m, { mode: state.readingMode });
+  const zwMonthly = composeZiWeiMonthly(state.data.ziWei, year, m, { mode: state.readingMode });
   return `
-    <div class="chip-label" style="margin-top:4px">流月（${year} 年,國曆月對應節氣月）</div>
+    <div class="chip-label" style="margin-top:4px">流月（${year} 年;八字以節氣月、紫微斗君以農曆月計,月界略有差異）</div>
     <div class="chip-row">${chips}</div>
+    <div class="reading-line"><span class="lead red">流月命宮與四化（紫微）　</span>${esc(flat(zwMonthly.text))}</div>
     <div class="reading-line"><span class="lead gold">流月變動（八字）　</span>${esc(flat(detail.text))}</div>`;
 }
 

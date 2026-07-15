@@ -133,7 +133,9 @@ check('合盤關係型態選單', !!$('#syn-rel') && $$('#syn-rel option').lengt
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
 $('#open-monthly')?.click();
 check('流月 chips 12 個', $$('[data-month]').length === 12);
-check('流月變動內容', $('.luck-detail').textContent.includes('流月變動'));
+check('流月變動內容(八字)', $('.luck-detail').textContent.includes('流月變動'));
+check('流月命宮與四化(紫微)', $('.luck-detail').textContent.includes('流月命宮與四化'));
+check('紫微流月含四化落宮', $('.luck-detail').textContent.includes('化祿落在') || $('.luck-detail').textContent.includes('化祿,落本命'));
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
 $$('#view-share [data-card]').find((t) => t.dataset.card === 'annual')?.click();
 check('流年命卡切換', $('#view-share').textContent.includes('流年卡') && $('.fate-birth').textContent.includes('運勢重點'));
