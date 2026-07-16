@@ -5,7 +5,7 @@ import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI } from './engines/format-ai.js';
-import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf } from './engines/compose-annual.js';
+import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
 import { composeYongShenReading } from './engines/compose-yongshen.js';
 import { composeSynastry } from './engines/compose-synastry.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
@@ -393,6 +393,24 @@ function renderClassroom() {
     ? palace.majorStars.map((s) => s.name).join('・')
     : `（無主星，借對宮${opposite.name}）`;
 
+  // 學習版:附上飛星資訊(自化與來因宮,已用文墨天機命盤交叉驗證)
+  let advancedLine = '';
+  if (state.readingMode === 'study') {
+    const selfT = computeSelfTransformations(state.data.ziWei).find((r) => r.palaceName === state.selectedPalace);
+    const laiyin = computeLaiyinPalace(state.data.ziWei);
+    const parts = [];
+    if (selfT) {
+      parts.push([
+        ...selfT.outgoing.map((x) => `${x.star}↓${x.mutagen}(離心自化,能量向外流)`),
+        ...selfT.incoming.map((x) => `${x.star}↑${x.mutagen}(向心自化,由對宮化入)`),
+      ].join('、'));
+    }
+    if (laiyin?.palaceName === state.selectedPalace) parts.push('此宮為來因宮(生年天干所落之宮,一生課題的起點)');
+    if (parts.length) {
+      advancedLine = `<div class="reading-line"><span class="lead gold">飛星資訊　</span>${esc(parts.join(';'))}</div>`;
+    }
+  }
+
   return `<div class="card">
     <div class="classroom-head">
       <div class="round-icon">宮</div>
@@ -403,6 +421,7 @@ function renderClassroom() {
     <div class="classroom-body">
       <div class="reading-line"><span class="lead gold">宮位釋義　</span>${esc(palaceMeanings[state.selectedPalace] ?? '')}</div>
       <div class="reading-line"><span class="lead red">本命解讀　</span>${esc(flat(reading.text))}</div>
+      ${advancedLine}
     </div>
   </div>`;
 }

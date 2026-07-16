@@ -112,5 +112,7 @@ export function convertToZiWei({ year, month, day, hour, gender, refDate = new D
     lunarMonth: chart.rawDates?.lunarDate?.lunarMonth ?? null,
     isLeapMonth: chart.rawDates?.lunarDate?.isLeap ?? false,
     hourBranch: BRANCHES[hourToTimeIndex(hour) % 12],
+    // 生年天干(以農曆年計,來因宮與生年四化的依據)
+    yearStem: yearGanZhi(chart.rawDates?.lunarDate?.lunarYear ?? year)[0],
   };
 }

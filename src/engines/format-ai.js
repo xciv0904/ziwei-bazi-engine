@@ -4,7 +4,7 @@
 
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
-import { monthlyPillarsOf } from './compose-annual.js';
+import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf } from './compose-annual.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
@@ -39,6 +39,12 @@ function formatZiWeiSection(ziWei, input) {
   lines.push(line('身宮地支', ziWei.bodyPalace));
   lines.push(line('命主星', ziWei.lifeMaster));
   lines.push(line('身主星', ziWei.bodyMaster));
+  {
+    const dj = douJunBranchOf(ziWei, '子');
+    if (dj) lines.push(line('子年斗君', dj));
+    const laiyin = computeLaiyinPalace(ziWei);
+    if (laiyin) lines.push(line('來因宮', `${laiyin.palaceName}(${laiyin.position})`));
+  }
   lines.push('');
 
   lines.push('◆ 大限列表');
@@ -59,7 +65,8 @@ function formatZiWeiSection(ziWei, input) {
   }
   lines.push('');
 
-  lines.push('◆ 十二宮列表');
+  lines.push('◆ 十二宮列表(↓=離心自化、↑=向心自化,飛星派)');
+  const selfT = Object.fromEntries(computeSelfTransformations(ziWei).map((r) => [r.palaceName, r]));
   for (const p of ziWei.palaces) {
     const bodyMark = p.isBodyPalace ? '(身宮)' : '';
     lines.push(`${p.name}${bodyMark} ${p.position}`);
@@ -67,6 +74,14 @@ function formatZiWeiSection(ziWei, input) {
     lines.push(`  輔星:${p.minorStars.length ? p.minorStars.join(' ') : '無'}`);
     lines.push(`  運星:${p.auxiliary.twelveStage || '無'}`);
     lines.push(`  神煞:${p.auxiliary.shensha.length ? p.auxiliary.shensha.join('、') : '無'}`);
+    const st = selfT[p.name];
+    if (st) {
+      const marks = [
+        ...st.outgoing.map((x) => `${x.star}↓${x.mutagen}`),
+        ...st.incoming.map((x) => `${x.star}↑${x.mutagen}`),
+      ].join('、');
+      lines.push(`  自化:${marks}`);
+    }
   }
 
   return lines.join('\n');

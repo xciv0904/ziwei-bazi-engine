@@ -212,6 +212,67 @@ export function composeZiWeiAnnualChange(ziWei, year, { mode = 'public' } = {}) 
   return { year, ganZhi: gz, entries, text: [header, ...lines].join('\n') };
 }
 
+/** 某星是否在某宮(主星比對名稱,輔星雜曜比對格式化字串的名稱前綴) */
+function starInPalace(palace, starName) {
+  return palace.majorStars.some((s) => s.name === starName)
+    || palace.minorStars.some((s) => s.replace(/[((].*$/, '') === starName);
+}
+
+/**
+ * 自化(飛星派):
+ *   離心自化(↓)= 本宮宮干使某星四化,而該星正好在本宮 → 能量向外流失
+ *   向心自化(↑)= 對宮宮干使某星四化,而該星在本宮 → 能量從對宮灌入
+ * 已用文墨天機命盤逐宮驗證(七處自化全數吻合)。
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @returns {Array<{palaceName, position, outgoing:[{star,mutagen}], incoming:[{star,mutagen}]}>}
+ */
+export function computeSelfTransformations(ziWei) {
+  const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+  const results = [];
+  for (const p of ziWei.palaces) {
+    const outgoing = [];
+    const incoming = [];
+    // 離心:本宮宮干四化
+    for (const [mut, star] of Object.entries(FLOW_SIHUA[p.position[0]] ?? {})) {
+      if (starInPalace(p, star)) outgoing.push({ star, mutagen: mut });
+    }
+    // 向心:對宮宮干四化
+    const opp = byBranch[BRANCHES[(BRANCHES.indexOf(p.position[1]) + 6) % 12]];
+    for (const [mut, star] of Object.entries(FLOW_SIHUA[opp.position[0]] ?? {})) {
+      if (starInPalace(p, star)) incoming.push({ star, mutagen: mut });
+    }
+    if (outgoing.length || incoming.length) {
+      results.push({ palaceName: p.name, position: p.position, outgoing, incoming });
+    }
+  }
+  return results;
+}
+
+/**
+ * 來因宮(飛星派):宮干與生年天干相同的宮位;十二宮中有兩個候選時,
+ * 依五虎遁排宮順序(寅起)取先出現者。已以文墨天機命盤驗證(壬年→壬寅父母宮)。
+ * @param {object} ziWei convertToZiWei() 輸出(需含 yearStem)
+ * @returns {{palaceName, position}|null}
+ */
+export function computeLaiyinPalace(ziWei) {
+  if (!ziWei.yearStem) return null;
+  const order = ['寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥', '子', '丑'];
+  const candidates = ziWei.palaces
+    .filter((p) => p.position[0] === ziWei.yearStem)
+    .sort((a, b) => order.indexOf(a.position[1]) - order.indexOf(b.position[1]));
+  return candidates[0] ? { palaceName: candidates[0].name, position: candidates[0].position } : null;
+}
+
+/**
+ * 斗君宮支(供顯示「子年斗君」等資訊)
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @param {string} [annualBranch='子'] 流年地支
+ */
+export function douJunBranchOf(ziWei, annualBranch = '子') {
+  if (!ziWei.lunarMonth || !ziWei.hourBranch) return null;
+  return BRANCHES[(BRANCHES.indexOf(annualBranch) - (ziWei.lunarMonth - 1) + BRANCHES.indexOf(ziWei.hourBranch) + 24) % 12];
+}
+
 /**
  * 流年斗君 → 紫微流月命宮
  * 起法(最通行版):自流年太歲(流年支)所在宮起正月,逆數至生月;
