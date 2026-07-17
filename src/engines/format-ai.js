@@ -4,7 +4,7 @@
 
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
-import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf } from './compose-annual.js';
+import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './compose-annual.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
@@ -447,26 +447,81 @@ export function formatSynastryPromptForAI({ a, b }) {
 }
 
 /**
- * 流年中心 AI 提示詞:完整八字資料(標記基準流年)+ 流年判讀順序。
- * @param {object} chartData { input, baZi, year }
+ * 流年中心 AI 提示詞:紫微流年重點(流年命宮/流年四化/所在大限)+ 完整紫微盤面
+ * + 完整八字資料(標記基準流年)+ 雙系統流年判讀順序。
+ * ziWei 可省略(容錯),省略時退回純八字版。
+ * @param {object} chartData { input, baZi, ziWei, year }
  */
-export function formatAnnualPromptForAI({ input, baZi, year }) {
+export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
   const gz = baZi.annualPillars?.[year] ?? yearGanZhiOf(year);
-  return [
-    `這是四柱八字 流年${year}年${gz ? `(${gz}年)` : ''}解讀提示詞。`,
+  const title = ziWei ? '紫微斗數×四柱八字' : '四柱八字';
+  const lines = [
+    `這是${title} 流年${year}年${gz ? `(${gz}年)` : ''}解讀提示詞。`,
     '',
+  ];
+
+  if (ziWei) {
+    // 紫微流年重點:流年命宮(該年地支疊本命何宮)、流年干四化落宮、所在大限與大限四化
+    const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+    const annualPalace = byBranch[gz[1]];
+    const zwAnnual = composeZiWeiAnnualChange(ziWei, year, { mode: 'study' });
+    const age = year - input.year + 1; // 虛歲,與大限起始歲對齊
+    const limit = ziWei.majorLimits.find((l) => {
+      const [a, b] = l.ageRange.split('~').map(Number);
+      return age >= a && age <= b;
+    });
+
+    lines.push(`◆ 紫微斗數 ${year}年(${gz}年)流年重點`);
+    if (annualPalace) {
+      const stars = annualPalace.majorStars.length
+        ? annualPalace.majorStars.map(formatMajorStar).join(' ')
+        : '無主星(空宮,借對宮)';
+      lines.push(line('流年命宮', `${gz[1]}宮,疊本命${annualPalace.name}(${annualPalace.position})|主星:${stars}`));
+    }
+    if (zwAnnual.entries.length) {
+      lines.push(line(`流年四化(${gz[0]}干)`, zwAnnual.entries.map((e) => `${e.star}化${e.mutagen}→${e.palace}`).join('、')));
+    }
+    if (limit) {
+      lines.push(line('所在大限', `${limit.ganZhi}限(${limit.ageRange}歲)`));
+      const zwDecadal = composeZiWeiDecadalChange(ziWei, limit, { mode: 'study' });
+      if (zwDecadal.entries.length) {
+        lines.push(line(`大限四化(${limit.ganZhi[0]}干)`, zwDecadal.entries.map((e) => `${e.star}化${e.mutagen}→${e.palace}`).join('、')));
+      }
+    }
+    lines.push('');
+    lines.push(formatZiWeiSection(ziWei, input));
+    lines.push('');
+  }
+
+  const order = ziWei
+    ? [
+        '1) 八字:以流年天干對日主的十神關係判斷全年主軸(財/官殺/印/食傷/比劫),說明這一年的能量傾向。',
+        '2) 八字:檢查流年地支與四柱地支的合沖刑害,指出哪些人生領域被引動(年柱=家庭與長輩、月柱=職場與外在環境、日柱=自身與伴侶、時柱=晚輩與晚年布局)。',
+        '3) 八字:對照目前所在的大運方向,判斷這個流年是順勢加乘還是轉折試探。',
+        '4) 紫微:以流年命宮疊的本命宮位與其主星,判斷這一年的主要舞台與姿態。',
+        '5) 紫微:以流年四化祿權科忌的落宮指出被點亮與施壓的領域;若與生年四化或大限四化落在同一宮,該宮即全年最需留意的重點。',
+        '6) 交叉:比對八字全年主軸與紫微四化落宮,一致之處是這一年的確定主題;分歧之處視為不同層面的節奏差異,不要硬湊結論。',
+        '7) 不要做吉凶斷語,而要具體化為這一年適合推進的事、需要保守觀望的事。',
+        '8) 依流月干支給出季度層級的節奏建議。',
+      ]
+    : [
+        '1) 以流年天干對日主的十神關係判斷全年主軸(財/官殺/印/食傷/比劫),說明這一年的能量傾向。',
+        '2) 檢查流年地支與四柱地支的合沖刑害,指出哪些人生領域被引動(年柱=家庭與長輩、月柱=職場與外在環境、日柱=自身與伴侶、時柱=晚輩與晚年布局)。',
+        '3) 對照目前所在的大運方向,判斷這個流年是順勢加乘還是轉折試探。',
+        '4) 不要做吉凶斷語,而要具體化為這一年適合推進的事、需要保守觀望的事。',
+        '5) 依流月干支給出季度層級的節奏建議。',
+      ];
+
+  lines.push(
     formatBaZiSection(baZi, year),
     '',
     line('性別', input.gender === 'female' ? '女性' : '男性'),
     '',
-    `問題: 請以 ${year} 年${gz ? `(${gz}年)` : ''}為基準,分析這一年整體運勢的變化與重點。`,
+    `問題: 請以 ${year} 年${gz ? `(${gz}年)` : ''}為基準,${ziWei ? '綜合紫微斗數與八字,' : ''}分析這一年整體運勢的變化與重點。`,
     '判讀順序:',
-    '1) 以流年天干對日主的十神關係判斷全年主軸(財/官殺/印/食傷/比劫),說明這一年的能量傾向。',
-    '2) 檢查流年地支與四柱地支的合沖刑害,指出哪些人生領域被引動(年柱=家庭與長輩、月柱=職場與外在環境、日柱=自身與伴侶、時柱=晚輩與晚年布局)。',
-    '3) 對照目前所在的大運方向,判斷這個流年是順勢加乘還是轉折試探。',
-    '4) 不要做吉凶斷語,而要具體化為這一年適合推進的事、需要保守觀望的事。',
-    '5) 依流月干支給出季度層級的節奏建議。',
+    ...order,
     '',
     '請以上述資料為唯一事實來源,不要重新排盤或自行推算;輸出以對當事人有用的結論與具體建議為主,依據簡短附在關鍵結論後即可。',
-  ].join('\n');
+  );
+  return lines.join('\n');
 }

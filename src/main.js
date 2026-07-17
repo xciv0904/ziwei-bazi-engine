@@ -539,9 +539,9 @@ function renderDashboard() {
 
   // 複製「流年中心」AI 提示詞(以大限流年瀏覽目前選中的年份為基準)
   $('#copy-annual-prompt')?.addEventListener('click', async () => {
-    const { input, baZi } = state.data;
+    const { input, baZi, ziWei } = state.data;
     const { year: selYear } = currentLuckSelection();
-    const text = formatAnnualPromptForAI({ input, baZi, year: selYear });
+    const text = formatAnnualPromptForAI({ input, baZi, ziWei, year: selYear });
     try {
       await navigator.clipboard.writeText(text);
       toast(`已複製 ${selYear} 流年分析提示詞,可貼給AI`);
