@@ -265,10 +265,151 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .icon-circle { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink); flex-shrink: 0; }
 .icon-diamond { width: 20px; height: 20px; background: var(--red); flex-shrink: 0; transform: rotate(45deg); }
 
+/* ---------- 命盤收藏 ---------- */
+.save-btn {
+  margin-top: 8px; width: 100%;
+  background: transparent; color: var(--cream-60);
+  border: 1px dashed rgba(244, 237, 224, .35); border-radius: 3px;
+  font: 500 11.5px/1 var(--sans); padding: 9px; letter-spacing: .06em;
+}
+.save-btn:hover { color: var(--cream); border-color: var(--cream-60); }
+.saved-list { display: flex; flex-direction: column; gap: 6px; }
+.saved-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 5px; cursor: pointer;
+  background: rgba(244, 237, 224, .07);
+  font: 400 12px/1 var(--sans); color: var(--cream-60);
+}
+.saved-chip:hover { background: rgba(244, 237, 224, .14); color: var(--cream); }
+.saved-name { font-weight: 600; }
+.saved-meta { font-size: 10px; color: var(--cream-40); margin-left: auto; }
+.saved-del {
+  color: var(--cream-40); font: 400 13px/1 var(--sans); padding: 0 2px;
+}
+.saved-del:hover { color: var(--red); }
+.saved-tools { display: flex; gap: 6px; margin-top: 8px; }
+.saved-tool-btn {
+  flex: 1; padding: 6px 0; border-radius: 4px;
+  border: 1px dashed rgba(244, 237, 224, .3); color: var(--cream-45);
+  font: 400 10.5px/1 var(--sans);
+}
+.saved-tool-btn:hover { color: var(--cream); border-color: var(--cream-60); }
+
+/* ---------- 盤面連動(大限/流年/三方四正/流年四化) ---------- */
+.palace-cell.decadal-palace { box-shadow: inset 0 0 0 1px var(--gold); }
+.palace-cell.annual-palace { box-shadow: inset 0 0 0 1px var(--red); }
+.palace-cell.decadal-palace.annual-palace {
+  box-shadow: inset 0 0 0 1px var(--gold), inset 0 0 0 3px rgba(166, 61, 47, .35);
+}
+.palace-cell.related { outline: 1px dashed rgba(43, 38, 33, .35); outline-offset: -3px; }
+.palace-cell.selected { box-shadow: inset 0 0 0 2px var(--red); }
+.luck-tag {
+  display: inline-block; margin-left: 3px; padding: 0 3px; border-radius: 3px;
+  font: 700 8px/1.5 var(--sans); color: var(--cream); vertical-align: middle;
+}
+.luck-tag.decadal { background: var(--gold); }
+.luck-tag.annual { background: var(--red); }
+.flow-mut {
+  display: inline-block; margin-left: 2px; padding: 0 2.5px; border-radius: 3px;
+  font: 700 8.5px/1.6 var(--sans); color: var(--cream); vertical-align: middle;
+}
+.flow-mut.lu { background: var(--lu); } .flow-mut.quan { background: var(--quan); }
+.flow-mut.ke { background: var(--ke); } .flow-mut.ji { background: var(--ji); }
+.chart-legend { margin-top: 8px; font: 400 10px/1.6 var(--sans); color: var(--ink-40); }
+
+/* ---------- 小型複製按鈕(宮位/流年 AI 提示詞) ---------- */
+.mini-btn {
+  margin-left: auto; flex-shrink: 0;
+  padding: 5px 10px; border-radius: 12px;
+  background: var(--card-em); border: 1px solid rgba(43, 38, 33, .2);
+  font: 500 10.5px/1 var(--sans); color: var(--gold);
+  transition: background .15s;
+}
+.mini-btn:hover { background: var(--red); color: var(--cream); border-color: var(--red); }
+.luck-year .mini-btn { margin-left: 10px; vertical-align: middle; }
+
 /* ---------- 歡迎畫面 ---------- */
 .welcome-card { max-width: 560px; }
 .welcome-text { font: 400 13.5px/2 var(--sans); color: rgba(43, 38, 33, .65); margin: 0 0 8px; }
 .welcome-text.muted { font-size: 11.5px; color: var(--ink-40); }
+
+/* ---------- 命盤比對 ---------- */
+.compare-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.compare-check {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 16px; cursor: pointer;
+  background: var(--card-em); border: 1px solid var(--border);
+  font: 400 12px/1 var(--sans); color: var(--ink-60);
+}
+.compare-check:has(input:checked) { border-color: var(--red); color: var(--red); font-weight: 600; }
+.compare-check input { accent-color: var(--red); }
+.compare-check-date { color: var(--ink-40); font-size: 10.5px; }
+.compare-run-btn { margin-top: 14px; max-width: 200px; }
+.compare-table-wrap { overflow-x: auto; }
+.compare-table { width: 100%; border-collapse: collapse; font: 400 12.5px/1.6 var(--sans); }
+.compare-table th, .compare-table td {
+  padding: 9px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
+}
+.compare-table thead th { font: 600 12.5px/1 var(--serif); color: var(--red); }
+.compare-table tbody th { color: var(--gold); font-weight: 600; white-space: nowrap; }
+.compare-table tbody tr:hover { background: var(--card-em); }
+.compare-result-card { overflow-x: auto; }
+
+/* ---------- 流年運勢提醒卡(歡迎畫面,已有存檔命盤時的回訪入口) ---------- */
+.reminder-card { max-width: 560px; border-color: var(--gold); }
+.reminder-list { display: flex; flex-direction: column; gap: 8px; }
+.reminder-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 10px 14px; border-radius: 5px; cursor: pointer;
+  background: var(--card-em); border: 1px solid var(--border);
+  font: 400 13px/1 var(--sans); color: var(--ink);
+  transition: background .15s, border-color .15s;
+}
+.reminder-row:hover { background: var(--red); border-color: var(--red); color: var(--cream); }
+.reminder-row:hover .reminder-cta { color: var(--cream); }
+.reminder-name { font: 600 13.5px/1 var(--serif); }
+.reminder-cta { font-size: 11.5px; color: var(--gold); }
+
+/* ---------- 雙人合盤 ---------- */
+a.nav-item { display: block; text-decoration: none; }
+.nav-external { color: var(--cream-45); font-size: 12px; }
+.syn-form {
+  display: grid; grid-template-columns: 1.2fr 1.2fr 1fr .7fr auto; gap: 8px; align-items: center;
+}
+.syn-form input, .syn-form select {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; font: 400 13px/1.2 var(--sans); color: var(--ink);
+  min-width: 0; width: 100%; /* 日期等欄位有固有寬度,必須允許在 grid 內收縮,否則手機版會爆版 */
+}
+.syn-submit { margin-top: 0; width: auto; padding: 9px 22px; }
+@media (max-width: 700px) {
+  .syn-form { grid-template-columns: 1fr 1fr; }
+  #syn-name, #syn-date, .syn-submit { grid-column: 1 / -1; } /* 姓名、日期、按鈕各占整行,時辰+性別並排 */
+}
+.syn-score-card {
+  margin-top: 14px; text-align: center; padding: 22px 16px;
+  background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
+}
+.syn-names { font: 600 13px/1 var(--serif); color: var(--ink-60); margin-bottom: 10px; }
+.syn-score { font: 900 44px/1 var(--serif); color: var(--red); }
+.syn-score small { font-size: 16px; color: var(--ink-40); font-weight: 400; }
+.syn-tier { font: 700 15px/1 var(--serif); color: var(--gold); margin: 10px 0 12px; }
+.syn-score-card .mini-btn { margin-left: 0; }
+
+/* ---------- 頁尾免責聲明 ---------- */
+.site-footer {
+  margin-top: 28px; padding: 14px 0 4px;
+  border-top: 1px solid rgba(43, 38, 33, .1);
+  font: 400 10.5px/1.8 var(--sans); color: var(--ink-40);
+}
+.site-footer a { color: var(--gold); text-decoration: none; }
+.site-footer a:hover { text-decoration: underline; }
+
+/* ---------- 鍵盤操作可見焦點(無障礙) ---------- */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
 
 /* ---------- Toast ---------- */
 .toast {
@@ -296,7 +437,10 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 }
 
 @media (max-width: 900px) {
-  .copy-ai-btn { right: 16px; bottom: 16px; padding: 10px 16px; font-size: 12px; }
+  /* 手機:縮成圓形小按鈕只留 AI 圖示,避免蓋住 QR code、合盤分數等內容(截圖健檢發現) */
+  .copy-ai-btn { right: 14px; bottom: 14px; padding: 12px; border-radius: 50%; font-size: 0; gap: 0; }
+  .copy-ai-btn .copy-ai-icon { width: 22px; height: 22px; font-size: 10px; }
+  .main { padding-bottom: 72px; } /* 底部預留浮動按鈕的空間,最後一張卡不被壓到 */
 }
 
 /* ---------- 手機版:紫微/八字卡切換鈕 ---------- */

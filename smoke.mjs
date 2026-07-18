@@ -3,7 +3,7 @@ import { Window } from 'happy-dom';
 import { readFileSync } from 'node:fs';
 
 const w = new Window({ url: 'http://localhost/' });
-for (const k of ['document', 'Event', 'HTMLElement', 'Node', 'location', 'navigator']) {
+for (const k of ['document', 'Event', 'HTMLElement', 'Node', 'location', 'navigator', 'localStorage']) {
   try { globalThis[k] = w[k]; } catch { /* 某些屬性唯讀 */ }
 }
 globalThis.window = w;
@@ -18,6 +18,8 @@ const $$ = (s) => [...doc.querySelectorAll(s)];
 
 let failed = 0;
 const check = (label, ok) => { console.log(`${ok ? '✅' : '❌'} ${label}`); if (!ok) failed++; };
+// 排盤引擎改為動態載入(submit 後非同步),送出表單後需等引擎載入+渲染完成
+const settle = () => new Promise((r) => setTimeout(r, 300));
 
 // --- 進站空白狀態(未排盤) ---
 check('進站顯示歡迎畫面', $('#view-dashboard').textContent.includes('開始排盤'));
@@ -28,6 +30,7 @@ $('#name-input').value = 'Shelly';
 $('#birth-date').value = '2002-09-04';
 $('#birth-hour').value = '13';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
 
 // --- 命盤總覽 ---
 check('12 宮位格', $$('.palace-cell').length === 12);
@@ -45,9 +48,30 @@ $$('.palace-cell').find((c) => c.dataset.palace === '財帛宮').click();
 check('點財帛宮 → 小教室切換', $('.classroom-title').textContent.includes('財帛宮'));
 check('小教室含機巨雙星補充', $('.classroom-body').textContent.includes('雙星組合'));
 
+// --- 盤面連動(大限/流年/三方四正/流年四化) ---
+check('流年命宮高亮 1 格', $$('.palace-cell.annual-palace').length === 1);
+check('大限宮位高亮 1 格', $$('.palace-cell.decadal-palace').length === 1);
+check('流年四化落點標記存在', $$('.flow-mut').length >= 3);
+check('命宮的三方四正虛線 3 格', $$('.palace-cell.related').length === 3);
+check('盤面圖例', !!$('.chart-legend'));
+
+// --- 命盤收藏 ---
+check('儲存按鈕在排盤後顯示', !$('#save-chart-btn').hidden);
+$('#save-chart-btn').click();
+check('儲存後收藏列表出現', !$('#saved-section').hidden && $$('.saved-chip').length === 1);
+
+// --- 大限四化 ---
+check('大限四化(紫微)區塊', $('.luck-detail').textContent.includes('大限四化'));
+
 // 大限流年互動
+check('流年變動(八字)區塊', $('.luck-detail').textContent.includes('流年變動（八字）'));
+check('流年變動(紫微)區塊', $('.luck-detail').textContent.includes('流年變動（紫微）'));
+check('紫微流年含四化落宮', $('.luck-detail').textContent.includes('化祿落在') || $('.luck-detail').textContent.includes('化祿,落本命'));
+check('宮位 AI 提示詞按鈕', !!$('#copy-palace-prompt'));
+check('流年 AI 提示詞按鈕', !!$('#copy-annual-prompt'));
 $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
+check('切大限後流年變動仍在', $('.luck-detail').textContent.includes('流年變動'));
 
 // --- 解讀報告 ---
 $$('.nav-item').find((n) => n.dataset.view === 'report').click();
@@ -55,8 +79,9 @@ check('報告視圖顯示', !$('#view-report').hidden);
 check('紫微手風琴 6 項', $$('#view-report .acc-item').length === 6);
 check('預設展開命宮總論', $('#view-report .acc-item.open .acc-title').textContent.includes('命宮總論'));
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
-check('八字手風琴 4 項', $$('#view-report .acc-item').length === 4);
+check('八字手風琴 5 項(含喜用神)', $$('#view-report .acc-item').length === 5);
 check('預設展開日主分析', $('#view-report .acc-item.open .acc-title').textContent.includes('日主分析'));
+check('含喜用神與忌神項', $$('#view-report .acc-title').some((t) => t.textContent.includes('喜用神與忌神')));
 
 // --- 命盤解析(綜合報告) ---
 $$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
@@ -83,6 +108,50 @@ check('再點一次收合回去', !branchRelItemCollapsed.classList.contains('op
 // 主要4段(全盤概覽/個性本質/財官流向/人際健康建議)不受影響,預設仍全部展開
 check('全盤概覽等主要段落預設仍展開', $$('#view-comprehensive .acc-item.open').length === 12 - 2);
 
+// --- 雙人合盤 ---
+$$('.nav-item').find((n) => n.dataset.view === 'synastry').click();
+check('合盤視圖顯示', !$('#view-synastry').hidden);
+check('合盤表單存在', !!$('#syn-date') && !!$('#syn-run'));
+check('已存命盤可帶入乙方', $$('#view-synastry [data-syn-load]').length >= 1);
+$('#syn-name').value = '弟弟'; $('#syn-name').dispatchEvent(new w.Event('input'));
+$('#syn-date').value = '2006-07-12'; $('#syn-date').dispatchEvent(new w.Event('input'));
+$('#syn-hour').value = '19'; $('#syn-hour').dispatchEvent(new w.Event('input'));
+$('#syn-gender').value = 'male'; $('#syn-gender').dispatchEvent(new w.Event('input'));
+$('#syn-run').click();
+await settle();
+check('合盤結果含契合指數', $('#view-synastry').textContent.includes('契合指數'));
+check('合盤結果五段', $$('#view-synastry .acc-item').length === 5);
+check('合盤 AI 提示詞按鈕', !!$('#copy-syn-prompt'));
+
+// --- 命理小百科連結 ---
+check('側欄有小百科連結', !!$('.nav-external'));
+
+// --- 新功能批次:時辰未知/匯出入/合盤模式/流月/流年命卡 ---
+check('時辰選單含「不確定」', $$('#birth-hour option').some((o) => o.value === 'unknown'));
+check('收藏匯出/匯入按鈕', !!$('#export-charts') && !!$('#import-charts'));
+check('合盤關係型態選單', !!$('#syn-rel') && $$('#syn-rel option').length === 4);
+$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+$('#open-monthly')?.click();
+check('流月 chips 12 個', $$('[data-month]').length === 12);
+check('流月變動內容(八字)', $('.luck-detail').textContent.includes('流月變動'));
+check('流月命宮與四化(紫微)', $('.luck-detail').textContent.includes('流月命宮與四化'));
+check('紫微流月含四化落宮', $('.luck-detail').textContent.includes('化祿落在') || $('.luck-detail').textContent.includes('化祿,落本命'));
+$$('.nav-item').find((n) => n.dataset.view === 'share').click();
+$$('#view-share [data-card]').find((t) => t.dataset.card === 'annual')?.click();
+check('流年命卡切換', $('#view-share').textContent.includes('流年卡') && $('.fate-birth').textContent.includes('運勢重點'));
+$$('#view-share [data-card]').find((t) => t.dataset.card === 'life')?.click();
+
+// --- 時辰未知流程 ---
+$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+$('#birth-hour').value = 'unknown';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+check('時辰未知警示', $('#view-dashboard').textContent.includes('時辰未知'));
+check('摘要標示暫排', $('#birth-summary').textContent.includes('時辰未知'));
+$('#birth-hour').value = '13';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+
 // --- 分享命卡 ---
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
 check('命卡姓名', $('.fate-name').textContent === 'Shelly');
@@ -105,6 +174,7 @@ $('#birth-date').value = '1998-03-15';
 $('#birth-hour').value = '11';
 $$('#gender-toggle .pill').find((p) => p.dataset.value === 'male').click();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
 check('重排後摘要更新(戊寅年)', $('#birth-summary').textContent.includes('戊寅年'));
 check('重排後仍 12 宮', $$('.palace-cell').length === 12);
 

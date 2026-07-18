@@ -108,5 +108,11 @@ export function convertToZiWei({ year, month, day, hour, gender, refDate = new D
     annualFlow: { [refYear]: yearGanZhi(refYear) },
     minorLimits,
     palaces,
+    // 斗君起流月需要的出生資料:農曆生月(閏月依 iztro 判定)與生時地支
+    lunarMonth: chart.rawDates?.lunarDate?.lunarMonth ?? null,
+    isLeapMonth: chart.rawDates?.lunarDate?.isLeap ?? false,
+    hourBranch: BRANCHES[hourToTimeIndex(hour) % 12],
+    // 生年天干(以農曆年計,來因宮與生年四化的依據)
+    yearStem: yearGanZhi(chart.rawDates?.lunarDate?.lunarYear ?? year)[0],
   };
 }

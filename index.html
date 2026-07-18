@@ -3,6 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="免費線上紫微斗數與八字排盤:輸入生辰即得十二宮命盤、四柱八字、白話解讀報告與大限流年瀏覽。所有計算皆在瀏覽器內完成,生辰資料不會上傳。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="紫微斗數・八字排盤|免費線上排盤與白話解讀" />
+    <meta property="og:description" content="輸入生辰即得紫微命盤、八字四柱與白話命盤解析,並可產生專屬命卡分享。" />
+    <meta property="og:locale" content="zh_TW" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#2b2621" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700;900&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>紫微斗數・八字排盤</title>
@@ -46,7 +54,19 @@
             </div>
           </div>
           <button type="submit" class="submit-btn">排盤</button>
+          <button type="button" id="save-chart-btn" class="save-btn" hidden>☆ 儲存目前命盤</button>
         </form>
+
+        <div id="saved-section" hidden>
+          <div class="divider" style="margin-bottom:18px"></div>
+          <div class="section-label">已存命盤</div>
+          <div id="saved-list" class="saved-list"></div>
+          <div class="saved-tools">
+            <button type="button" id="export-charts" class="saved-tool-btn">匯出</button>
+            <button type="button" id="import-charts" class="saved-tool-btn">匯入</button>
+            <input type="file" id="import-file" accept="application/json" hidden />
+          </div>
+        </div>
 
         <div class="divider"></div>
 
@@ -55,7 +75,10 @@
           <button class="nav-item active" data-view="dashboard">命盤總覽</button>
           <button class="nav-item" data-view="report">解讀報告</button>
           <button class="nav-item" data-view="comprehensive">命盤解析</button>
+          <button class="nav-item" data-view="synastry">雙人合盤</button>
+          <button class="nav-item" data-view="compare">命盤比對</button>
           <button class="nav-item" data-view="share">分享命卡</button>
+          <a class="nav-item nav-external" href="./wiki/" target="_blank" rel="noopener">命理小百科 ↗</a>
         </nav>
       </aside>
 
@@ -72,7 +95,15 @@
         <section id="view-dashboard"></section>
         <section id="view-report" hidden></section>
         <section id="view-comprehensive" hidden></section>
+        <section id="view-synastry" hidden></section>
+        <section id="view-compare" hidden></section>
         <section id="view-share" hidden></section>
+
+        <footer class="site-footer">
+          本站內容由傳統命理規則自動組裝生成,僅供娛樂與文化參考,不構成醫療、財務或任何人生決策建議。
+          所有排盤計算皆在你的瀏覽器內完成,生辰資料只儲存在本機,不會上傳到任何伺服器。
+          <a href="https://github.com/xciv0904/ziwei-bazi-engine" target="_blank" rel="noopener">原始碼(GitHub)</a>
+        </footer>
       </main>
     </div>
     <button id="copy-ai-btn" class="copy-ai-btn" type="button" hidden>

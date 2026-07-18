@@ -27,15 +27,19 @@ cmp('十神', { yearStem:'偏財', monthStem:'傷官', dayStem:'日主', hourSte
 
 // 納音 / 十二長生 / 神煞
 const pd = b.pillarDetails;
-cmp('納音', ['屋上土','砂中金','金箔金','釵釧金'], [pd.yearPillar.nayin, pd.monthPillar.nayin, pd.dayPillar.nayin, pd.hourPillar.nayin]);
+// 「沙中金/砂中金」為同一納音的異體字寫法,比對時正規化,避免長期掛紅
+const normNayin = (s) => s.replace('沙', '砂');
+cmp('納音', ['屋上土','砂中金','金箔金','釵釧金'], [pd.yearPillar.nayin, pd.monthPillar.nayin, pd.dayPillar.nayin, pd.hourPillar.nayin].map(normNayin));
 cmp('十二長生', ['冠帶','養','病','冠帶'], [pd.yearPillar.twelveStages, pd.monthPillar.twelveStages, pd.dayPillar.twelveStages, pd.hourPillar.twelveStages]);
 cmp('十二神煞', ['華蓋','攀鞍','地煞','華蓋'], [pd.yearPillar.shensha, pd.monthPillar.shensha, pd.dayPillar.shensha, pd.hourPillar.shensha]);
 
-// 地支關係:年月 戌未刑、月時 未戌刑
+// 地支關係:參考網站列出年月刑、月時刑;引擎另涵蓋相破/拱等擴充類型(雙向紀錄共12筆)
 const hasRel = (a, w, rel) => b.branchRelations.some(r => r.branch === a && r.with === w && r.relation === rel);
 cmp('年月刑', true, hasRel('yearBranch', 'monthBranch', '刑'));
 cmp('月時刑', true, hasRel('monthBranch', 'hourBranch', '刑'));
-cmp('關係總數(雙向4筆)', 4, b.branchRelations.length);
+cmp('年月相破(擴充)', true, hasRel('yearBranch', 'monthBranch', '相破'));
+cmp('年日拱(擴充)', true, hasRel('yearBranch', 'dayBranch', '拱'));
+cmp('關係總數(含擴充類型,雙向12筆)', 12, b.branchRelations.length);
 
 // 五行分佈
 cmp('五行分佈', { wood:2, fire:1, earth:3, metal:1, water:1 }, b.fiveElementDistribution);
@@ -61,3 +65,4 @@ expCycles.forEach(([gz, y, range], i) => {
 });
 
 console.log(`\n合計:${pass} 通過 / ${fail} 不一致`);
+process.exit(fail === 0 ? 0 : 1); // 供 CI 當部署門檻

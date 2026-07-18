@@ -1,0 +1,14 @@
+{
+  "name": "紫微斗數・八字排盤",
+  "short_name": "紫微八字",
+  "description": "免費線上紫微斗數與八字排盤,附白話解讀報告。所有計算皆在瀏覽器內完成。",
+  "lang": "zh-TW",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4ede0",
+  "theme_color": "#2b2621",
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
