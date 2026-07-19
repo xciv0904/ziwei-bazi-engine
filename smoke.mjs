@@ -178,5 +178,34 @@ await settle();
 check('重排後摘要更新(戊寅年)', $('#birth-summary').textContent.includes('戊寅年'));
 check('重排後仍 12 宮', $$('.palace-cell').length === 12);
 
+// --- 姓名學 ---
+$('#name-input').value = '張萱利';
+$('#birth-hour').value = '13';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+$$('.nav-item').find((n) => n.dataset.view === 'naming').click();
+check('姓名學分頁顯示', !$('#view-naming').hidden);
+check('自動帶入排盤姓名(姓)', $('#naming-surname').value === '張');
+check('自動帶入排盤姓名(名)', $('#naming-given').value === '萱利');
+check('五格剖象法卡片出現', $('#view-naming').textContent.includes('五格剖象法'));
+check('五格數字卡(天人地外總)至少5格', $$('.wuge-cell').length >= 5);
+check('姓名五行×紫微八字卡片出現', $('#view-naming').textContent.includes('紫微八字'));
+check('顯示喜用神判斷結果', /補益喜用神|偏向忌神|喜忌並存|中性/.test($('#view-naming').textContent));
+check('顯示紫微角度段落', $('#view-naming').textContent.includes('紫微角度'));
+check('複製AI提示詞按鈕出現', !!$('#copy-naming-prompt'));
+
+$('#naming-surname').value = '喵';
+$('#naming-surname').dispatchEvent(new w.Event('input'));
+$('#naming-run').click();
+check('未收錄字誠實提示,不做臆測', $('#view-naming').textContent.includes('不在收錄的姓名用字字典裡'));
+
+$('#name-input').value = '歐陽小明';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+$$('.nav-item').find((n) => n.dataset.view === 'naming').click();
+check('複姓「歐陽」自動判斷正確', $('#naming-surname').value === '歐陽');
+check('複姓命盤:名自動帶入', $('#naming-given').value === '小明');
+check('複姓三字姓名五格剖象法可完整計算', $('#view-naming').textContent.includes('天格'));
+
 console.log(failed === 0 ? '\n全部通過 ✅' : `\n${failed} 項失敗 ❌`);
 process.exit(failed === 0 ? 0 : 1);

@@ -39,6 +39,10 @@
     "element": "火",
     "strokes": 11
   },
+  "亦": {
+    "element": "土",
+    "strokes": 6
+  },
   "亨": {
     "element": "水",
     "strokes": 7
@@ -225,6 +229,10 @@
   },
   "倩": {
     "element": "金",
+    "strokes": 10
+  },
+  "倪": {
+    "element": "火",
     "strokes": 10
   },
   "倫": {
@@ -735,6 +743,10 @@
     "element": "金",
     "strokes": 12
   },
+  "喬": {
+    "element": "木",
+    "strokes": 12
+  },
   "嗣": {
     "element": "金",
     "strokes": 13
@@ -1111,17 +1123,33 @@
     "element": "木",
     "strokes": 10
   },
+  "婕": {
+    "element": "火",
+    "strokes": 11
+  },
   "婷": {
     "element": "火",
+    "strokes": 12
+  },
+  "媗": {
+    "element": "水",
     "strokes": 12
   },
   "嫄": {
     "element": "土",
     "strokes": 13
   },
+  "嫚": {
+    "element": "火",
+    "strokes": 14
+  },
   "嫣": {
     "element": "土",
     "strokes": 14
+  },
+  "嫻": {
+    "element": "火",
+    "strokes": 15
   },
   "嬅": {
     "element": "土",
@@ -1263,6 +1291,10 @@
     "element": "金",
     "strokes": 12
   },
+  "寧": {
+    "element": "火",
+    "strokes": 14
+  },
   "尊": {
     "element": "金",
     "strokes": 12
@@ -1343,6 +1375,10 @@
     "element": "金",
     "strokes": 3
   },
+  "希": {
+    "element": "水",
+    "strokes": 7
+  },
   "庭": {
     "element": "火",
     "strokes": 10
@@ -1354,6 +1390,10 @@
   "建": {
     "element": "木",
     "strokes": 9
+  },
+  "弘": {
+    "element": "水",
+    "strokes": 5
   },
   "張": {
     "element": "火",
@@ -1373,6 +1413,10 @@
   },
   "彥": {
     "element": "水",
+    "strokes": 9
+  },
+  "彧": {
+    "element": "土",
     "strokes": 9
   },
   "彩": {
@@ -1403,8 +1447,16 @@
     "element": "土",
     "strokes": 10
   },
+  "恬": {
+    "element": "火",
+    "strokes": 9
+  },
   "悅": {
     "element": "金",
+    "strokes": 11
+  },
+  "悠": {
+    "element": "土",
     "strokes": 11
   },
   "慧": {
@@ -1463,6 +1515,10 @@
     "element": "土",
     "strokes": 8
   },
+  "昕": {
+    "element": "火",
+    "strokes": 8
+  },
   "昱": {
     "element": "火",
     "strokes": 9
@@ -1470,6 +1526,10 @@
   "晏": {
     "element": "火",
     "strokes": 10
+  },
+  "晗": {
+    "element": "火",
+    "strokes": 11
   },
   "晟": {
     "element": "火",
@@ -1502,6 +1562,10 @@
   "曉": {
     "element": "火",
     "strokes": 16
+  },
+  "曦": {
+    "element": "火",
+    "strokes": 20
   },
   "曹": {
     "element": "金",
@@ -1735,6 +1799,10 @@
     "element": "木",
     "strokes": 12
   },
+  "歆": {
+    "element": "金",
+    "strokes": 13
+  },
   "歌": {
     "element": "木",
     "strokes": 14
@@ -1796,6 +1864,10 @@
     "strokes": 8
   },
   "沂": {
+    "element": "水",
+    "strokes": 8
+  },
+  "沅": {
     "element": "水",
     "strokes": 8
   },
@@ -1975,6 +2047,14 @@
     "element": "水",
     "strokes": 16
   },
+  "澔": {
+    "element": "水",
+    "strokes": 16
+  },
+  "澤": {
+    "element": "水",
+    "strokes": 16
+  },
   "火": {
     "element": "火",
     "strokes": 4
@@ -2063,6 +2143,10 @@
     "element": "土",
     "strokes": 4
   },
+  "玟": {
+    "element": "金",
+    "strokes": 8
+  },
   "珈": {
     "element": "木",
     "strokes": 10
@@ -2075,6 +2159,10 @@
     "element": "金",
     "strokes": 10
   },
+  "珣": {
+    "element": "金",
+    "strokes": 11
+  },
   "珮": {
     "element": "金",
     "strokes": 11
@@ -2083,7 +2171,15 @@
     "element": "木",
     "strokes": 12
   },
+  "琇": {
+    "element": "金",
+    "strokes": 12
+  },
   "琪": {
+    "element": "金",
+    "strokes": 13
+  },
+  "琬": {
     "element": "金",
     "strokes": 13
   },
@@ -2093,6 +2189,10 @@
   },
   "琴": {
     "element": "木",
+    "strokes": 13
+  },
+  "瑀": {
+    "element": "金",
     "strokes": 13
   },
   "瑄": {
@@ -2109,6 +2209,10 @@
   },
   "瑯": {
     "element": "木",
+    "strokes": 15
+  },
+  "璇": {
+    "element": "金",
     "strokes": 15
   },
   "瓊": {
@@ -2203,6 +2307,10 @@
     "element": "木",
     "strokes": 13
   },
+  "睿": {
+    "element": "金",
+    "strokes": 14
+  },
   "瞻": {
     "element": "木",
     "strokes": 18
@@ -2218,6 +2326,10 @@
   "砡": {
     "element": "土",
     "strokes": 10
+  },
+  "硯": {
+    "element": "金",
+    "strokes": 12
   },
   "碩": {
     "element": "土",
@@ -2391,6 +2503,10 @@
     "element": "木",
     "strokes": 13
   },
+  "筱": {
+    "element": "木",
+    "strokes": 13
+  },
   "築": {
     "element": "木",
     "strokes": 16
@@ -2435,6 +2551,10 @@
     "element": "木",
     "strokes": 10
   },
+  "紹": {
+    "element": "金",
+    "strokes": 11
+  },
   "維": {
     "element": "土",
     "strokes": 14
@@ -2442,6 +2562,10 @@
   "綺": {
     "element": "木",
     "strokes": 14
+  },
+  "緯": {
+    "element": "土",
+    "strokes": 15
   },
   "美": {
     "element": "水",
@@ -2487,6 +2611,10 @@
     "element": "木",
     "strokes": 11
   },
+  "臻": {
+    "element": "火",
+    "strokes": 16
+  },
   "興": {
     "element": "水",
     "strokes": 16
@@ -2499,6 +2627,18 @@
     "element": "木",
     "strokes": 10
   },
+  "芩": {
+    "element": "木",
+    "strokes": 8
+  },
+  "芮": {
+    "element": "木",
+    "strokes": 8
+  },
+  "芯": {
+    "element": "木",
+    "strokes": 8
+  },
   "芳": {
     "element": "木",
     "strokes": 10
@@ -2510,6 +2650,14 @@
   "芸": {
     "element": "木",
     "strokes": 10
+  },
+  "苓": {
+    "element": "木",
+    "strokes": 9
+  },
+  "苡": {
+    "element": "木",
+    "strokes": 8
   },
   "若": {
     "element": "木",
@@ -2635,6 +2783,10 @@
     "element": "水",
     "strokes": 11
   },
+  "詩": {
+    "element": "金",
+    "strokes": 13
+  },
   "詳": {
     "element": "金",
     "strokes": 13
@@ -2646,6 +2798,10 @@
   "諸": {
     "element": "金",
     "strokes": 16
+  },
+  "謙": {
+    "element": "木",
+    "strokes": 17
   },
   "謝": {
     "element": "金",
@@ -2667,6 +2823,10 @@
     "element": "火",
     "strokes": 14
   },
+  "軒": {
+    "element": "火",
+    "strokes": 10
+  },
   "連": {
     "element": "木",
     "strokes": 14
@@ -2674,6 +2834,10 @@
   "邱": {
     "element": "金",
     "strokes": 12
+  },
+  "郁": {
+    "element": "土",
+    "strokes": 9
   },
   "鄒": {
     "element": "金",
@@ -2720,6 +2884,10 @@
     "strokes": 13
   },
   "銀": {
+    "element": "金",
+    "strokes": 14
+  },
+  "銓": {
     "element": "金",
     "strokes": 14
   },
@@ -2843,6 +3011,10 @@
     "element": "水",
     "strokes": 11
   },
+  "雯": {
+    "element": "水",
+    "strokes": 12
+  },
   "雲": {
     "element": "水",
     "strokes": 12
@@ -2891,6 +3063,10 @@
     "element": "水",
     "strokes": 21
   },
+  "靖": {
+    "element": "金",
+    "strokes": 13
+  },
   "韓": {
     "element": "火",
     "strokes": 17
@@ -2898,6 +3074,10 @@
   "順": {
     "element": "金",
     "strokes": 12
+  },
+  "頤": {
+    "element": "土",
+    "strokes": 15
   },
   "顏": {
     "element": "木",

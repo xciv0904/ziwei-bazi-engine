@@ -197,7 +197,7 @@ function renderSavedList() {
     <div class="saved-chip" data-load="${i}">
       <span class="saved-name">${esc(c.name)}</span>
       <span class="saved-meta">${esc(c.date)}</span>
-      <button type="button" class="saved-del" data-del="${i}" title="刪除">×</button>
+      <button type="button" class="saved-del" data-del="${i}" title="刪除" aria-label="刪除這筆命盤">×</button>
     </div>`).join('');
 
   $$('#saved-list [data-load]').forEach((chip) =>
@@ -713,7 +713,7 @@ function renderSynastry() {
       <div class="card-label">雙人合盤</div>
       <div class="card-hint">甲方=目前排盤的「${esc(a.name)}」;輸入乙方生辰,或從已存命盤帶入,看兩人的相性結構</div>
       <div class="syn-form">
-        <input id="syn-name" type="text" placeholder="乙方姓名" value="${esc(f.name)}" />
+        <input id="syn-name" type="text" placeholder="乙方姓名" aria-label="乙方姓名" value="${esc(f.name)}" />
         <input id="syn-date" type="date" value="${esc(f.date)}" />
         <select id="syn-hour">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}</select>
         <select id="syn-gender"><option value="female">女</option><option value="male">男</option></select>
@@ -1092,8 +1092,8 @@ function renderNaming() {
       <div class="card-label">姓名學</div>
       <div class="card-hint">輸入姓、名(各 1~2 字),看五格剖象法的天人地外總五格,以及這個名字的五行組成跟目前命盤喜用神搭不搭配。輸入的姓名不會被儲存或上傳,純本機計算。</div>
       <div class="naming-form">
-        <input id="naming-surname" type="text" placeholder="姓" maxlength="2" value="${esc(surname)}" />
-        <input id="naming-given" type="text" placeholder="名" maxlength="2" value="${esc(given)}" />
+        <input id="naming-surname" type="text" placeholder="姓" aria-label="姓" maxlength="2" value="${esc(surname)}" />
+        <input id="naming-given" type="text" placeholder="名" aria-label="名" maxlength="2" value="${esc(given)}" />
         <button type="button" class="submit-btn naming-submit" id="naming-run">分析</button>
       </div>
       ${aiBtnHtml}
