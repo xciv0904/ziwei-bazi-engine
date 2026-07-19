@@ -25,6 +25,21 @@ export function elementOfStar(starName) {
   return STAR_ELEMENT[starName] ?? null;
 }
 
+// 十二生肖(僅算生肖本身與其五行,這是單純的西元年對照,沒有準確度疑慮;
+// 「生肖姓名用字宜忌對照表」這類延伸判斷資料庫沒有把握逐條核對正確,不在此手刻,
+// 交給「複製給AI解讀」讓AI依實際生肖與五格/五行資料去詮釋)
+const ZODIAC = [
+  { animal: '鼠', element: '水' }, { animal: '牛', element: '土' }, { animal: '虎', element: '木' },
+  { animal: '兔', element: '木' }, { animal: '龍', element: '土' }, { animal: '蛇', element: '火' },
+  { animal: '馬', element: '火' }, { animal: '羊', element: '土' }, { animal: '猴', element: '金' },
+  { animal: '雞', element: '金' }, { animal: '狗', element: '土' }, { animal: '豬', element: '水' },
+];
+
+/** 西元年 → 生肖(以農曆年為準最準確,這裡簡化用西元年估算,除夕前後幾天可能有±1誤差) */
+export function zodiacOf(year) {
+  return ZODIAC[(year - 4) % 12];
+}
+
 /**
  * 紫微命宮主星五行 vs 姓名五行組成(補充參考角度,不是跟喜用神比對一樣的嚴謹判斷——
  * 紫微跟八字是兩套獨立系統,沒有官方的「合併算法」,這裡只誠實呈現兩邊各自看到什麼,

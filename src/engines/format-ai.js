@@ -5,6 +5,7 @@
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
 import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './compose-annual.js';
+import { computeWuGe, analyzeNameElements, analyzeZiweiOverlap, zodiacOf } from './naming.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
@@ -522,6 +523,93 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
     ...order,
     '',
     '請以上述資料為唯一事實來源,不要重新排盤或自行推算;輸出以對當事人有用的結論與具體建議為主,依據簡短附在關鍵結論後即可。',
+  );
+  return lines.join('\n');
+}
+
+// ---------- 姓名學提示詞(五格剖象法真實數字 + 姓名五行×喜用神 + 紫微角度 + 生肖,全部是已算好的事實;
+// 「姓名賦予的特質/天賦/隱患/事業運勢/人生階段運勢/生肖姓名速配」這種長篇narrative沒有把握逐條核對
+// 正確的固定對照表,不在網站上手刻,改成把真實數據整理好,交給AI依這些事實去合理詮釋撰寫) ----------
+
+/**
+ * @param {object} data
+ * @param {object} data.input   { year, month, day, hour, gender }
+ * @param {string} data.surname 姓
+ * @param {string} data.given   名
+ * @param {object} data.baZi    convertToBaZi() 輸出(取喜用神/日主用)
+ * @param {object} data.ziWei   convertToZiWei() 輸出(取命宮主星用)
+ * @returns {string|null} 純文字提示詞;姓名用字不在字典或姓名結構不支援時回傳 null
+ */
+export function formatNamingPromptForAI({ input, surname, given, baZi, ziWei }) {
+  const fullName = `${surname}${given}`;
+  const wuGe = computeWuGe(surname, given);
+  const ys = computeYongShen(baZi);
+  const nameEl = analyzeNameElements(fullName, ys);
+  if (!wuGe.ok && !nameEl.known.length) return null; // 姓名用字完全不在字典裡,給不出任何真實依據,不硬湊提示詞
+
+  const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+  const life = ziWei.palaces.find((p) => p.name === '命宮');
+  let lifeStars = life.majorStars.map((s) => s.name);
+  let lifeBorrowed = false;
+  if (!lifeStars.length) {
+    const oppBranch = BRANCHES_GZ[(BRANCHES_GZ.indexOf(life.position[1]) + 6) % 12];
+    lifeStars = byBranch[oppBranch]?.majorStars.map((s) => s.name) ?? [];
+    lifeBorrowed = true;
+  }
+  const zw = analyzeZiweiOverlap(nameEl.known, lifeStars);
+  const zodiac = zodiacOf(input.year);
+
+  const lines = [];
+  lines.push('【姓名學基本資料】');
+  lines.push(line('姓名', `${fullName}(${input.gender === 'female' ? '女' : '男'})`));
+  lines.push(line('出生年', `西元${input.year}年,生肖${zodiac.animal}(五行屬${zodiac.element})`));
+  lines.push('');
+
+  if (wuGe.ok) {
+    lines.push('◆ 五格剖象法(熊崎氏姓名學公式計算,以下數字均為實算結果)');
+    for (const k of ['天格', '人格', '地格', '外格', '總格']) {
+      lines.push(line(k, `${wuGe.grid[k]}(五行屬${wuGe.elements[k]})`));
+    }
+    lines.push(line('天格→人格', wuGe.sancai.tianRen));
+    lines.push(line('人格→地格', wuGe.sancai.renDi));
+    lines.push('');
+  } else if (wuGe.unknown?.length) {
+    lines.push(`◆ 五格剖象法:「${wuGe.unknown.join('、')}」不在筆畫字典裡,無法計算,請不要自行假設筆畫數。`);
+    lines.push('');
+  }
+
+  if (nameEl.known.length) {
+    lines.push('◆ 姓名用字五行');
+    lines.push(nameEl.known.map((k) => `${k.char}(${k.strokes}畫,${k.element})`).join('、'));
+    lines.push(line('日主', `${baZi.fourPillars.dayPillar.stem}(${ys.dayEl})|${ys.strength}`));
+    lines.push(line('喜用神', ys.favorable.map((f) => `${f.element}(${f.role})`).join('、') || '無'));
+    lines.push(line('忌神', ys.unfavorable.map((f) => `${f.element}(${f.role})`).join('、') || '無'));
+    lines.push(line('姓名五行 vs 喜用神判斷', `${nameEl.verdict}——${nameEl.verdictNote}`));
+    lines.push('');
+  }
+
+  if (zw) {
+    lines.push('◆ 紫微命宮主星五行');
+    lines.push(line('命宮主星', `${lifeBorrowed ? '(命宮無主星,借對宮)' : ''}${zw.stars.join('、')},五行屬${zw.starEls.join('、')}`));
+    lines.push('');
+  }
+
+  lines.push('---');
+  lines.push('');
+  lines.push(
+    `請你根據以上「真實計算出來的」五格數字、五行、喜用神/忌神、命宮主星、生肖資料,寫一篇姓名學風格的解讀報告,分成以下幾個段落:`,
+    '1) 姓名賦予的特質(依總格、人格的五行與生剋關係詮釋個性傾向)',
+    '2) 這個名字帶來的天賦(依喜用神是否被姓名五行補益來詮釋)',
+    '3) 需要留意的隱患(依忌神或三才相剋的部分來詮釋,語氣提醒、不要用「絕對」「必定」等斷言字眼)',
+    '4) 事業運勢傾向(依人格、外格五行與命宮主星來詮釋)',
+    '5) 人生各階段運勢概覽(可概略分早年/中年/中晚年三段,語氣為傾向與提醒,不要給具體斷言年份的精準預測)',
+    '6) 生肖姓名速配(依生肖與姓名五行的生剋關係做簡短說明)',
+    '',
+    '寫作要求:',
+    '- 只能使用上面提供的真實數字與五行資料做詮釋依據,不要自己另外編造筆畫數、宮位或星曜',
+    '- 語氣自然易懂、像在對本人說話,避免堆砌艱澀命理術語',
+    '- 每段 3-5 句即可,不用寫成長篇論文',
+    '- 結尾加一句提醒:這是傳統命理規則的娛樂性解讀,不構成人生決策依據',
   );
   return lines.join('\n');
 }

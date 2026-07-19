@@ -4,7 +4,7 @@ import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
-import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI } from './engines/format-ai.js';
+import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI, formatNamingPromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
 import { composeYongShenReading, computeYongShen } from './engines/compose-yongshen.js';
 import { analyzeNameElements, computeWuGe, analyzeZiweiOverlap } from './engines/naming.js';
@@ -1076,8 +1076,12 @@ function renderNaming() {
   const hasInput = surname.trim() && given.trim();
 
   let resultHtml = '';
+  let aiBtnHtml = '';
   if (hasInput) {
     resultHtml = `${renderWuGeCard(computeWuGe(surname, given))}${renderNameElementCard(fullName)}`;
+    if (state.data) {
+      aiBtnHtml = `<button type="button" class="mini-btn" id="copy-naming-prompt" style="margin-top:12px">複製姓名學 AI 提示詞(生成賦予特質/天賦/隱患/事業運勢/人生階段運勢/生肖速配長文解讀)</button>`;
+    }
   }
 
   $('#view-naming').innerHTML = `<div class="stack">
@@ -1089,6 +1093,7 @@ function renderNaming() {
         <input id="naming-given" type="text" placeholder="名" maxlength="2" value="${esc(given)}" />
         <button type="button" class="submit-btn naming-submit" id="naming-run">分析</button>
       </div>
+      ${aiBtnHtml}
     </div>
     ${resultHtml}
   </div>`;
@@ -1096,6 +1101,16 @@ function renderNaming() {
   $('#naming-surname').addEventListener('input', (e) => { state.naming.surname = e.target.value.trim(); });
   $('#naming-given').addEventListener('input', (e) => { state.naming.given = e.target.value.trim(); });
   $('#naming-run').addEventListener('click', () => renderNaming());
+  $('#copy-naming-prompt')?.addEventListener('click', async () => {
+    const text = formatNamingPromptForAI({
+      input: state.data.input, surname, given, baZi: state.data.baZi, ziWei: state.data.ziWei,
+    });
+    if (!text) return toast('姓名用字不在字典裡,無法產生提示詞');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('已複製,可貼給AI生成完整解讀');
+    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+  });
 }
 
 function renderAll() {
