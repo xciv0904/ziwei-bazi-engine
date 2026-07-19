@@ -7,7 +7,7 @@ import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } f
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI, formatNamingPromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
 import { composeYongShenReading, computeYongShen } from './engines/compose-yongshen.js';
-import { analyzeNameElements, computeWuGe, analyzeZiweiOverlap } from './engines/naming.js';
+import { analyzeNameElements, computeWuGe, analyzeZiweiOverlap, splitSurnameGiven } from './engines/naming.js';
 import { composeSynastry } from './engines/compose-synastry.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
@@ -124,6 +124,9 @@ async function computeAll() {
   };
   state.monthIdx = null;
   state.shareCard = 'life';
+  // 姓名學分頁帶入目前排盤的姓名(使用者若在姓名學頁另外手動改過,下次重新排盤/切換命盤時仍會被目前這筆姓名蓋過——
+  // 這是預期行為,「帶入」的意思就是跟著目前排盤的人走)
+  state.naming = splitSurnameGiven(name);
   applyReadingMode();
 
   // 預設選中「現行」大限與流年
