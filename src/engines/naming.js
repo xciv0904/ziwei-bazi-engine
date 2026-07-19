@@ -14,6 +14,33 @@ import nameChars from '../data/name-characters.json' with { type: 'json' };
 const SHENG = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' }; // 我生
 const KE = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' };   // 我剋
 
+// 紫微斗數十四主星五行(各派系對少數幾顆星的五行歸屬偶有出入,這裡採最通行的版本)
+const STAR_ELEMENT = {
+  紫微: '土', 天機: '木', 太陽: '火', 武曲: '金', 天同: '水',
+  廉貞: '火', 天府: '土', 太陰: '水', 貪狼: '木', 巨門: '水',
+  天相: '水', 天梁: '土', 七殺: '金', 破軍: '水',
+};
+
+export function elementOfStar(starName) {
+  return STAR_ELEMENT[starName] ?? null;
+}
+
+/**
+ * 紫微命宮主星五行 vs 姓名五行組成(補充參考角度,不是跟喜用神比對一樣的嚴謹判斷——
+ * 紫微跟八字是兩套獨立系統,沒有官方的「合併算法」,這裡只誠實呈現兩邊各自看到什麼,
+ * 讓使用者自己參考,不做過度延伸的綜合結論)
+ * @param {Array<{element:string}>} known analyzeNameElements() 回傳的 known 陣列
+ * @param {string[]} starNames 命宮主星名稱(可能是借對宮的星)
+ */
+export function analyzeZiweiOverlap(known, starNames) {
+  const stars = (starNames ?? []).filter((s) => STAR_ELEMENT[s]);
+  if (!stars.length) return null;
+  const starEls = [...new Set(stars.map((s) => STAR_ELEMENT[s]))];
+  const nameEls = new Set(known.map((k) => k.element));
+  const overlap = starEls.filter((e) => nameEls.has(e));
+  return { stars, starEls, overlap };
+}
+
 /** 查單一字的筆畫與五行(未收錄回傳 null) */
 export function charInfo(ch) {
   return nameChars[ch] ?? null;

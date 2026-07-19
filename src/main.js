@@ -7,7 +7,7 @@ import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } f
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
 import { composeYongShenReading, computeYongShen } from './engines/compose-yongshen.js';
-import { analyzeNameElements, computeWuGe } from './engines/naming.js';
+import { analyzeNameElements, computeWuGe, analyzeZiweiOverlap } from './engines/naming.js';
 import { composeSynastry } from './engines/compose-synastry.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
@@ -895,6 +895,16 @@ function switchView(view) {
 // ---------- 歷史命盤比對 ----------
 
 /** 命宮主星白話標籤(空宮則標示借對宮星曜,與命盤小教室邏輯一致) */
+/** 命宮主星名稱陣列(空宮則借對宮,不重複算命盤小教室的邏輯) */
+function lifePalaceStarNames(ziWei) {
+  const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+  const life = ziWei.palaces.find((p) => p.name === '命宮');
+  if (life.majorStars.length) return { stars: life.majorStars.map((s) => s.name), borrowed: false };
+  const oppBranch = BRANCHES[(BRANCHES.indexOf(life.position[1]) + 6) % 12];
+  const opp = byBranch[oppBranch];
+  return { stars: opp?.majorStars.map((s) => s.name) ?? [], borrowed: true };
+}
+
 function mainStarsLabelOf(ziWei, palaceName) {
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
   const palace = ziWei.palaces.find((p) => p.name === palaceName);
@@ -1037,12 +1047,25 @@ function renderNameElementCard(fullName) {
   const r = analyzeNameElements(fullName, ys);
   const rows = r.known.map((k) =>
     `<div class="wuge-cell"><div class="wuge-label">${esc(k.char)}</div><div class="wuge-num">${k.strokes}畫</div><div class="wuge-el">${k.element}</div></div>`).join('');
+
+  // 紫微角度:命宮主星五行 vs 姓名五行(兩套系統各自獨立,沒有官方合併算法,誠實呈現兩邊各自看到什麼,不做過度延伸的綜合結論)
+  const life = lifePalaceStarNames(state.data.ziWei);
+  const zw = analyzeZiweiOverlap(r.known, life.stars);
+  let zwLine = '';
+  if (zw) {
+    const starLabel = `${life.borrowed ? '(借對宮)' : ''}${zw.stars.join('、')}`;
+    zwLine = zw.overlap.length
+      ? `<div class="reading-line"><span class="lead red">紫微角度　</span>命宮主星${esc(starLabel)}五行屬${esc(zw.starEls.join('、'))},跟姓名裡的${esc(zw.overlap.join('、'))}是同一個五行,兩套系統在這點上是一致的參考訊號。</div>`
+      : `<div class="reading-line"><span class="lead red">紫微角度　</span>命宮主星${esc(starLabel)}五行屬${esc(zw.starEls.join('、'))},姓名用字裡沒有這個五行,跟八字喜用神的判斷是兩個獨立角度,可以當作額外參考,不代表互相矛盾。</div>`;
+  }
+
   return `<div class="card">
-    <div class="card-label">姓名五行 × ${esc(state.data.name)}的喜用神</div>
-    <div class="card-hint">沿用目前命盤算出的喜用神/忌神(命盤解析頁的八字綜合解讀也有同一份判斷),比對姓名用字的五行組成</div>
+    <div class="card-label">姓名五行 × ${esc(state.data.name)}的紫微八字</div>
+    <div class="card-hint">主要判斷沿用目前命盤算出的八字喜用神/忌神(命盤解析頁的八字綜合解讀也有同一份判斷),再補一段紫微命宮主星五行的參考角度</div>
     ${rows ? `<div class="wuge-grid">${rows}</div>` : ''}
     <div class="reading-line"><span class="lead gold">判斷　</span>${esc(r.verdict)}</div>
     <div class="reading-line">${esc(r.verdictNote)}</div>
+    ${zwLine}
     ${r.unknown.length ? `<div class="card-hint" style="margin:8px 0 0">「${esc(r.unknown.join('、'))}」不在收錄字典裡,未納入判斷。</div>` : ''}
   </div>`;
 }
