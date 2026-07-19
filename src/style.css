@@ -355,6 +355,23 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .compare-table tbody tr:hover { background: var(--card-em); }
 .compare-result-card { overflow-x: auto; }
 
+/* ---------- 姓名學 ---------- */
+.naming-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
+.naming-form input {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; font: 400 13px/1.2 var(--sans); color: var(--ink); min-width: 0; width: 100%;
+}
+.naming-submit { margin-top: 0; width: auto; padding: 9px 22px; }
+@media (max-width: 700px) { .naming-form { grid-template-columns: 1fr 1fr; } .naming-submit { grid-column: 1 / -1; } }
+.wuge-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.wuge-cell {
+  flex: 1; min-width: 74px; text-align: center; padding: 10px 6px; border-radius: 6px;
+  background: var(--card-em); border: 1px solid var(--border);
+}
+.wuge-label { font: 600 11px/1 var(--serif); color: var(--red); margin-bottom: 4px; }
+.wuge-num { font: 700 17px/1 var(--serif); color: var(--ink); }
+.wuge-el { font-size: 10.5px; color: var(--gold); margin-top: 3px; }
+
 /* ---------- 流年運勢提醒卡(歡迎畫面,已有存檔命盤時的回訪入口) ---------- */
 .reminder-card { max-width: 560px; border-color: var(--gold); }
 .reminder-list { display: flex; flex-direction: column; gap: 8px; }

@@ -7,6 +7,7 @@ import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } f
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
 import { composeYongShenReading, computeYongShen } from './engines/compose-yongshen.js';
+import { analyzeNameElements, computeWuGe } from './engines/naming.js';
 import { composeSynastry } from './engines/compose-synastry.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
@@ -75,6 +76,7 @@ const state = {
   monthIdx: null, // 流月瀏覽(null = 未展開)
   shareCard: 'life', // 分享命卡:'life' 本命卡 | 'annual' 流年卡
   compareSelected: new Set(), // 命盤比對:目前勾選的已存命盤 index
+  naming: { surname: '', given: '' }, // 姓名學:姓/名輸入值(獨立分頁,不依賴目前命盤)
   data: null, // { name, input, ziWei, baZi, readings, elements, zwLuck, bzLuck, tenGods, byBranch }
 };
 
@@ -882,7 +884,7 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
 }
 
-const VIEWS = ['dashboard', 'report', 'comprehensive', 'synastry', 'share', 'compare'];
+const VIEWS = ['dashboard', 'report', 'comprehensive', 'synastry', 'share', 'compare', 'naming'];
 
 function switchView(view) {
   state.view = view;
@@ -1006,6 +1008,73 @@ function renderCompare() {
   });
 }
 
+// ---------- 姓名學 ----------
+
+function renderWuGeCard(result) {
+  if (!result.ok) {
+    if (result.unsupported) {
+      return `<div class="card"><div class="card-hint" style="margin:0">目前只支援單姓/複姓(1~2字)搭配單名/雙名(1~2字)的組合,這個姓名結構暫不支援計算。</div></div>`;
+    }
+    return `<div class="card"><div class="card-hint" style="margin:0">「${esc(result.unknown.join('、'))}」目前不在收錄的姓名用字字典裡(字典僅收錄約 460 個常見姓氏與命名用字),無法計算五格,不做臆測。</div></div>`;
+  }
+  const rows = ['天格', '人格', '地格', '外格', '總格']
+    .map((k) => `<div class="wuge-cell"><div class="wuge-label">${k}</div><div class="wuge-num">${result.grid[k]}</div><div class="wuge-el">${result.elements[k]}</div></div>`)
+    .join('');
+  return `<div class="card">
+    <div class="card-label">五格剖象法</div>
+    <div class="card-hint">天格/人格/地格/外格/總格採熊崎氏姓名學公式計算;三才只看五行生剋大方向,不做 81 數理逐條吉凶(那部分沒把握逐條核對正確,寧可不做)</div>
+    <div class="wuge-grid">${rows}</div>
+    <div class="reading-line">${esc(result.sancai.tianRenNote)}</div>
+    <div class="reading-line">${esc(result.sancai.renDiNote)}</div>
+  </div>`;
+}
+
+function renderNameElementCard(fullName) {
+  if (!state.data) {
+    return `<div class="card"><div class="card-hint" style="margin:0">姓名五行 × 喜用神比對需要先有一張命盤——請先在左側輸入生辰排盤,再回來看這張名字跟你的命盤搭不搭。</div></div>`;
+  }
+  const ys = computeYongShen(state.data.baZi);
+  const r = analyzeNameElements(fullName, ys);
+  const rows = r.known.map((k) =>
+    `<div class="wuge-cell"><div class="wuge-label">${esc(k.char)}</div><div class="wuge-num">${k.strokes}畫</div><div class="wuge-el">${k.element}</div></div>`).join('');
+  return `<div class="card">
+    <div class="card-label">姓名五行 × ${esc(state.data.name)}的喜用神</div>
+    <div class="card-hint">沿用目前命盤算出的喜用神/忌神(命盤解析頁的八字綜合解讀也有同一份判斷),比對姓名用字的五行組成</div>
+    ${rows ? `<div class="wuge-grid">${rows}</div>` : ''}
+    <div class="reading-line"><span class="lead gold">判斷　</span>${esc(r.verdict)}</div>
+    <div class="reading-line">${esc(r.verdictNote)}</div>
+    ${r.unknown.length ? `<div class="card-hint" style="margin:8px 0 0">「${esc(r.unknown.join('、'))}」不在收錄字典裡,未納入判斷。</div>` : ''}
+  </div>`;
+}
+
+function renderNaming() {
+  const { surname, given } = state.naming;
+  const fullName = `${surname}${given}`;
+  const hasInput = surname.trim() && given.trim();
+
+  let resultHtml = '';
+  if (hasInput) {
+    resultHtml = `${renderWuGeCard(computeWuGe(surname, given))}${renderNameElementCard(fullName)}`;
+  }
+
+  $('#view-naming').innerHTML = `<div class="stack">
+    <div class="card">
+      <div class="card-label">姓名學</div>
+      <div class="card-hint">輸入姓、名(各 1~2 字),看五格剖象法的天人地外總五格,以及這個名字的五行組成跟目前命盤喜用神搭不搭配。輸入的姓名不會被儲存或上傳,純本機計算。</div>
+      <div class="naming-form">
+        <input id="naming-surname" type="text" placeholder="姓" maxlength="2" value="${esc(surname)}" />
+        <input id="naming-given" type="text" placeholder="名" maxlength="2" value="${esc(given)}" />
+        <button type="button" class="submit-btn naming-submit" id="naming-run">分析</button>
+      </div>
+    </div>
+    ${resultHtml}
+  </div>`;
+
+  $('#naming-surname').addEventListener('input', (e) => { state.naming.surname = e.target.value.trim(); });
+  $('#naming-given').addEventListener('input', (e) => { state.naming.given = e.target.value.trim(); });
+  $('#naming-run').addEventListener('click', () => renderNaming());
+}
+
 function renderAll() {
   renderHead();
   renderDashboard();
@@ -1014,6 +1083,7 @@ function renderAll() {
   renderSynastry();
   renderShare();
   renderCompare();
+  renderNaming();
 }
 
 /**
