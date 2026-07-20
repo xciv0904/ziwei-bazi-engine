@@ -284,6 +284,26 @@ function renderHead() {
     `${input.gender === 'female' ? '女' : '男'}　${ziWei.fiveElementBureau}`;
 }
 
+function renderResultSummary() {
+  const { ziWei, baZi, elements } = state.data;
+  const life = ziWei.palaces.find((p) => p.name === '命宮');
+  const mainStars = life.majorStars.map((s) => s.name).join('・') || '空宮（參考對宮）';
+  const fp = baZi.fourPillars;
+  const dayMaster = `${fp.dayPillar.stem}${STEM_EL[fp.dayPillar.stem]}`;
+  const { limit, year } = currentLuckSelection();
+  const focus = state.data.byBranch[limit.ganZhi[1]]?.name ?? '—';
+  return `<section class="card" aria-labelledby="summary-title">
+    <div class="card-label" id="summary-title">先看懂你的命盤</div>
+    <div class="result-summary">
+      <div class="summary-item"><div class="summary-label">命宮主星</div><div class="summary-value">${esc(mainStars)}</div></div>
+      <div class="summary-item"><div class="summary-label">八字日主</div><div class="summary-value">${esc(dayMaster)}</div></div>
+      <div class="summary-item"><div class="summary-label">五行重點</div><div class="summary-value">${esc(elements.dominant.join('、') || '平衡')}偏旺</div></div>
+      <div class="summary-item"><div class="summary-label">目前運勢焦點</div><div class="summary-value">${esc(year)}・${esc(focus)}</div></div>
+      <div class="summary-action"><span>第一次看命盤？先閱讀白話報告，再回來點選十二宮深入探索。</span><button type="button" id="summary-report-btn">閱讀白話報告 →</button></div>
+    </div>
+  </section>`;
+}
+
 // ---------- 分頁一:命盤總覽 ----------
 function elDot(char, isDay) {
   const el = STEM_EL[char] ?? BRANCH_EL[char];
@@ -510,6 +530,7 @@ function renderDashboard() {
     : '';
   $('#view-dashboard').innerHTML = `<div class="stack">
     ${hourWarn}
+    ${renderResultSummary()}
     <div class="chart-tabs">
       <button type="button" class="chart-tab${isZw ? ' active' : ''}" data-chart="ziwei">紫微命盤</button>
       <button type="button" class="chart-tab${isZw ? '' : ' active'}" data-chart="bazi">八字四柱</button>
@@ -521,6 +542,7 @@ function renderDashboard() {
 
   $$('#view-dashboard .chart-tab').forEach((tab) =>
     tab.addEventListener('click', () => { state.chartTab = tab.dataset.chart; renderDashboard(); }));
+  $('#summary-report-btn')?.addEventListener('click', () => switchView('report'));
   $$('#view-dashboard .palace-cell').forEach((cell) =>
     cell.addEventListener('click', () => { state.selectedPalace = cell.dataset.palace; renderDashboard(); }));
   $$('#view-dashboard [data-limit]').forEach((chip) =>
@@ -1125,6 +1147,8 @@ function renderAll() {
   renderShare();
   renderCompare();
   renderNaming();
+  document.body.classList.add('has-chart');
+  $$('.side-nav [data-view]').forEach((n) => { n.disabled = false; n.removeAttribute('aria-disabled'); });
 }
 
 /**
@@ -1155,8 +1179,10 @@ function renderEmpty() {
   const reminder = renderAnnualReminderCard();
   const welcome = `<div class="stack">${reminder}<div class="card welcome-card">
     <div class="card-label">開始排盤</div>
-    <p class="welcome-text">在左側輸入姓名、出生日期、時辰與性別,按「排盤」即可產生你的紫微斗數命盤與八字四柱,
-    並附上宮位小教室、大限流年瀏覽與白話解讀報告。</p>
+    <h2>三步驟看懂你的紫微與八字</h2>
+    <p class="welcome-text">輸入基本生辰後，即可取得十二宮命盤、八字四柱與分層白話解讀。</p>
+    <div class="welcome-steps"><div class="welcome-step"><b>1</b>輸入出生日期與時辰</div><div class="welcome-step"><b>2</b>產生命盤與重點摘要</div><div class="welcome-step"><b>3</b>閱讀報告、流年與宮位解析</div></div>
+    <button type="button" class="welcome-cta" id="welcome-start">開始輸入生辰</button>
     <p class="welcome-text muted">所有計算皆在你的瀏覽器內完成,生辰資料不會上傳到任何伺服器。</p>
   </div></div>`;
   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
@@ -1168,6 +1194,13 @@ function renderEmpty() {
   $('#copy-ai-btn').hidden = true;
   $('#reading-mode-toggle').hidden = true;
   $('#save-chart-btn').hidden = true;
+  document.body.classList.remove('has-chart');
+  $$('.side-nav [data-view]').forEach((n) => { n.disabled = true; n.setAttribute('aria-disabled', 'true'); });
+  $('#welcome-start')?.addEventListener('click', () => {
+    $('.sidebar').classList.add('open');
+    $('#sidebar-toggle').setAttribute('aria-expanded', 'true');
+    $('#name-input').focus();
+  });
 }
 
 // ---------- 初始化 ----------
@@ -1185,7 +1218,10 @@ function setupControls() {
       const btn = e.target.closest('.pill');
       if (!btn) return;
       state[key] = btn.dataset.value;
-      $$(`${id} .pill`).forEach((p) => p.classList.toggle('active', p === btn));
+      $$(`${id} .pill`).forEach((p) => {
+        p.classList.toggle('active', p === btn);
+        p.setAttribute('aria-pressed', String(p === btn));
+      });
     });
   }
 
@@ -1204,7 +1240,10 @@ function setupControls() {
     const btn = e.target.closest('.mode-pill');
     if (!btn || !state.data) return;
     state.readingMode = btn.dataset.mode;
-    $$('#reading-mode-toggle .mode-pill').forEach((p) => p.classList.toggle('active', p === btn));
+    $$('#reading-mode-toggle .mode-pill').forEach((p) => {
+      p.classList.toggle('active', p === btn);
+      p.setAttribute('aria-pressed', String(p === btn));
+    });
     applyReadingMode();
     renderAll();
   });
@@ -1223,7 +1262,19 @@ function setupControls() {
 
   $('#birth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (await computeAll()) renderAll();
+    if (await computeAll()) {
+      renderAll();
+      if (matchMedia('(max-width: 900px)').matches) {
+        $('.sidebar').classList.remove('open');
+        $('#sidebar-toggle').setAttribute('aria-expanded', 'false');
+        $('#main-content').focus();
+      }
+    }
+  });
+
+  $('#sidebar-toggle').addEventListener('click', () => {
+    const open = $('.sidebar').classList.toggle('open');
+    $('#sidebar-toggle').setAttribute('aria-expanded', String(open));
   });
 
   // 分享連結參數回填(有參數才直接排盤)
