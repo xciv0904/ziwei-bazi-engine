@@ -1163,6 +1163,15 @@ const META_TABS = [
   ['daily', '每日／週運'], ['timeline', '生涯時間軸'], ['rectify', '時辰驗盤'],
   ['dates', '個人擇日'], ['iching', '易經占卜'], ['meihua', '梅花易數'], ['qimen', '奇門遁甲'],
 ];
+const META_INFO = {
+  daily: { title: '我想安排這週的生活', use: '用出生八字與每天干支整理未來七日的主題，適合安排工作、休息與溝通節奏。', need: '已完成的本命排盤', steps: ['查看今天的十神主題', '比較未來七日差異', '把摘要交給 AI 轉成行動建議'] },
+  timeline: { title: '我想回顧人生階段', use: '把十年大限與真實事件放在同一條時間軸，觀察哪些主題曾經反覆出現。', need: '本命盤；可選填過往事件', steps: ['瀏覽十年大限', '加入轉職、搬家等事件', '請 AI 協助找出模式'] },
+  rectify: { title: '我不確定出生時辰', use: '一次比較十二時辰的命宮、身宮與主星，再用可驗證的經歷逐步排除候選。', need: '確定的出生日期與幾件過往大事', steps: ['產生十二時辰候選', '找出差異最大的候選', '讓 AI 提出驗盤問題'] },
+  dates: { title: '我想挑一個合適日期', use: '依用途搜尋未來 30 日，綜合黃曆宜忌與是否直接沖到本命年支或日支。', need: '本命盤、用途與日期範圍', steps: ['選擇嫁娶、入宅等用途', '搜尋並排除現實不可行日期', '比較前幾名的取捨'] },
+  iching: { title: '我有一個具體問題', use: '模擬三錢起卦，以本卦、動爻與變卦提供思考角度，適合面對選擇或梳理局勢。', need: '一個單一、具體、可行動的問題', steps: ['先寫下問題', '專心起卦一次', '先看白話重點再深入解讀'] },
+  meihua: { title: '我想用當下時間起卦', use: '依年月日時與靈感數字取卦，觀察體用、五行與事情的變化方向。', need: '起卦時間；靈感數字可不填', steps: ['確認當下時間', '可加入第一個想到的數字', '閱讀本卦、動爻與變卦'] },
+  qimen: { title: '我想認識時空盤的結構', use: '用九宮呈現八門、九星與八神，適合學習奇門盤的基本組成。第一版不是完整專業斷局。', need: '排盤時間與目前節氣', steps: ['選擇時間與節氣', '查看九宮配置', '從開門、生門等象徵開始學習'] },
+};
 const EVENT_KEY = 'zwbz-life-events';
 const loadEvents = () => { try { return JSON.parse(localStorage.getItem(EVENT_KEY)) ?? []; } catch { return []; } };
 const saveEvents = (items) => { try { localStorage.setItem(EVENT_KEY, JSON.stringify(items.slice(-50))); } catch { /* ignore */ } };
@@ -1178,9 +1187,13 @@ function aiPromptBase(tool, result, question = '') {
 }
 
 function metaShell(body) {
+  const info = META_INFO[state.metaphysicsTab];
   const tabs = META_TABS.map(([key, label]) => `<button type="button" class="report-tab${state.metaphysicsTab === key ? ' active' : ''}" data-meta="${key}" aria-pressed="${state.metaphysicsTab === key}">${label}</button>`).join('');
-  $('#view-metaphysics').innerHTML = `<div class="meta-tabs" role="tablist" aria-label="進階玄學工具">${tabs}</div><div class="stack">${body}</div>`;
+  const guide = `<section class="card meta-guide" aria-labelledby="meta-guide-title"><div class="card-label" id="meta-guide-title">不知道從哪開始？先選你的目的</div><div class="meta-choices">${META_TABS.map(([key]) => `<button type="button" data-meta-jump="${key}"${state.metaphysicsTab === key ? ' class="active"' : ''}><b>${META_INFO[key].title}</b><span>${META_INFO[key].use}</span></button>`).join('')}</div></section>`;
+  const intro = `<section class="card meta-intro"><div><span class="meta-kicker">目前工具</span><h2>${info.title}</h2><p>${info.use}</p><small>需要：${info.need}</small></div><ol>${info.steps.map((s) => `<li>${s}</li>`).join('')}</ol></section>`;
+  $('#view-metaphysics').innerHTML = `${guide}<div class="meta-tabs" role="tablist" aria-label="進階玄學工具">${tabs}</div>${intro}<div class="stack">${body}</div>`;
   $$('#view-metaphysics [data-meta]').forEach((btn) => btn.addEventListener('click', () => { state.metaphysicsTab = btn.dataset.meta; renderMetaphysics(); }));
+  $$('#view-metaphysics [data-meta-jump]').forEach((btn) => btn.addEventListener('click', () => { state.metaphysicsTab = btn.dataset.metaJump; renderMetaphysics(); }));
 }
 
 async function renderDaily() {

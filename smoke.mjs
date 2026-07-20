@@ -211,6 +211,8 @@ check('複姓三字姓名五格剖象法可完整計算', $('#view-naming').text
 $$('.nav-item').find((n) => n.dataset.view === 'metaphysics').click();
 await settle();
 check('進階玄學分頁顯示', !$('#view-metaphysics').hidden);
+check('進階玄學有目的導覽 7 選項', $$('#view-metaphysics [data-meta-jump]').length === 7);
+check('目前工具顯示用途、所需資料與三步驟', !!$('.meta-intro') && $$('.meta-intro li').length === 3 && $('.meta-intro').textContent.includes('需要：'));
 check('未來七日運勢 7 張', $$('.daily-card').length === 7);
 check('每日週運有專用 AI 解讀', !!$('#ai-daily'));
 check('七個進階工具入口', $$('#view-metaphysics [data-meta]').length === 7);
