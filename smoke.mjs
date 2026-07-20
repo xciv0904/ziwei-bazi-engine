@@ -120,7 +120,7 @@ $('#syn-gender').value = 'male'; $('#syn-gender').dispatchEvent(new w.Event('inp
 $('#syn-run').click();
 await settle();
 check('合盤結果含契合指數', $('#view-synastry').textContent.includes('契合指數'));
-check('合盤結果五段', $$('#view-synastry .acc-item').length === 5);
+check('合盤結果八段', $$('#view-synastry .acc-item').length === 8);
 check('合盤 AI 提示詞按鈕', !!$('#copy-syn-prompt'));
 
 // --- 命理小百科連結 ---
@@ -206,6 +206,29 @@ $$('.nav-item').find((n) => n.dataset.view === 'naming').click();
 check('複姓「歐陽」自動判斷正確', $('#naming-surname').value === '歐陽');
 check('複姓命盤:名自動帶入', $('#naming-given').value === '小明');
 check('複姓三字姓名五格剖象法可完整計算', $('#view-naming').textContent.includes('天格'));
+
+// --- 進階玄學工具 ---
+$$('.nav-item').find((n) => n.dataset.view === 'metaphysics').click();
+await settle();
+check('進階玄學分頁顯示', !$('#view-metaphysics').hidden);
+check('未來七日運勢 7 張', $$('.daily-card').length === 7);
+check('七個進階工具入口', $$('#view-metaphysics [data-meta]').length === 7);
+$$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'timeline').click();
+check('生涯時間軸含十個大限', $$('.timeline-block').length === 10);
+$$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'rectify').click();
+$('#run-rectify').click();
+await settle();
+check('時辰驗盤產生十二候選', $$('#rectify-result tbody tr').length === 12);
+$$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'iching').click();
+$('#iching-question').value = '測試問題';
+$('#iching-cast').click();
+check('易經起卦產生六爻', $$('#iching-result .hex-line').length === 6);
+$$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'meihua').click();
+$('#meihua-run').click();
+check('梅花易數產生本卦與變卦', $('#meihua-result').textContent.includes('變卦'));
+$$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'qimen').click();
+$('#qimen-run').click();
+check('奇門結構盤顯示九宮', $$('.qimen-palace').length === 9);
 
 console.log(failed === 0 ? '\n全部通過 ✅' : `\n${failed} 項失敗 ❌`);
 process.exit(failed === 0 ? 0 : 1);

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "node scripts/build-wiki.mjs && vite build",
     "preview": "vite preview",
-    "test": "node test.js",
+    "test": "node test.js && node test-divination.mjs",
     "smoke": "node --import ./css-hook.mjs smoke.mjs",
     "wiki": "node scripts/build-wiki.mjs"
   },
