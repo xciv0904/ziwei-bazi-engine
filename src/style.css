@@ -480,6 +480,12 @@ a.nav-item { display: block; text-decoration: none; }
 .qimen-palace b { color: var(--red); font: 700 12px/1 var(--serif); }
 .qimen-palace span { font-size: 12px; }
 .qimen-palace small { color: var(--ink-45); }
+.plain-summary { margin-top: 14px; padding: 13px 14px; border-left: 3px solid var(--red); background: var(--card-em); border-radius: 0 6px 6px 0; }
+.plain-summary b { color: var(--red); font: 600 12px/1 var(--serif); }
+.plain-summary p { margin: 7px 0 0; color: var(--ink-60); font-size: 12.5px; line-height: 1.8; }
+.meta-ai-action { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
+.meta-ai-action .mini-btn { margin-left: 0; background: var(--red); color: var(--cream); border-color: var(--red); padding: 8px 13px; }
+.meta-ai-action small { color: var(--ink-40); font-size: 9.5px; line-height: 1.5; }
 
 /* ---------- 鍵盤操作可見焦點(無障礙) ---------- */
 button:focus-visible, input:focus-visible, select:focus-visible {
