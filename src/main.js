@@ -987,7 +987,7 @@ function renderCompare() {
   $('#view-compare').innerHTML = `<div class="stack">
     <div class="card">
       <div class="card-label">歷史命盤比對</div>
-      <div class="card-hint">從已存命盤勾選 2–4 筆,並排比較命宮主星、五行局、日主喜忌與今年流年重點</div>
+      <div class="card-hint">想知道你跟家人、朋友的命盤差在哪,或同一個人不同時期存的命盤有什麼變化?從已存命盤勾選 2–4 筆,就能並排比較命宮主星、五行局、日主喜忌與今年流年重點。</div>
       ${list.length
         ? `<div class="compare-checks">${renderCompareChecks(list)}</div>
            <button type="button" class="submit-btn compare-run-btn" id="run-compare">開始比較</button>`
@@ -1028,14 +1028,14 @@ function renderWuGeCard(result) {
     if (result.unsupported) {
       return `<div class="card"><div class="card-hint" style="margin:0">目前只支援單姓/複姓(1~2字)搭配單名/雙名(1~2字)的組合,這個姓名結構暫不支援計算。</div></div>`;
     }
-    return `<div class="card"><div class="card-hint" style="margin:0">「${esc(result.unknown.join('、'))}」目前不在收錄的姓名用字字典裡(字典僅收錄約 460 個常見姓氏與命名用字),無法計算五格,不做臆測。</div></div>`;
+    return `<div class="card"><div class="card-hint" style="margin:0">「${esc(result.unknown.join('、'))}」目前不在收錄的姓名用字字典裡(字典僅收錄約 780 個常見姓氏與命名用字),無法計算五格,不做臆測。</div></div>`;
   }
   const rows = ['天格', '人格', '地格', '外格', '總格']
     .map((k) => `<div class="wuge-cell"><div class="wuge-label">${k}</div><div class="wuge-num">${result.grid[k]}</div><div class="wuge-el">${result.elements[k]}</div></div>`)
     .join('');
   return `<div class="card">
     <div class="card-label">五格剖象法</div>
-    <div class="card-hint">天格/人格/地格/外格/總格採熊崎氏姓名學公式計算;三才只看五行生剋大方向,不做 81 數理逐條吉凶(那部分沒把握逐條核對正確,寧可不做)</div>
+    <div class="card-hint">五格剖象法是華人姓名學常見的筆畫分析法:把姓名拆成「天格」(祖蔭根基)、「人格」(自己的個性,通常最關鍵)、「地格」(早年運)、「外格」(人際外緣)、「總格」(晚年整體運)五組數字,再看彼此的五行銜接順不順。以下數字採熊崎氏姓名學公式實算;三才只看五行生剋大方向,不做 81 數理逐條吉凶(那需要另一套龐大對照表,沒把握逐條核對正確就不硬做)。</div>
     <div class="wuge-grid">${rows}</div>
     <div class="reading-line">${esc(result.sancai.tianRenNote)}</div>
     <div class="reading-line">${esc(result.sancai.renDiNote)}</div>
@@ -1064,7 +1064,7 @@ function renderNameElementCard(fullName) {
 
   return `<div class="card">
     <div class="card-label">姓名五行 × ${esc(state.data.name)}的紫微八字</div>
-    <div class="card-hint">主要判斷沿用目前命盤算出的八字喜用神/忌神(命盤解析頁的八字綜合解讀也有同一份判斷),再補一段紫微命宮主星五行的參考角度</div>
+    <div class="card-hint">每個人的八字都能算出「喜用神」(對你比較有幫助的五行)跟「忌神」(比較不搭的五行)——排盤時就已經算好。這裡是看姓名用字的五行組成跟你的喜用神/忌神合不合,再補一段紫微命宮主星五行的參考角度。喜用神判斷跟命盤解析頁的八字綜合解讀是同一份邏輯。</div>
     ${rows ? `<div class="wuge-grid">${rows}</div>` : ''}
     <div class="reading-line"><span class="lead gold">判斷　</span>${esc(r.verdict)}</div>
     <div class="reading-line">${esc(r.verdictNote)}</div>
@@ -1090,7 +1090,7 @@ function renderNaming() {
   $('#view-naming').innerHTML = `<div class="stack">
     <div class="card">
       <div class="card-label">姓名學</div>
-      <div class="card-hint">輸入姓、名(各 1~2 字),看五格剖象法的天人地外總五格,以及這個名字的五行組成跟目前命盤喜用神搭不搭配。輸入的姓名不會被儲存或上傳,純本機計算。</div>
+      <div class="card-hint">這裡用兩個角度分析一個名字:「五格剖象法」用筆畫數字看名字的架構跟運勢傾向,「姓名五行」看名字用字的五行屬性跟你的命盤搭不搭。輸入姓、名(各 1~2 字)就能看結果,不會被儲存或上傳,純本機計算。</div>
       <div class="naming-form">
         <input id="naming-surname" type="text" placeholder="姓" aria-label="姓" maxlength="2" value="${esc(surname)}" />
         <input id="naming-given" type="text" placeholder="名" aria-label="名" maxlength="2" value="${esc(given)}" />
@@ -1143,7 +1143,7 @@ function renderAnnualReminderCard() {
     </button>`).join('');
   return `<div class="card reminder-card">
     <div class="card-label">${nowYear} 年（${esc(yearGanZhi(nowYear))}）流年提醒</div>
-    <div class="card-hint">你有已存的命盤,不用重新輸入生辰,直接看今年的大限流年重點</div>
+    <div class="card-hint">「大限」是紫微斗數裡每十年一個階段的運勢重心,「流年」是當年的運勢重點——這裡讓你不用重新輸入生辰,直接看已存命盤在今年的這兩項重點。</div>
     <div class="reminder-list">${rows}</div>
   </div>`;
 }
