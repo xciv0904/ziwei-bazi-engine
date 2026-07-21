@@ -61,24 +61,142 @@ export function plumBlossom(date, seed = 0) {
   return { ...hexagram(upperNo, lowerNo, moving), formula: `${y}+${m}+${day}+${hour}${seed ? `+${seed}` : ''}` };
 }
 
+// 五行生剋(生:木火土金水循環;剋:隔一位)
+const GENERATES = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' };
+const OVERCOMES = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' };
+
+/**
+ * 梅花易數體用生剋斷卦:動爻所在的卦為「用」,沒有動爻的卦為「體」。
+ * 判斷依傳統口訣:體克用諸事吉、用克體諸事凶、用生體進益之喜、體生用損耗、比和百事順。
+ * 這裡把吉凶口訣改寫為傾向描述,避免宿命式斷言。
+ */
+export function tiYongAnalysis(result) {
+  const useIsUpper = result.movingLine >= 4;
+  const ti = useIsUpper ? result.lower : result.upper; // 體:不含動爻
+  const yong = useIsUpper ? result.upper : result.lower; // 用:含動爻
+  let relation, tendency;
+  if (ti.element === yong.element) { relation = '比和'; tendency = '體用五行相同,情勢與自身狀態同步,傾向平穩,結果較取決於你自己的應對。'; }
+  else if (GENERATES[ti.element] === yong.element) { relation = '體生用'; tendency = '體卦在滋養用卦,傾向於付出、消耗精力或資源換取進展,需留意是否持續耗損。'; }
+  else if (GENERATES[yong.element] === ti.element) { relation = '用生體'; tendency = '用卦在滋養體卦,傾向於外在情勢對你有助力,較容易得到支持或進益。'; }
+  else if (OVERCOMES[ti.element] === yong.element) { relation = '體剋用'; tendency = '體卦克制用卦,傾向於你較能主導局面,但仍需留意是否只是暫時壓制而非真正化解。'; }
+  else { relation = '用剋體'; tendency = '用卦克制體卦,傾向於外在情勢對你較不利或受牽制,適合先觀察、少躁進。'; }
+  return { ti, yong, relation, tendency };
+}
+
 const DOORS = ['休門','生門','傷門','杜門','景門','死門','驚門','開門'];
 const STARS = ['天蓬','天任','天沖','天輔','天英','天芮','天柱','天心','天禽'];
 const DEITIES = ['值符','螣蛇','太陰','六合','白虎','玄武','九地','九天'];
 const PALACES = [1,8,3,4,9,2,7,6,5];
 
-// 教學型結構盤：用節氣陰陽遁與日期序數建立可重現的九宮映射。
-// 完整門派盤仍需加入符頭、旬首、拆補/置閏與天盤干飛布，UI 會清楚揭露限制。
-export function qimenStructure(date, solarTerm = '') {
-  const d = new Date(date);
-  const summer = ['夏至','小暑','大暑','立秋','處暑','白露','秋分','寒露','霜降','立冬','小雪','大雪'];
-  const yin = summer.includes(solarTerm);
-  const epoch = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
-  const bureau = Math.abs(epoch % 9) + 1;
-  const dir = yin ? -1 : 1;
-  const rotate = (arr, i) => arr[((i * dir + bureau - 1) % arr.length + arr.length) % arr.length];
+// 二十四節氣三元用局表(傳統拆補法「奇門陽遁/陰遁歌」),索引 0-23 對應下列 JIEQI_T 順序。
+// 來源:奇門陽遁歌「冬至驚蟄一七四,小寒二八五依次,大寒春分三九六,立春八五二成局,
+// 雨水九六三無失,清明立夏四一七,穀雨小滿五二八,芒種六三九為法」;
+// 奇門陰遁歌「夏至白露九三六,小暑八二五陰局,大暑秋分七一四,立秋二五八宮次,
+// 處暑一四七為是,霜降小雪五八二,寒露立冬六九三,大雪四七一宮識」。每項為 [上元,中元,下元]。
+const JIEQI_T = ['冬至','小寒','大寒','立春','雨水','驚蟄','春分','清明','穀雨','立夏','小滿','芒種','夏至','小暑','大暑','立秋','處暑','白露','秋分','寒露','霜降','立冬','小雪','大雪'];
+const JIEQI_S = ['冬至','小寒','大寒','立春','雨水','惊蛰','春分','清明','谷雨','立夏','小满','芒种','夏至','小暑','大暑','立秋','处暑','白露','秋分','寒露','霜降','立冬','小雪','大雪'];
+const JU_TABLE = [
+  [1,7,4],[2,8,5],[3,9,6],[8,5,2],[9,6,3],[1,7,4],[3,9,6],[4,1,7],[5,2,8],[4,1,7],[5,2,8],[6,3,9],
+  [9,3,6],[8,2,5],[7,1,4],[2,5,8],[1,4,7],[9,3,6],[7,1,4],[6,9,3],[5,8,2],[6,9,3],[5,8,2],[4,7,1],
+];
+const YUAN_BY_BRANCH = { 子:0, 午:0, 卯:0, 酉:0, 寅:1, 申:1, 巳:1, 亥:1, 辰:2, 戌:2, 丑:2, 未:2 };
+const YI_QI = ['戊','己','庚','辛','壬','癸','丁','丙','乙'];
+// 六甲遁于六儀:六十甲子每十日一旬,旬首固定對應下列六儀(與局數、日期無關的固定關係)。
+const XUN_YI = { 甲子: '戊', 甲戌: '己', 甲申: '庚', 甲午: '辛', 甲辰: '壬', 甲寅: '癸' };
+const GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+const ZHI = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+
+function termIndexOf(name) {
+  let i = JIEQI_T.indexOf(name);
+  if (i < 0) i = JIEQI_S.indexOf(name);
+  return i;
+}
+
+function jiaziIndex(stem, branch) {
+  const si = GAN.indexOf(stem), bi = ZHI.indexOf(branch);
+  if (si < 0 || bi < 0) return -1;
+  for (let idx = 0; idx < 60; idx++) if (idx % 10 === si && idx % 12 === bi) return idx;
+  return -1;
+}
+
+/**
+ * 定局:依節氣決定陰陽遁,依符頭(往前找最近的甲日或己日)決定上/中/下元,查傳統用局表得局數。
+ * 這是「拆補法」——最通行的簡化定局法,不含置閏法的超神接氣曆法校正,不同門派可能算出不同局數。
+ */
+export function determineJu(date, { Solar }) {
+  const base = new Date(date);
+  const lunar = Solar.fromDate(base).getLunar();
+  const prevJieQi = lunar.getPrevJieQi ? lunar.getPrevJieQi(true) : null;
+  const termIdx = prevJieQi ? termIndexOf(prevJieQi.getName()) : -1;
+  const safeIdx = termIdx >= 0 ? termIdx : 0;
+  let fuTouGan = null, fuTouZhi = null;
+  for (let i = 0; i < 10; i++) {
+    const d = new Date(base); d.setDate(d.getDate() - i);
+    const l = Solar.fromDate(d).getLunar();
+    const gan = l.getDayGan();
+    if (gan === '甲' || gan === '己') { fuTouGan = gan; fuTouZhi = l.getDayZhi(); break; }
+  }
+  const yuanIdx = fuTouZhi != null ? (YUAN_BY_BRANCH[fuTouZhi] ?? 0) : 0;
+  const bureau = JU_TABLE[safeIdx][yuanIdx];
+  const yang = safeIdx < 12;
   return {
-    dun: yin ? '陰遁' : '陽遁', bureau, solarTerm: solarTerm || '未指定節氣',
-    palaces: PALACES.map((palace, i) => ({ palace, door: palace === 5 ? '中宮' : rotate(DOORS, i), star: rotate(STARS, i), deity: palace === 5 ? '—' : rotate(DEITIES, i) })),
+    bureau, yang,
+    termName: JIEQI_T[safeIdx],
+    yuanName: ['上元', '中元', '下元'][yuanIdx],
+    fuTou: fuTouGan ? `${fuTouGan}${fuTouZhi}` : null,
+  };
+}
+
+/** 地盤三奇六儀:以局數為起點,陽遁順飛、陰遁逆飛九宮(洛書 1-9 序),遇 5 寄坤 2 宮。回傳 { 宮位: 儀/奇 } */
+export function placeYiQi(bureau, yang) {
+  const dir = yang ? 1 : -1;
+  const at = {};
+  for (let k = 0; k < 9; k++) {
+    let p = ((bureau - 1) + k * dir) % 9;
+    p = ((p % 9) + 9) % 9 + 1;
+    const shown = p === 5 ? 2 : p;
+    at[shown] = at[shown] ? `${at[shown]}・${YI_QI[k]}` : YI_QI[k];
+  }
+  return at;
+}
+
+/**
+ * 值符值使:找出時干支所屬的「旬」,查旬首對應的儀,再看該儀落在地盤哪一宮——
+ * 該宮在「後天八卦本宮」上對應的星即為值符,對應的門即為值使。
+ * 此為單點定位,尚未展開成完整依值符旋轉的天盤/八神。
+ */
+export function findZhiFuShi(hourStem, hourBranch, yiQiAt) {
+  const idx = jiaziIndex(hourStem, hourBranch);
+  if (idx < 0) return null;
+  const xunHeadIdx = Math.floor(idx / 10) * 10;
+  const xunHeadName = `${GAN[xunHeadIdx % 10]}${ZHI[xunHeadIdx % 12]}`;
+  const yi = XUN_YI[xunHeadName] ?? '戊';
+  let atPalace = null;
+  for (const [p, v] of Object.entries(yiQiAt)) if (v.split('・').includes(yi)) atPalace = Number(p);
+  if (!atPalace) return null;
+  const baseIdx = PALACES.indexOf(atPalace);
+  return { xunHeadName, yi, palace: atPalace, star: STARS[baseIdx] ?? '天禽', door: atPalace === 5 ? '（寄二宮,無門)' : DOORS[baseIdx] ?? '死門' };
+}
+
+// 教學型結構盤:後天八卦本宮配九星/八門/八神(固定參考位置),搭配即時定局的地盤三奇六儀與值符值使。
+// 九星/八門/八神顯示的是後天八卦本宮對照表,尚未加入依時干飛泊的完整天盤旋轉,不適合用作專業奇門斷局。
+export function qimenStructure(date, { convertToBaZi, Solar, gender = '女' } = {}) {
+  const ju = determineJu(date, { Solar });
+  const yiQiAt = placeYiQi(ju.bureau, ju.yang);
+  const d = new Date(date);
+  let zhiFuShi = null;
+  if (convertToBaZi) {
+    const bz = convertToBaZi({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: d.getHours(), gender });
+    const hp = bz.fourPillars.hourPillar;
+    zhiFuShi = findZhiFuShi(hp.stem, hp.branch, yiQiAt);
+  }
+  return {
+    dun: ju.yang ? '陽遁' : '陰遁', bureau: ju.bureau, solarTerm: ju.termName, yuanName: ju.yuanName, fuTou: ju.fuTou,
+    zhiFuShi,
+    palaces: PALACES.map((palace, i) => ({
+      palace, door: palace === 5 ? '（寄二宮)' : DOORS[i], star: STARS[i], deity: palace === 5 ? '—' : DEITIES[i],
+      yiqi: yiQiAt[palace] || '',
+    })),
   };
 }
 

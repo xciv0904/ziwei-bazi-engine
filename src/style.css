@@ -468,6 +468,8 @@ a.nav-item { display: block; text-decoration: none; }
 .daily-card b { font: 700 12px/1 var(--serif); color: var(--red); }
 .daily-card span,.daily-card small { font-size: 10.5px; line-height: 1.5; color: var(--ink-45); }
 .daily-card strong { font: 600 13px/1.45 var(--serif); }
+.daily-card.caution { border-color: var(--gold); }
+.daily-flag { align-self: flex-start; font-size: 10px; color: var(--gold); border: 1px solid var(--gold); border-radius: 999px; padding: 1px 7px; }
 .timeline { display: flex; flex-direction: column; }
 .timeline-block { display: grid; grid-template-columns: 78px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
 .timeline-block:last-child { border-bottom: 0; }
@@ -498,6 +500,10 @@ a.nav-item { display: block; text-decoration: none; }
 .plain-summary { margin-top: 14px; padding: 13px 14px; border-left: 3px solid var(--red); background: var(--card-em); border-radius: 0 6px 6px 0; }
 .plain-summary b { color: var(--red); font: 600 12px/1 var(--serif); }
 .plain-summary p { margin: 7px 0 0; color: var(--ink-60); font-size: 12.5px; line-height: 1.8; }
+.qimen-yiqi { color: var(--gold); font: 700 13px/1 var(--serif); }
+.tiyong-card { margin-top: 14px; padding: 13px 14px; border-left: 3px solid var(--gold); background: var(--card-em); border-radius: 0 6px 6px 0; }
+.tiyong-card b { color: var(--gold); font: 600 12px/1 var(--serif); }
+.tiyong-card p { margin: 7px 0 0; color: var(--ink-60); font-size: 12.5px; line-height: 1.8; }
 .meta-ai-action { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
 .meta-ai-action .mini-btn { margin-left: 0; background: var(--red); color: var(--cream); border-color: var(--red); padding: 8px 13px; }
 .meta-ai-action small { color: var(--ink-40); font-size: 9.5px; line-height: 1.5; }

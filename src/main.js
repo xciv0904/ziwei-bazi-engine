@@ -9,7 +9,7 @@ import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChang
 import { composeYongShenReading, computeYongShen } from './engines/compose-yongshen.js';
 import { analyzeNameElements, computeWuGe, analyzeZiweiOverlap, splitSurnameGiven } from './engines/naming.js';
 import { composeSynastry } from './engines/compose-synastry.js';
-import { castThreeCoins, plumBlossom, qimenStructure, lineDiagram } from './engines/divination.js';
+import { castThreeCoins, plumBlossom, qimenStructure, lineDiagram, tiYongAnalysis } from './engines/divination.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 
@@ -1199,22 +1199,30 @@ function metaShell(body) {
 async function renderDaily() {
   metaShell('<div class="card"><div class="card-label">每日／週運</div><div class="card-hint">正在計算今天與未來七日的個人節奏…</div></div>');
   const { convertToBaZi, Solar } = await loadEngines();
-  const birthStem = state.data.baZi.fourPillars.dayPillar.stem;
+  const { baZi, ziWei, byBranch, input } = state.data;
+  const birthStem = baZi.fourPillars.dayPillar.stem;
+  const yongshen = computeYongShen(baZi);
+  const avoidEls = new Set(yongshen.unfavorable.map((f) => f.element));
+  const nominalAge = new Date().getFullYear() - input.year + 1;
+  const curLimit = ziWei.majorLimits.find((l) => { const [a, b] = l.ageRange.split('~').map(Number); return nominalAge >= a && nominalAge <= b; }) ?? ziWei.majorLimits[0];
+  const curLimitPalace = byBranch[curLimit.ganZhi[1]]?.name ?? '—';
   const today = new Date();
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today); d.setDate(today.getDate() + i);
     const dayBazi = convertToBaZi({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), hour: 12, gender: state.data.input.gender });
-    const gz = `${dayBazi.fourPillars.dayPillar.stem}${dayBazi.fourPillars.dayPillar.branch}`;
-    const god = tenGodOf(birthStem, dayBazi.fourPillars.dayPillar.stem);
+    const dayStem = dayBazi.fourPillars.dayPillar.stem, dayBranch = dayBazi.fourPillars.dayPillar.branch;
+    const gz = `${dayStem}${dayBranch}`;
+    const god = tenGodOf(birthStem, dayStem);
     const lunar = Solar.fromYmd(d.getFullYear(), d.getMonth() + 1, d.getDate()).getLunar();
     const yi = trad(lunar.getDayYi().slice(0, 3).join('、')) || '日常安排';
     const themes = { 比肩:'自主與執行', 劫財:'合作與界線', 食神:'創作與休息', 傷官:'表達與突破', 偏財:'機會與人脈', 正財:'務實與財務', 七殺:'挑戰與決斷', 正官:'責任與秩序', 偏印:'研究與轉念', 正印:'學習與支持' };
-    return { date: `${d.getMonth() + 1}/${d.getDate()}`, week: `週${'日一二三四五六'[d.getDay()]}`, gz, god, yi, theme: themes[god] ?? '穩定推進' };
+    const avoidHit = avoidEls.has(STEM_EL[dayStem]) || avoidEls.has(BRANCH_EL[dayBranch]);
+    return { date: `${d.getMonth() + 1}/${d.getDate()}`, week: `週${'日一二三四五六'[d.getDay()]}`, gz, god, yi, theme: themes[god] ?? '穩定推進', avoidHit };
   });
-  metaShell(`<div class="card"><div class="card-label">未來七日節奏</div><div class="card-hint">依你的日主與每日干支十神關係整理；宜忌取自傳統黃曆，只作行程反思。</div><div class="daily-grid">${days.map((x, i) => `<article class="daily-card${i === 0 ? ' today' : ''}"><b>${x.date} ${x.week}</b><span>${x.gz}・${x.god}</span><strong>${x.theme}</strong><small>傳統宜：${x.yi}</small></article>`).join('')}</div></div>
-    <div class="card"><div class="card-label">本週提醒</div><p class="reading-line">把十神當成每日的觀察鏡頭，而不是吉凶判決。工作安排優先看現實期限、身心狀態與專業建議。</p><button type="button" class="mini-btn" id="copy-week" style="margin-left:0">複製本週摘要</button>${aiButton('ai-daily')}</div>`);
-  $('#copy-week')?.addEventListener('click', async () => { await navigator.clipboard.writeText(days.map((x) => `${x.date} ${x.gz} ${x.god}：${x.theme}`).join('\n')); toast('已複製本週摘要'); });
-  bindAiPrompt('ai-daily', aiPromptBase('八字每日／週運', days.map((x) => `${x.date} ${x.week}｜${x.gz}｜${x.god}｜${x.theme}｜黃曆宜：${x.yi}`).join('\n')));
+  metaShell(`<div class="card"><div class="card-label">未來七日節奏</div><div class="card-hint">依你的日主與每日干支十神關係整理，並標示是否貼近你八字的忌神五行；宜忌取自傳統黃曆，只作行程反思。</div><p class="reading-line"><span class="lead gold">目前大限　</span>${esc(curLimit.ageRange)}歲・${esc(curLimitPalace)}——本週節奏可搭配這個階段的重心一起看。</p><div class="daily-grid">${days.map((x, i) => `<article class="daily-card${i === 0 ? ' today' : ''}${x.avoidHit ? ' caution' : ''}">${x.avoidHit ? '<span class="daily-flag">忌神日</span>' : ''}<b>${x.date} ${x.week}</b><span>${x.gz}・${x.god}</span><strong>${x.theme}</strong><small>傳統宜：${x.yi}</small></article>`).join('')}</div></div>
+    <div class="card"><div class="card-label">本週提醒</div><p class="reading-line">把十神當成每日的觀察鏡頭，忌神日不代表當天必然不順，只是提醒可以放慢決策、多留一點彈性。工作安排優先看現實期限、身心狀態與專業建議。</p><button type="button" class="mini-btn" id="copy-week" style="margin-left:0">複製本週摘要</button>${aiButton('ai-daily')}</div>`);
+  $('#copy-week')?.addEventListener('click', async () => { await navigator.clipboard.writeText(days.map((x) => `${x.date} ${x.gz} ${x.god}${x.avoidHit ? '(忌神日)' : ''}：${x.theme}`).join('\n')); toast('已複製本週摘要'); });
+  bindAiPrompt('ai-daily', aiPromptBase(`八字每日／週運（目前大限：${curLimit.ageRange}歲・${curLimitPalace}；忌神五行：${[...avoidEls].join('、') || '無'}）`, days.map((x) => `${x.date} ${x.week}｜${x.gz}｜${x.god}｜${x.theme}｜黃曆宜：${x.yi}${x.avoidHit ? '｜貼近忌神' : ''}`).join('\n')));
 }
 
 function renderTimeline() {
@@ -1225,33 +1233,76 @@ function renderTimeline() {
     const from = input.year + start - 1; const to = input.year + end - 1;
     const palace = byBranch[l.ganZhi[1]]?.name ?? '—';
     const inside = events.filter((e) => Number(e.year) >= from && Number(e.year) <= to);
-    return `<article class="timeline-block"><div class="timeline-age">${start}–${end}歲</div><div><b>${from}–${to}・${esc(palace)}</b><p>${esc(flat(readingOf(palace)?.text ?? ''))}</p>${inside.map((e) => `<span class="event-tag">${esc(e.year)} ${esc(e.title)}</span>`).join('')}</div></article>`;
+    const decadal = flat(composeZiWeiDecadalChange(ziWei, l, { mode: state.readingMode }).text);
+    return `<article class="timeline-block"><div class="timeline-age">${start}–${end}歲</div><div><b>${from}–${to}・${esc(palace)}</b><p>${esc(flat(readingOf(palace)?.text ?? ''))}</p><p class="reading-line"><span class="lead gold">大限四化　</span>${esc(decadal)}</p>${inside.map((e) => `<span class="event-tag">${esc(e.year)} ${esc(e.title)}</span>`).join('')}</div></article>`;
   }).join('');
-  metaShell(`<div class="card"><div class="card-label">生涯運勢時間軸</div><div class="card-hint">將大限與真實事件並排，用來回顧與驗證；不是預言未來必然發生的事情。</div><div class="timeline">${blocks}</div></div>
-    <div class="card"><div class="card-label">加入過往事件</div><div class="event-form"><input id="event-year" type="number" min="1900" max="2100" placeholder="年份" aria-label="事件年份"><input id="event-title" maxlength="40" placeholder="例如：轉職、搬家、結婚" aria-label="事件名稱"><button id="event-add" type="button" class="submit-btn">加入時間軸</button></div>${events.length ? `<div class="event-list">${events.map((e, i) => `<button type="button" data-event-del="${i}" title="刪除事件">${esc(e.year)}・${esc(e.title)} ×</button>`).join('')}</div>` : ''}${aiButton('ai-timeline','複製時間軸給 AI 分析')}</div>`);
+  metaShell(`<div class="card"><div class="card-label">生涯運勢時間軸</div><div class="card-hint">將每個十年大限的宮位、四化重點與你輸入的真實事件並排，用來回顧與驗證；不是預言未來必然發生的事情。</div><div class="timeline">${blocks}</div></div>
+    <div class="card"><div class="card-label">加入過往事件</div><div class="event-form"><input id="event-year" type="number" min="1900" max="2100" placeholder="年份" aria-label="事件年份"><input id="event-title" maxlength="40" placeholder="例如：轉職、搬家、結婚" aria-label="事件名稱"><button id="event-add" type="button" class="submit-btn">加入時間軸</button></div>${events.length ? `<div class="event-list">${events.map((e, i) => `<button type="button" data-event-del="${i}" title="刪除事件">${esc(e.year)}・${esc(e.title)} ×</button>`).join('')}</div>` : ''}${aiButton('ai-timeline', '複製時間軸給 AI 分析')}</div>`);
   $('#event-add')?.addEventListener('click', () => { const year=$('#event-year').value; const title=$('#event-title').value.trim(); if(!year||!title)return toast('請輸入年份與事件'); const next=[...loadEvents(),{year:Number(year),title}]; saveEvents(next); renderTimeline(); });
   $$('[data-event-del]').forEach((b) => b.addEventListener('click', () => { const list=loadEvents(); list.splice(Number(b.dataset.eventDel),1); saveEvents(list); renderTimeline(); }));
-  bindAiPrompt('ai-timeline', aiPromptBase('紫微大限生涯時間軸與事件驗盤', ziWei.majorLimits.map((l) => `${l.ageRange}歲｜${byBranch[l.ganZhi[1]]?.name ?? '—'}大限`).join('\n') + `\n過往事件：${events.map((e) => `${e.year} ${e.title}`).join('；') || '尚未輸入'}`));
+  bindAiPrompt('ai-timeline', aiPromptBase('紫微大限生涯時間軸與事件驗盤', ziWei.majorLimits.map((l) => `${l.ageRange}歲｜${byBranch[l.ganZhi[1]]?.name ?? '—'}大限｜四化：${flat(composeZiWeiDecadalChange(ziWei, l, { mode: state.readingMode }).text)}`).join('\n') + `\n過往事件：${events.map((e) => `${e.year} ${e.title}`).join('；') || '尚未輸入'}`));
+}
+
+function mutagenOf(ziWei, palaceName) {
+  const palace = ziWei.palaces.find((p) => p.name === palaceName);
+  const tags = (palace?.majorStars ?? []).filter((st) => st.mutagen).map((st) => `${st.name}化${st.mutagen}`);
+  return tags.length ? tags.join('、') : '無';
 }
 
 function renderRectify() {
-  metaShell(`<div class="card"><div class="card-label">時辰反推／事件驗盤</div><div class="card-hint">比較十二時辰的命宮、身宮與主星差異，再搭配上方時間軸的真實事件縮小候選。結果只能輔助回憶，不能證明出生時間。</div><button id="run-rectify" type="button" class="submit-btn compare-run-btn">產生十二時辰候選</button></div><div id="rectify-result"></div>`);
+  metaShell(`<div class="card"><div class="card-label">時辰反推／事件驗盤</div><div class="card-hint">比較十二時辰各自排出的命宮、身宮、五行局起運年齡與命宮四化，再搭配上方時間軸的真實事件縮小候選。結果只能輔助回憶，不能證明出生時間。</div><button id="run-rectify" type="button" class="submit-btn compare-run-btn">產生十二時辰候選</button></div><div id="rectify-result"></div>`);
   $('#run-rectify').addEventListener('click', async () => {
     const { convertToZiWei } = await loadEngines(); const { input } = state.data;
-    const rows = SHICHEN.map((s) => { const z=convertToZiWei({...input,hour:s.hour}); return {hour:s.name,life:z.lifePalace,body:z.bodyPalace,stars:mainStarsLabelOf(z,'命宮')}; });
-    $('#rectify-result').innerHTML=`<div class="card"><div class="card-label">候選差異</div><div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>時辰</th><th>命宮</th><th>身宮</th><th>命宮主星</th></tr></thead><tbody>${rows.map((r)=>`<tr><th>${r.hour}</th><td>${r.life}</td><td>${r.body}</td><td>${r.stars}</td></tr>`).join('')}</tbody></table></div><p class="card-hint">下一步：用已知事件年份對照各候選盤的大限宮位，不要只用個性描述選擇時辰。</p>${aiButton('ai-rectify','複製候選時辰給 AI 協助提問')}</div>`;
-    bindAiPrompt('ai-rectify', aiPromptBase('紫微斗數時辰反推助手', rows.map((r)=>`${r.hour}｜命宮${r.life}｜身宮${r.body}｜主星${r.stars}`).join('\n') + `\n已記錄事件：${loadEvents().map((e)=>`${e.year} ${e.title}`).join('；')||'無'}`, '請不要直接替我決定出生時辰；請設計最多 8 個能區分候選盤、可由真實經歷回答的問題。'));
+    const rows = SHICHEN.map((s) => {
+      const z = convertToZiWei({ ...input, hour: s.hour });
+      const firstLimit = z.majorLimits[0];
+      return { hour: s.name, life: z.lifePalace, body: z.bodyPalace, stars: mainStarsLabelOf(z, '命宮'), bureau: z.fiveElementBureau, startAge: firstLimit?.ageRange ?? '—', mutagen: mutagenOf(z, '命宮') };
+    });
+    $('#rectify-result').innerHTML = `<div class="card"><div class="card-label">候選差異</div><div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>時辰</th><th>命宮</th><th>身宮</th><th>命宮主星</th><th>五行局／起運</th><th>命宮四化</th></tr></thead><tbody>${rows.map((r) => `<tr><th>${r.hour}</th><td>${r.life}</td><td>${r.body}</td><td>${r.stars}</td><td>${esc(r.bureau)}・${esc(r.startAge)}歲</td><td>${esc(r.mutagen)}</td></tr>`).join('')}</tbody></table></div><p class="card-hint">下一步：用已知事件年份對照各候選盤的大限宮位與起運年齡，不要只用個性描述選擇時辰——起運年齡通常最容易用童年記憶驗證。</p>${aiButton('ai-rectify', '複製候選時辰給 AI 協助提問')}</div>`;
+    bindAiPrompt('ai-rectify', aiPromptBase('紫微斗數時辰反推助手', rows.map((r) => `${r.hour}｜命宮${r.life}｜身宮${r.body}｜主星${r.stars}｜${r.bureau}・${r.startAge}歲起運｜命宮四化：${r.mutagen}`).join('\n') + `\n已記錄事件：${loadEvents().map((e) => `${e.year} ${e.title}`).join('；') || '無'}`, '請不要直接替我決定出生時辰；請優先用起運年齡與命宮四化這類可被童年記憶驗證的線索，設計最多 8 個能區分候選盤的問題。'));
   });
 }
 
 function renderDates() {
-  metaShell(`<div class="card"><div class="card-label">個人擇日</div><div class="card-hint">選擇用途與日期範圍，綜合傳統黃曆「宜」及是否沖到你的年支／日支排序。這是文化參考，不凌駕醫療、法律、天候與參與者行程。</div><div class="date-form"><select id="date-purpose" aria-label="擇日用途"><option>嫁娶</option><option>入宅</option><option>開市</option><option>交易</option><option>出行</option><option>求醫</option></select><input id="date-start" type="date" aria-label="開始日期"><button id="date-run" type="button" class="submit-btn">搜尋未來 30 日</button></div></div><div id="date-results"></div>`);
+  metaShell(`<div class="card"><div class="card-label">個人擇日</div><div class="card-hint">選擇用途與日期範圍，綜合傳統黃曆「宜」、是否沖到你的年支／日支、是否與本命年支或日支三合六合，以及候選日地支五行是否貼近你八字的喜用神來排序。這是文化參考，不凌駕醫療、法律、天候與參與者行程。</div><div class="date-form"><select id="date-purpose" aria-label="擇日用途"><option>嫁娶</option><option>入宅</option><option>開市</option><option>交易</option><option>出行</option><option>求醫</option></select><input id="date-start" type="date" aria-label="開始日期"><button id="date-run" type="button" class="submit-btn">搜尋未來 30 日</button></div></div><div id="date-results"></div>`);
   $('#date-start').value = new Date().toISOString().slice(0,10);
   $('#date-run').addEventListener('click', async () => {
-    const { Solar }=await loadEngines(); const purpose=$('#date-purpose').value; const start=new Date($('#date-start').value); const birthBranches=[state.data.baZi.fourPillars.yearPillar.branch,state.data.baZi.fourPillars.dayPillar.branch]; const clash={子:'午',丑:'未',寅:'申',卯:'酉',辰:'戌',巳:'亥',午:'子',未:'丑',申:'寅',酉:'卯',戌:'辰',亥:'巳'};
-    const dates=Array.from({length:30},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);const l=Solar.fromYmd(d.getFullYear(),d.getMonth()+1,d.getDate()).getLunar();const yi=l.getDayYi().map(trad);const branch=l.getDayZhi();const personalClash=birthBranches.some((b)=>clash[b]===branch);return {date:d.toISOString().slice(0,10),gz:l.getDayInGanZhi(),yi,ji:l.getDayJi().slice(0,3).map(trad),score:(yi.includes(purpose)?3:0)-(personalClash?2:0),personalClash};}).sort((a,b)=>b.score-a.score).slice(0,8);
-    $('#date-results').innerHTML=`<div class="card"><div class="card-label">推薦候選日</div><p class="reading-line">先排除現實不可行的日期，再從前幾名比較；分數只反映本工具採用的黃曆與支沖條件。</p><div class="date-results">${dates.map((x)=>`<article><b>${x.date}・${x.gz}</b><span>${x.yi.includes(purpose)?`黃曆宜${purpose}`:'通用候選'}</span><small>${x.personalClash?'與本命年支或日支相沖，建議再評估':'未見直接沖年支／日支'}；忌：${x.ji.join('、')||'—'}</small></article>`).join('')}</div>${aiButton('ai-dates','複製擇日結果給 AI 比較')}</div>`;
-    bindAiPrompt('ai-dates', aiPromptBase(`個人擇日（用途：${purpose}）`, dates.map((x)=>`${x.date} ${x.gz}｜${x.yi.includes(purpose)?`宜${purpose}`:'通用候選'}｜${x.personalClash?'沖本命年支或日支':'未見直接支沖'}｜忌${x.ji.join('、')||'—'}`).join('\n'), '請比較各日期的取捨，不要聲稱某天能保證成功。'));
+    const { Solar } = await loadEngines();
+    const purpose = $('#date-purpose').value;
+    const start = new Date($('#date-start').value);
+    const birthBranches = [state.data.baZi.fourPillars.yearPillar.branch, state.data.baZi.fourPillars.dayPillar.branch];
+    const CLASH = { 子:'午', 丑:'未', 寅:'申', 卯:'酉', 辰:'戌', 巳:'亥', 午:'子', 未:'丑', 申:'寅', 酉:'卯', 戌:'辰', 亥:'巳' };
+    const LIUHE = { 子:'丑', 丑:'子', 寅:'亥', 亥:'寅', 卯:'戌', 戌:'卯', 辰:'酉', 酉:'辰', 巳:'申', 申:'巳', 午:'未', 未:'午' };
+    const SANHE_GROUPS = [['申','子','辰'], ['亥','卯','未'], ['寅','午','戌'], ['巳','酉','丑']];
+    const BRANCH_EL = { 子:'水', 丑:'土', 寅:'木', 卯:'木', 辰:'土', 巳:'火', 午:'火', 未:'土', 申:'金', 酉:'金', 戌:'土', 亥:'水' };
+    const sanheWith = (a, b) => SANHE_GROUPS.some((g) => a !== b && g.includes(a) && g.includes(b));
+    const yongshen = computeYongShen(state.data.baZi);
+    const favEls = new Set(yongshen.favorable.map((f) => f.element));
+    const avoidEls = new Set(yongshen.unfavorable.map((f) => f.element));
+    const dates = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const l = Solar.fromYmd(d.getFullYear(), d.getMonth() + 1, d.getDate()).getLunar();
+      const yi = l.getDayYi().map(trad);
+      const branch = l.getDayZhi();
+      const branchEl = BRANCH_EL[branch];
+      const personalClash = birthBranches.some((b) => CLASH[b] === branch);
+      const liuhe = birthBranches.some((b) => LIUHE[b] === branch);
+      const sanhe = birthBranches.some((b) => sanheWith(branch, b));
+      const favMatch = favEls.has(branchEl);
+      const avoidMatch = avoidEls.has(branchEl);
+      const score = (yi.includes(purpose) ? 3 : 0) - (personalClash ? 3 : 0) + (liuhe ? 2 : 0) + (sanhe ? 2 : 0) + (favMatch ? 2 : 0) - (avoidMatch ? 2 : 0);
+      return { date: d.toISOString().slice(0, 10), gz: l.getDayInGanZhi(), branchEl, yi, ji: l.getDayJi().slice(0, 3).map(trad), score, personalClash, liuhe, sanhe, favMatch, avoidMatch };
+    }).sort((a, b) => b.score - a.score).slice(0, 8);
+    $('#date-results').innerHTML = `<div class="card"><div class="card-label">推薦候選日</div><p class="reading-line">先排除現實不可行的日期，再從前幾名比較；分數綜合黃曆宜忌、支沖合、與你八字喜用神的五行是否相合，只是排序參考。</p><div class="date-results">${dates.map((x) => {
+      const tags = [];
+      if (x.yi.includes(purpose)) tags.push(`黃曆宜${purpose}`);
+      if (x.favMatch) tags.push(`日支${x.branchEl}近喜用神`);
+      if (x.avoidMatch) tags.push(`日支${x.branchEl}近忌神`);
+      if (x.sanhe) tags.push('與本命三合');
+      if (x.liuhe) tags.push('與本命六合');
+      return `<article><b>${x.date}・${x.gz}</b><span>${tags.join('・') || '通用候選'}</span><small>${x.personalClash ? '與本命年支或日支相沖，建議再評估' : '未見直接沖年支／日支'}；忌：${x.ji.join('、') || '—'}</small></article>`;
+    }).join('')}</div>${aiButton('ai-dates', '複製擇日結果給 AI 比較')}</div>`;
+    bindAiPrompt('ai-dates', aiPromptBase(`個人擇日（用途：${purpose}；喜用神：${[...favEls].join('、') || '無'}；忌神：${[...avoidEls].join('、') || '無'}）`, dates.map((x) => `${x.date} ${x.gz}（日支${x.branchEl}）｜${x.yi.includes(purpose) ? `宜${purpose}` : '通用候選'}｜${x.personalClash ? '沖本命年支或日支' : '未見直接支沖'}｜${x.sanhe ? '與本命三合' : x.liuhe ? '與本命六合' : '無合'}｜${x.favMatch ? '近喜用神' : x.avoidMatch ? '近忌神' : '五行中性'}｜忌${x.ji.join('、') || '—'}`).join('\n'), '請比較各日期的取捨，說明沖合與喜用神各自的影響權重，不要聲稱某天能保證成功。'));
   });
 }
 
@@ -1265,13 +1316,29 @@ function renderIChing() {
 function renderMeihua() {
   metaShell(`<div class="card"><div class="card-label">梅花易數・時間起卦</div><div class="card-hint">採年月日時加總取上下卦與動爻的簡化時間起卦法；不同傳承可能採農曆、地支數或外應，結果會不同。</div><div class="date-form"><input id="meihua-time" type="datetime-local" aria-label="起卦時間"><input id="meihua-number" type="number" min="0" max="9999" value="0" aria-label="靈感數字"><button id="meihua-run" type="button" class="submit-btn">起卦</button></div></div><div id="meihua-result"></div>`);
   const now=new Date();now.setMinutes(now.getMinutes()-now.getTimezoneOffset());$('#meihua-time').value=now.toISOString().slice(0,16);
-  $('#meihua-run').addEventListener('click',()=>{const r=plumBlossom($('#meihua-time').value,Number($('#meihua-number').value||0));$('#meihua-result').innerHTML=`<div class="card"><div class="card-label">時間起卦結果</div>${diagramHtml({...r,moving:[r.movingLine]})}<div class="plain-summary"><b>先看白話重點</b><p>內在基礎呈現「${r.lower.image}」，外在情勢呈現「${r.upper.image}」。第 ${r.movingLine} 爻變動，提醒你把注意力放在事情發展的對應階段。</p></div><p class="reading-line">體用可先以不動的一卦為體、受動的一卦為用，再觀察五行生剋。公式：${esc(r.formula)}。</p>${aiButton('ai-meihua')}</div>`;bindAiPrompt('ai-meihua',aiPromptBase('梅花易數時間起卦',`本卦：${r.name}\n上卦：${r.upper.name}（${r.upper.element}，${r.upper.image}）\n下卦：${r.lower.name}（${r.lower.element}，${r.lower.image}）\n動爻：第${r.movingLine}爻\n變卦：${r.changedName}\n取數公式：${r.formula}`,'請先解釋體用與五行生剋，再給出可驗證、非宿命的行動建議。'));});
+  $('#meihua-run').addEventListener('click',()=>{
+    const r=plumBlossom($('#meihua-time').value,Number($('#meihua-number').value||0));
+    const ty=tiYongAnalysis(r);
+    $('#meihua-result').innerHTML=`<div class="card"><div class="card-label">時間起卦結果</div>${diagramHtml({...r,moving:[r.movingLine]})}<div class="plain-summary"><b>先看白話重點</b><p>內在基礎呈現「${r.lower.image}」，外在情勢呈現「${r.upper.image}」。第 ${r.movingLine} 爻變動，提醒你把注意力放在事情發展的對應階段。</p></div><div class="tiyong-card"><b>體用斷卦　${esc(ty.relation)}</b><p>體卦：${esc(ty.ti.name)}（${esc(ty.ti.element)}）　用卦：${esc(ty.yong.name)}（${esc(ty.yong.element)}）</p><p class="reading-line">${esc(ty.tendency)}</p></div><p class="card-hint" style="margin-top:8px">體用生剋依傳統口訣(體剋用／用剋體／用生體／體生用／比和)推得，只是傾向判斷，不是定論。取數公式：${esc(r.formula)}。</p>${aiButton('ai-meihua')}</div>`;
+    bindAiPrompt('ai-meihua',aiPromptBase('梅花易數時間起卦',`本卦：${r.name}\n上卦：${r.upper.name}（${r.upper.element}，${r.upper.image}）\n下卦：${r.lower.name}（${r.lower.element}，${r.lower.image}）\n動爻：第${r.movingLine}爻\n體卦：${ty.ti.name}（${ty.ti.element}）\n用卦：${ty.yong.name}（${ty.yong.element}）\n體用關係：${ty.relation}\n變卦：${r.changedName}\n取數公式：${r.formula}`,'請先解釋體用生剋的判斷依據，再給出可驗證、非宿命的行動建議。'));
+  });
 }
 
 function renderQimen() {
-  metaShell(`<div class="card"><div class="card-label">時家奇門・結構盤</div><div class="card-hint">第一版提供陰陽遁、局數及九宮門星神的教學型映射。尚未納入所有門派的拆補／置閏、符頭旬首與天盤干飛布，不適合用作專業奇門斷局。</div><div class="date-form"><input id="qimen-time" type="datetime-local" aria-label="排盤時間"><select id="qimen-term" aria-label="目前節氣"><option>冬至</option><option>小寒</option><option>大寒</option><option>立春</option><option>雨水</option><option>驚蟄</option><option>春分</option><option>清明</option><option>穀雨</option><option>立夏</option><option>小滿</option><option>芒種</option><option>夏至</option><option>小暑</option><option>大暑</option><option>立秋</option><option>處暑</option><option>白露</option><option>秋分</option><option>寒露</option><option>霜降</option><option>立冬</option><option>小雪</option><option>大雪</option></select><button id="qimen-run" type="button" class="submit-btn">排結構盤</button></div></div><div id="qimen-result"></div>`);
+  metaShell(`<div class="card"><div class="card-label">時家奇門・結構盤</div><div class="card-hint">依你輸入的時間，用「拆補法」自動判斷節氣、符頭與上中下元，查傳統用局表定出局數與陰陽遁，再排出這一局的地盤三奇六儀與值符值使。九宮的門／星／神目前顯示的是後天八卦本宮參考位置，還沒有加入依時干旋轉的完整天盤，請勿當作可直接斷事的專業奇門盤。</div><div class="date-form"><input id="qimen-time" type="datetime-local" aria-label="排盤時間"><button id="qimen-run" type="button" class="submit-btn">排結構盤</button></div></div><div id="qimen-result"></div>`);
   const now=new Date();now.setMinutes(now.getMinutes()-now.getTimezoneOffset());$('#qimen-time').value=now.toISOString().slice(0,16);
-  $('#qimen-run').addEventListener('click',()=>{const r=qimenStructure($('#qimen-time').value,$('#qimen-term').value);const open=r.palaces.find((p)=>p.door==='開門');const life=r.palaces.find((p)=>p.door==='生門');$('#qimen-result').innerHTML=`<div class="card"><div class="card-label">${r.dun}${r.bureau}局・${esc(r.solarTerm)}</div><div class="qimen-grid">${r.palaces.map((p)=>`<div class="qimen-palace"><b>${p.palace}宮</b><span>${p.door}</span><span>${p.star}</span><small>${p.deity}</small></div>`).join('')}</div><div class="plain-summary"><b>先看白話重點</b><p>${open?`開門落 ${open.palace} 宮，可先觀察對外行動與工作議題。`:''}${life?`生門落 ${life.palace} 宮，可先觀察資源與成長議題。`:''}這是教學型結構盤，不能單靠它決定方位或重大行動。</p></div><p class="card-hint" style="margin-top:12px">此盤尚未包含完整符頭旬首、天盤干與門派差異，AI 解讀也必須保留這項限制。</p>${aiButton('ai-qimen')}</div>`;bindAiPrompt('ai-qimen',aiPromptBase('時家奇門教學型結構盤',`${r.dun}${r.bureau}局｜節氣${r.solarTerm}\n${r.palaces.map((p)=>`${p.palace}宮：${p.door}、${p.star}、${p.deity}`).join('\n')}`,'請只做九宮、八門、九星與八神的入門解釋；不可假裝這是含符頭旬首、天盤干、拆補置閏的完整專業盤。'));});
+  $('#qimen-run').addEventListener('click',async ()=>{
+    const { convertToBaZi, Solar } = await loadEngines();
+    const gender = state.data?.input?.gender ?? '女';
+    const r = qimenStructure($('#qimen-time').value, { convertToBaZi, Solar, gender });
+    const zfs = r.zhiFuShi;
+    $('#qimen-result').innerHTML = `<div class="card"><div class="card-label">${esc(r.dun)}${r.bureau}局・${esc(r.solarTerm)}${esc(r.yuanName)}${r.fuTou ? `（符頭${esc(r.fuTou)}）` : ''}</div>
+      ${zfs ? `<p class="reading-line"><span class="lead red">值符值使　</span>值符在 ${zfs.palace} 宮（${esc(zfs.star)}星），值使為${esc(zfs.door)}。</p>` : ''}
+      <div class="qimen-grid">${r.palaces.map((p) => `<div class="qimen-palace"><b>${p.palace}宮</b><span class="qimen-yiqi">${esc(p.yiqi) || '—'}</span><span>${esc(p.door)}・${esc(p.star)}</span><small>${esc(p.deity)}（本宮參考）</small></div>`).join('')}</div>
+      <div class="plain-summary"><b>先看白話重點</b><p>本局三奇六儀已依你輸入的時間即時定局；${zfs ? `值符落在 ${zfs.palace} 宮，可先觀察這一時辰的行動重心。` : ''}九宮下方的門／星／神是後天八卦的固定參考位置，不是本次真正的天盤，僅供認識九宮配置之用。</p></div>
+      <p class="card-hint" style="margin-top:12px">此盤已包含節氣定局與符頭三元判斷，但門派間拆補／置閏算法本有差異；八門九星八神的完整依時旋轉（天盤飛宮）尚未實作，AI 解讀也必須保留這項限制。</p>${aiButton('ai-qimen')}</div>`;
+    bindAiPrompt('ai-qimen', aiPromptBase('時家奇門教學型結構盤', `${r.dun}${r.bureau}局｜節氣${r.solarTerm}${r.yuanName}｜符頭${r.fuTou ?? '未知'}\n${zfs ? `值符：${zfs.palace}宮（${zfs.star}星）｜值使：${zfs.door}\n` : ''}地盤三奇六儀：${r.palaces.map((p) => `${p.palace}宮${p.yiqi || '無'}`).join('、')}\n後天八卦本宮參考：${r.palaces.map((p) => `${p.palace}宮：${p.door}、${p.star}、${p.deity}`).join('\n')}`, '請只根據「已排出的局數、地盤三奇六儀、值符值使」做入門解釋；後天八卦本宮參考位置請說明只是九宮配置對照，不是本次天盤；不可假裝這是包含完整天盤飛宮、拆補置閏門派判斷的專業盤。'));
+  });
 }
 
 function renderMetaphysics() {
