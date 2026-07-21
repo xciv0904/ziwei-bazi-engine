@@ -4,7 +4,7 @@ import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck, tenGodOf } from './engines/compose-luck.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
-import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI, formatNamingPromptForAI } from './engines/format-ai.js';
+import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI, formatNamingPromptForAI, formatDailyPromptForAI, formatTimelinePromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
 import { composeYongShenReading, computeYongShen } from './engines/compose-yongshen.js';
 import { analyzeNameElements, computeWuGe, analyzeZiweiOverlap, splitSurnameGiven } from './engines/naming.js';
@@ -1222,12 +1222,12 @@ async function renderDaily() {
   metaShell(`<div class="card"><div class="card-label">未來七日節奏</div><div class="card-hint">依你的日主與每日干支十神關係整理，並標示是否貼近你八字的忌神五行；宜忌取自傳統黃曆，只作行程反思。</div><p class="reading-line"><span class="lead gold">目前大限　</span>${esc(curLimit.ageRange)}歲・${esc(curLimitPalace)}——本週節奏可搭配這個階段的重心一起看。</p><div class="daily-grid">${days.map((x, i) => `<article class="daily-card${i === 0 ? ' today' : ''}${x.avoidHit ? ' caution' : ''}">${x.avoidHit ? '<span class="daily-flag">忌神日</span>' : ''}<b>${x.date} ${x.week}</b><span>${x.gz}・${x.god}</span><strong>${x.theme}</strong><small>傳統宜：${x.yi}</small></article>`).join('')}</div></div>
     <div class="card"><div class="card-label">本週提醒</div><p class="reading-line">把十神當成每日的觀察鏡頭，忌神日不代表當天必然不順，只是提醒可以放慢決策、多留一點彈性。工作安排優先看現實期限、身心狀態與專業建議。</p><button type="button" class="mini-btn" id="copy-week" style="margin-left:0">複製本週摘要</button>${aiButton('ai-daily')}</div>`);
   $('#copy-week')?.addEventListener('click', async () => { await navigator.clipboard.writeText(days.map((x) => `${x.date} ${x.gz} ${x.god}${x.avoidHit ? '(忌神日)' : ''}：${x.theme}`).join('\n')); toast('已複製本週摘要'); });
-  bindAiPrompt('ai-daily', aiPromptBase(`八字每日／週運（目前大限：${curLimit.ageRange}歲・${curLimitPalace}；忌神五行：${[...avoidEls].join('、') || '無'}）`, days.map((x) => `${x.date} ${x.week}｜${x.gz}｜${x.god}｜${x.theme}｜黃曆宜：${x.yi}${x.avoidHit ? '｜貼近忌神' : ''}`).join('\n')));
+  bindAiPrompt('ai-daily', formatDailyPromptForAI({ input, baZi, ziWei, days, curLimit, curLimitPalace, favorable: yongshen.favorable, unfavorable: yongshen.unfavorable }));
 }
 
 function renderTimeline() {
   const events = loadEvents();
-  const { ziWei, input, byBranch } = state.data;
+  const { ziWei, baZi, input, byBranch } = state.data;
   const blocks = ziWei.majorLimits.map((l) => {
     const [start, end] = l.ageRange.split('~').map(Number);
     const from = input.year + start - 1; const to = input.year + end - 1;
@@ -1240,7 +1240,7 @@ function renderTimeline() {
     <div class="card"><div class="card-label">加入過往事件</div><div class="event-form"><input id="event-year" type="number" min="1900" max="2100" placeholder="年份" aria-label="事件年份"><input id="event-title" maxlength="40" placeholder="例如：轉職、搬家、結婚" aria-label="事件名稱"><button id="event-add" type="button" class="submit-btn">加入時間軸</button></div>${events.length ? `<div class="event-list">${events.map((e, i) => `<button type="button" data-event-del="${i}" title="刪除事件">${esc(e.year)}・${esc(e.title)} ×</button>`).join('')}</div>` : ''}${aiButton('ai-timeline', '複製時間軸給 AI 分析')}</div>`);
   $('#event-add')?.addEventListener('click', () => { const year=$('#event-year').value; const title=$('#event-title').value.trim(); if(!year||!title)return toast('請輸入年份與事件'); const next=[...loadEvents(),{year:Number(year),title}]; saveEvents(next); renderTimeline(); });
   $$('[data-event-del]').forEach((b) => b.addEventListener('click', () => { const list=loadEvents(); list.splice(Number(b.dataset.eventDel),1); saveEvents(list); renderTimeline(); }));
-  bindAiPrompt('ai-timeline', aiPromptBase('紫微大限生涯時間軸與事件驗盤', ziWei.majorLimits.map((l) => `${l.ageRange}歲｜${byBranch[l.ganZhi[1]]?.name ?? '—'}大限｜四化：${flat(composeZiWeiDecadalChange(ziWei, l, { mode: state.readingMode }).text)}`).join('\n') + `\n過往事件：${events.map((e) => `${e.year} ${e.title}`).join('；') || '尚未輸入'}`));
+  bindAiPrompt('ai-timeline', formatTimelinePromptForAI({ input, baZi, ziWei, events }));
 }
 
 function mutagenOf(ziWei, palaceName) {

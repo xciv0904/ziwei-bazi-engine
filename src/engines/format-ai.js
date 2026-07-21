@@ -613,3 +613,85 @@ export function formatNamingPromptForAI({ input, surname, given, baZi, ziWei }) 
   );
   return lines.join('\n');
 }
+
+// ---------- 每日／週運提示詞(完整命盤 + 七日逐日十神,取代原本只有摘要沒有命盤的通用格式) ----------
+
+/**
+ * @param {object} data
+ * @param {object} data.input  { year, month, day, hour, gender }
+ * @param {object} data.baZi   convertToBaZi() 輸出
+ * @param {object} data.ziWei  convertToZiWei() 輸出
+ * @param {Array}  data.days   [{ date, week, gz, god, yi, theme, avoidHit }]
+ * @param {object} data.curLimit       目前所在大限 { ganZhi, ageRange }
+ * @param {string} data.curLimitPalace 目前大限對應的紫微宮位名稱
+ * @param {Array}  data.favorable  computeYongShen().favorable
+ * @param {Array}  data.unfavorable computeYongShen().unfavorable
+ */
+export function formatDailyPromptForAI({ input, baZi, ziWei, days, curLimit, curLimitPalace, favorable, unfavorable }) {
+  const fmtEls = (arr) => (arr.length ? arr.map((x) => `${x.element}(${x.role})`).join('、') : '無');
+  return [
+    '這是八字 每日／週運提示詞。',
+    '',
+    formatZiWeiSection(ziWei, input),
+    '',
+    formatBaZiSection(baZi),
+    '',
+    line('喜用神', fmtEls(favorable)),
+    line('忌神', fmtEls(unfavorable)),
+    line('目前大限', `${curLimit.ganZhi}限(${curLimit.ageRange}歲)・紫微對應宮位:${curLimitPalace}`),
+    '',
+    '◆ 未來七日逐日干支與十神(黃曆宜取自傳統宜忌,忌神五行僅指當日天干或地支五行貼近本命忌神)',
+    ...days.map((d) => `${d.date} ${d.week}｜${d.gz}｜十神:${d.god}｜黃曆宜:${d.yi}${d.avoidHit ? '｜貼近忌神五行' : ''}`),
+    '',
+    '問題: 請以上述完整命盤為基礎,分析這七天的節奏,並指出哪幾天適合推進、哪幾天適合保守。',
+    '判讀順序:',
+    '1) 先確認日主強弱與喜用神/忌神,說明每日十神與當事人的整體體質如何互動,不要只複述十神字面意思。',
+    '2) 標示「貼近忌神五行」的日子,說明為什麼提醒放慢,但不要斷言當天會發生具體壞事。',
+    '3) 結合目前所在大限的宮位與四化重心,說明這七天的節奏與這個十年階段的關聯。',
+    '4) 給出具體、可執行、不涉醫療法律財務決策的行動建議,每天最多一句。',
+    '',
+    AI_INSTRUCTION,
+  ].join('\n');
+}
+
+// ---------- 生涯時間軸提示詞(完整命盤 + 十個大限四化 + 使用者記錄的真實事件) ----------
+
+/**
+ * @param {object} data
+ * @param {object} data.input  { year, month, day, hour, gender }
+ * @param {object} data.baZi   convertToBaZi() 輸出
+ * @param {object} data.ziWei  convertToZiWei() 輸出
+ * @param {Array}  data.events [{ year, title }] 使用者手動記錄的過往事件
+ */
+export function formatTimelinePromptForAI({ input, baZi, ziWei, events }) {
+  const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+  const blocks = ziWei.majorLimits.map((l, i) => {
+    const [start, end] = l.ageRange.split('~').map(Number);
+    const from = input.year + start - 1, to = input.year + end - 1;
+    const palace = byBranch[l.ganZhi[1]];
+    const decadal = composeZiWeiDecadalChange(ziWei, l, { mode: 'study' });
+    const huaTxt = decadal.entries.length ? decadal.entries.map((e) => `${e.star}化${e.mutagen}→${e.palace}`).join('、') : '無';
+    const inside = events.filter((e) => Number(e.year) >= from && Number(e.year) <= to);
+    const tag = `第${i + 1}限 ${l.ganZhi}限(${l.ageRange}歲,${from}-${to}年)｜宮位:${palace?.name ?? '—'}｜大限四化:${huaTxt}`;
+    return inside.length ? `${tag}｜已記錄事件:${inside.map((e) => `${e.year} ${e.title}`).join('、')}` : tag;
+  });
+  return [
+    '這是紫微斗數 生涯運勢時間軸與事件驗盤提示詞。',
+    '',
+    formatZiWeiSection(ziWei, input),
+    '',
+    formatBaZiSection(baZi),
+    '',
+    '◆ 十個大限與已記錄事件',
+    ...blocks,
+    '',
+    '問題: 請以上述完整命盤與大限四化為基礎,協助我回顧人生各階段的主題,並與我記錄的真實事件互相印證。',
+    '判讀順序:',
+    '1) 逐一大限說明宮位與四化代表的主題傾向,說明依據來自哪個宮位或四化。',
+    '2) 對照「已記錄事件」欄位,說明該事件與這個大限主題是否呼應;沒有記錄事件的大限,只描述主題傾向,不要杜撰具體事件。',
+    '3) 指出跨越多個大限反覆出現的主題(如果有),作為觀察自己人生模式的線索,而不是宿命論斷。',
+    '4) 不做吉凶斷語與未來事件預言,只做已發生事實與命盤主題的對照整理。',
+    '',
+    AI_INSTRUCTION,
+  ].join('\n');
+}
