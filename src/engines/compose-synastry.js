@@ -220,5 +220,20 @@ export function composeSynastry(A, B, { mode = 'public', relation = '戀人' } =
     ].join('\n'),
   });
 
+  const communicator = (el) => ({ 木:'先談方向與成長',火:'直接表達感受',土:'需要具體與穩定',金:'重視邏輯與原則',水:'傾向觀察後再說' }[el]);
+  sections.push({
+    title: '六、溝通與衝突修復',
+    text: `${A.name}${communicator(elA)}，${B.name}${communicator(elB)}。發生衝突時，先各自說明「我需要什麼」，再討論誰對誰錯；若日支有沖刑害，更適合約定暫停時間與重新對話的方式。`,
+  });
+  sections.push({
+    title: '七、金錢與合作節奏',
+    text: `${A.name}的喜用方向為${fmtEls(ysA.favorable) || '中性'}，${B.name}的喜用方向為${fmtEls(ysB.favorable) || '中性'}。共同財務宜分成日常、個人與長期目標三個帳戶；命理互補只能提示習慣差異，不應取代預算、契約與風險評估。`,
+  });
+  const thisYear = new Date().getFullYear();
+  sections.push({
+    title: `八、${thisYear} 關係節奏`,
+    text: `今年適合把關係目標寫成可執行安排：固定溝通、共同計畫與各自空間。流年只描述時間氛圍，若遇到健康、法律或財務問題，仍應以專業資訊為準。`,
+  });
+
   return { score, tier, sections, text: sections.map((s) => `【${s.title}】\n${s.text}`).join('\n\n') };
 }
