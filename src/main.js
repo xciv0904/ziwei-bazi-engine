@@ -12,11 +12,13 @@ import { composeSynastry } from './engines/compose-synastry.js';
 import { castThreeCoins, plumBlossom, qimenStructure, lineDiagram, tiYongAnalysis } from './engines/divination.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
+import { lookupTransformation } from './data/transformation-meanings.js';
 
 // 排盤引擎(iztro、lunar-javascript 合計約 700KB)改為動態載入:
 // 訪客進站先看到歡迎頁,不需要馬上載排盤庫;第一次按「排盤」時才抓,之後快取重用。
 // qrcode / html-to-image 也一樣,只在分享命卡用到時才載。
 let enginesPromise = null;
+let birthDateCtl = null; // 主表單年/月/日輸入控制器,setupControls() 內建立
 function loadEngines() {
   enginesPromise ??= Promise.all([
     import('./engines/ziwei.js'),
@@ -39,6 +41,70 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const flat = (s) => String(s).replace(/\n+/g, ' '); // 多行解讀 → 單段落
 const trad = (s) => String(s).replace(/[动开会亲纳采订盟医药猎机械坏垣]/g, (c) => ({ 动:'動', 开:'開', 会:'會', 亲:'親', 纳:'納', 采:'採', 订:'訂', 盟:'盟', 医:'醫', 药:'藥', 猎:'獵', 机:'機', 械:'械', 坏:'壞', 垣:'垣' }[c] ?? c));
+
+// ---------- 出生日期輸入(年/月/日三欄,取代原生 date input——
+// 原生 date input 分段輸入時,年份欄位打超過4碼或按方向鍵切換欄位方式不直覺,
+// 打錯會讓 .value 變成空字串且畫面完全沒有任何提示,使用者會以為排盤按鈕壞了。
+// 改成年份用文字輸入(限4碼數字)+ 月/日用下拉選單,月日下拉的選項本身就排除了不存在的日期組合(如2月30日),
+// 只剩年份範圍需要驗證,錯誤時就地顯示原因。) ----------
+const daysInMonth = (year, month) => new Date(year || 2001, month, 0).getDate(); // month為1-12;year缺省時用非閏年估算
+function fillMonthOptions(sel) {
+  sel.innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${i + 1}月</option>`).join('');
+}
+function fillDayOptions(sel, year, month) {
+  const max = daysInMonth(year, month || 1);
+  const keep = Math.min(Number(sel.value) || 1, max);
+  sel.innerHTML = Array.from({ length: max }, (_, i) => `<option value="${i + 1}">${i + 1}日</option>`).join('');
+  sel.value = keep;
+}
+/** @returns {{read:()=>({y,m,d}|null), set:(y,m,d)=>void, clearError:()=>void}} */
+function wireDateParts({ yearId, monthId, dayId, errorId }) {
+  const yearEl = $(yearId), monthEl = $(monthId), dayEl = $(dayId), errEl = $(errorId);
+  fillMonthOptions(monthEl);
+  fillDayOptions(dayEl, null, 1);
+  const clearError = () => { errEl.hidden = true; errEl.textContent = ''; yearEl.classList.remove('field-invalid'); };
+  const showError = (msg) => { errEl.hidden = false; errEl.textContent = msg; yearEl.classList.add('field-invalid'); };
+  const syncDays = () => fillDayOptions(dayEl, Number(yearEl.value) || null, Number(monthEl.value));
+  yearEl.addEventListener('input', () => {
+    yearEl.value = yearEl.value.replace(/[^0-9]/g, '').slice(0, 4);
+    clearError();
+    syncDays();
+  });
+  monthEl.addEventListener('change', () => { clearError(); syncDays(); });
+  dayEl.addEventListener('change', clearError);
+  return {
+    read() {
+      const yStr = yearEl.value;
+      if (!yStr || yStr.length !== 4) { showError('請輸入 4 碼西元年份,例如 1990'); yearEl.focus(); return null; }
+      const y = Number(yStr);
+      if (y < 1900 || y > 2100) { showError('目前支援 1900–2100 年之間的生日'); yearEl.focus(); return null; }
+      clearError();
+      return { y, m: Number(monthEl.value), d: Number(dayEl.value) };
+    },
+    set(y, m, d) {
+      yearEl.value = y ? String(y) : '';
+      fillDayOptions(dayEl, y, m || 1);
+      monthEl.value = m || 1;
+      dayEl.value = d || 1;
+      clearError();
+    },
+    clearError,
+  };
+}
+
+/** 按鈕 loading 狀態:計算期間停用按鈕並換字樣,避免使用者以為沒反應而重複點擊 */
+async function withLoading(btn, loadingLabel, fn) {
+  if (!btn) return fn();
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = loadingLabel;
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
 
 // ---------- 常數 ----------
 const EL_COLOR = { 木: 'var(--el-wood)', 火: 'var(--el-fire)', 土: 'var(--el-earth)', 金: 'var(--el-metal)', 水: 'var(--el-water)' };
@@ -85,25 +151,19 @@ const state = {
 
 // ---------- 排盤 ----------
 async function computeAll() {
-  if (!$('#birth-date').value) {
-    toast('請先選擇出生日期');
-    return false;
-  }
+  const parsed = birthDateCtl?.read();
+  if (!parsed) return false; // 錯誤原因已由 birthDateCtl 就地顯示在欄位下方
   const { convertToZiWei, convertToBaZi, Solar, Lunar } = await loadEngines();
   const name = $('#name-input').value.trim() || '命主';
   // 「不確定時辰」:以午時(11時)暫排,並在畫面明確標示僅供參考
   const hourRaw = $('#birth-hour').value;
   const hourUnknown = hourRaw === 'unknown';
-  let [y, m, d] = $('#birth-date').value.split('-').map(Number);
-  // 日期合法性驗證:表單的日期選擇器擋得住,但分享連結的 ?date= 參數擋不住
-  // (例如 1949-02-29 這種不存在的日期,引擎不會報錯、會靜默排出錯的盤)
+  let { y, m, d } = parsed;
+  // 日期合法性驗證:月/日下拉的選項本身已排除不存在的組合,但分享連結的 ?date= 參數是直接塞值進欄位,
+  // 仍可能帶入不存在的日期(例如 1949-02-29),引擎不會報錯、會靜默排出錯的盤,這裡再保險檢查一次
   const probe = new Date(y, m - 1, d);
   if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) {
     toast('這個日期不存在,請重新選擇');
-    return false;
-  }
-  if (y < 1900 || y > 2100) {
-    toast('目前支援 1900–2100 年之間的生日');
     return false;
   }
   const hour = hourUnknown ? 11 : Number(hourRaw);
@@ -182,7 +242,8 @@ function persistSavedCharts(list) {
 /** 從已存命盤載入一筆(側欄清單、流年提醒卡共用):填回表單值 → 排盤 → 重繪畫面 */
 async function loadSavedEntry(c) {
   $('#name-input').value = c.name;
-  $('#birth-date').value = c.date;
+  const [cy, cm, cd] = c.date.split('-').map(Number);
+  birthDateCtl.set(cy, cm, cd);
   $('#birth-hour').value = String(c.hour); // 'unknown' 也直接對應到「不確定時辰」選項
   state.gender = c.gender;
   $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === c.gender));
@@ -335,7 +396,7 @@ function renderZiWeiCard() {
   const cells = ziWei.palaces.map((p) => {
     const branch = p.position[1];
     const pos = LAYOUT_POSITIONS[branch];
-    const stars = p.majorStars.map((s) => s.name + (s.transformation ? `<sup>${s.transformation}</sup>` : '')).join('');
+    const stars = p.majorStars.map((s) => s.name + (s.transformation ? `<sup title="生年化${s.transformation}：${esc(lookupTransformation(s.transformation) ?? '')}">${s.transformation}</sup>` : '')).join('');
     const cls = [
       'palace-cell',
       p.name === '命宮' ? 'self' : '',
@@ -345,14 +406,14 @@ function renderZiWeiCard() {
       relatedBranches.has(branch) ? 'related' : '',
     ].join(' ');
     const luckTags = [
-      branch === decadalBranch ? '<span class="luck-tag decadal">限</span>' : '',
-      branch === annualBranch ? '<span class="luck-tag annual">年</span>' : '',
+      branch === decadalBranch ? `<span class="luck-tag decadal" title="目前所在的十年大限落在這一宮">限</span>` : '',
+      branch === annualBranch ? `<span class="luck-tag annual" title="${year} 年(流年)命宮落在這一宮">年</span>` : '',
     ].join('');
     const mutMarks = (sihuaByPalace[p.name] ?? [])
-      .map((m) => `<span class="flow-mut ${MUT_CLASS[m]}">${m}</span>`).join('');
+      .map((m) => `<span class="flow-mut ${MUT_CLASS[m]}" title="${year}年流年化${m}：${esc(lookupTransformation(m) ?? '')}">${m}</span>`).join('');
     return `<button type="button" class="${cls}" data-palace="${esc(p.name)}"
       style="grid-row:${pos.row};grid-column:${pos.col}">
-      <div class="p-name">${esc(p.name)} ${esc(branch)}${p.isBodyPalace ? '<span class="body-mark">・身</span>' : ''}${luckTags}</div>
+      <div class="p-name">${esc(p.name)} ${esc(branch)}${p.isBodyPalace ? `<span class="body-mark" title="身宮:與命宮並列,影響後天際遇與行為傾向">・身</span>` : ''}${luckTags}</div>
       <div class="p-stars">${stars || ''}${mutMarks}</div>
       <div class="p-minor">${p.minorStars.slice(0, 4).map((s) => esc(s.replace(/\(.*?\)/, ''))).join(' ')}</div>
     </button>`;
@@ -692,11 +753,9 @@ function renderComprehensive() {
 // ---------- 分頁:雙人合盤 ----------
 async function runSynastry() {
   const f = state.synastry.form;
-  if (!f.date) return toast('請先選擇乙方出生日期');
-  const [y, m, d] = f.date.split('-').map(Number);
-  const probe = new Date(y, m - 1, d);
-  if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) return toast('這個日期不存在,請重新選擇');
-  if (y < 1900 || y > 2100) return toast('目前支援 1900–2100 年之間的生日');
+  const parsed = synDateCtl?.read();
+  if (!parsed) return; // 錯誤原因已就地顯示
+  const { y, m, d } = parsed;
   const { convertToZiWei, convertToBaZi } = await loadEngines();
   const input = { year: y, month: m, day: d, hour: Number(f.hour), gender: f.gender };
   state.synastry.b = {
@@ -707,6 +766,8 @@ async function runSynastry() {
   };
   renderSynastry();
 }
+
+let synDateCtl = null; // 乙方年/月/日輸入控制器,renderSynastry() 每次重繪時重建
 
 function renderSynastry() {
   const f = state.synastry.form;
@@ -739,12 +800,17 @@ function renderSynastry() {
       <div class="card-hint">甲方=目前排盤的「${esc(a.name)}」;輸入乙方生辰,或從已存命盤帶入,看兩人的相性結構</div>
       <div class="syn-form">
         <input id="syn-name" type="text" placeholder="乙方姓名" aria-label="乙方姓名" value="${esc(f.name)}" />
-        <input id="syn-date" type="date" value="${esc(f.date)}" />
+        <div class="date-parts">
+          <input id="syn-year" type="text" inputmode="numeric" maxlength="4" placeholder="出生年" aria-label="乙方出生年(西元4碼)" />
+          <select id="syn-month" aria-label="乙方出生月"></select>
+          <select id="syn-day" aria-label="乙方出生日"></select>
+        </div>
         <select id="syn-hour">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}</select>
         <select id="syn-gender"><option value="female">女</option><option value="male">男</option></select>
         <select id="syn-rel"><option>戀人</option><option>親子</option><option>朋友</option><option>同事</option></select>
         <button type="button" class="submit-btn syn-submit" id="syn-run">合盤</button>
       </div>
+      <div id="syn-date-error" class="field-error" hidden></div>
       ${saved.length ? `<div class="chip-label" style="margin-top:12px">從已存命盤帶入乙方</div><div class="chip-row">${savedChips}</div>` : ''}
     </div>
     ${resultHtml}`;
@@ -752,7 +818,9 @@ function renderSynastry() {
   $('#syn-hour').value = f.hour;
   $('#syn-gender').value = f.gender;
   $('#syn-rel').value = f.rel;
-  for (const [id, key] of [['#syn-name', 'name'], ['#syn-date', 'date'], ['#syn-hour', 'hour'], ['#syn-gender', 'gender']]) {
+  synDateCtl = wireDateParts({ yearId: '#syn-year', monthId: '#syn-month', dayId: '#syn-day', errorId: '#syn-date-error' });
+  if (f.date) { const [fy, fm, fd] = f.date.split('-').map(Number); synDateCtl.set(fy, fm, fd); }
+  for (const [id, key] of [['#syn-name', 'name'], ['#syn-hour', 'hour'], ['#syn-gender', 'gender']]) {
     $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
   }
   // 換關係型態時,若已有結果直接以新口吻重算
@@ -767,7 +835,7 @@ function renderSynastry() {
       Object.assign(f, { name: c.name, date: c.date, hour: String(c.hour), gender: c.gender });
       renderSynastry();
     }));
-  $('#syn-run').addEventListener('click', runSynastry);
+  $('#syn-run').addEventListener('click', (e) => withLoading(e.currentTarget, '合盤中…', runSynastry));
   $('#copy-syn-prompt')?.addEventListener('click', async () => {
     const text = formatSynastryPromptForAI({ a, b: state.synastry.b });
     try {
@@ -1251,7 +1319,7 @@ function mutagenOf(ziWei, palaceName) {
 
 function renderRectify() {
   metaShell(`<div class="card"><div class="card-label">時辰反推／事件驗盤</div><div class="card-hint">比較十二時辰各自排出的命宮、身宮、五行局起運年齡與命宮四化，再搭配上方時間軸的真實事件縮小候選。結果只能輔助回憶，不能證明出生時間。</div><button id="run-rectify" type="button" class="submit-btn compare-run-btn">產生十二時辰候選</button></div><div id="rectify-result"></div>`);
-  $('#run-rectify').addEventListener('click', async () => {
+  $('#run-rectify').addEventListener('click', (e) => withLoading(e.currentTarget, '計算中…', async () => {
     const { convertToZiWei } = await loadEngines(); const { input } = state.data;
     const rows = SHICHEN.map((s) => {
       const z = convertToZiWei({ ...input, hour: s.hour });
@@ -1260,7 +1328,7 @@ function renderRectify() {
     });
     $('#rectify-result').innerHTML = `<div class="card"><div class="card-label">候選差異</div><div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>時辰</th><th>命宮</th><th>身宮</th><th>命宮主星</th><th>五行局／起運</th><th>命宮四化</th></tr></thead><tbody>${rows.map((r) => `<tr><th>${r.hour}</th><td>${r.life}</td><td>${r.body}</td><td>${r.stars}</td><td>${esc(r.bureau)}・${esc(r.startAge)}歲</td><td>${esc(r.mutagen)}</td></tr>`).join('')}</tbody></table></div><p class="card-hint">下一步：用已知事件年份對照各候選盤的大限宮位與起運年齡，不要只用個性描述選擇時辰——起運年齡通常最容易用童年記憶驗證。</p>${aiButton('ai-rectify', '複製候選時辰給 AI 協助提問')}</div>`;
     bindAiPrompt('ai-rectify', aiPromptBase('紫微斗數時辰反推助手', rows.map((r) => `${r.hour}｜命宮${r.life}｜身宮${r.body}｜主星${r.stars}｜${r.bureau}・${r.startAge}歲起運｜命宮四化：${r.mutagen}`).join('\n') + `\n已記錄事件：${loadEvents().map((e) => `${e.year} ${e.title}`).join('；') || '無'}`, '請不要直接替我決定出生時辰；請優先用起運年齡與命宮四化這類可被童年記憶驗證的線索，設計最多 8 個能區分候選盤的問題。'));
-  });
+  }));
 }
 
 function renderDates() {
@@ -1408,12 +1476,19 @@ function renderEmpty() {
   $('#welcome-start')?.addEventListener('click', () => {
     $('.sidebar').classList.add('open');
     $('#sidebar-toggle').setAttribute('aria-expanded', 'true');
+    // 首頁引導卡跟左側常駐表單其實是同一件事,點下去卻只是靜默 focus,
+    // 使用者容易看不出兩者的關係──補上捲動＋短暫高亮,讓「按鈕把你帶去了哪裡」看得見
+    $('#birth-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#birth-form').classList.add('form-highlight');
+    setTimeout(() => $('#birth-form').classList.remove('form-highlight'), 1400);
     $('#name-input').focus();
   });
 }
 
 // ---------- 初始化 ----------
 function setupControls() {
+  birthDateCtl = wireDateParts({ yearId: '#birth-year', monthId: '#birth-month', dayId: '#birth-day', errorId: '#birth-date-error' });
+
   // 時辰選單(預設子時,列表第一個選項,避免下拉選單一開始就停在中間某個時辰,
   // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選,這裡只是給一個不易混淆的起始值)
   $('#birth-hour').innerHTML = SHICHEN
@@ -1471,14 +1546,17 @@ function setupControls() {
 
   $('#birth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (await computeAll()) {
-      renderAll();
-      if (matchMedia('(max-width: 900px)').matches) {
-        $('.sidebar').classList.remove('open');
-        $('#sidebar-toggle').setAttribute('aria-expanded', 'false');
-        $('#main-content').focus();
+    const btn = $('#birth-form .submit-btn');
+    await withLoading(btn, '排盤中…', async () => {
+      if (await computeAll()) {
+        renderAll();
+        if (matchMedia('(max-width: 900px)').matches) {
+          $('.sidebar').classList.remove('open');
+          $('#sidebar-toggle').setAttribute('aria-expanded', 'false');
+          $('#main-content').focus();
+        }
       }
-    }
+    });
   });
 
   $('#sidebar-toggle').addEventListener('click', () => {
@@ -1489,7 +1567,8 @@ function setupControls() {
   // 分享連結參數回填(有參數才直接排盤)
   const params = new URLSearchParams(location.search);
   if (params.get('date')) {
-    $('#birth-date').value = params.get('date');
+    const [py, pm, pd] = params.get('date').split('-').map(Number);
+    birthDateCtl.set(py, pm, pd);
     if (params.get('name')) $('#name-input').value = params.get('name');
     if (params.get('hour')) $('#birth-hour').value = params.get('hour');
     if (params.get('gender')) {

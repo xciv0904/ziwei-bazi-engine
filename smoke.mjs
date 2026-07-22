@@ -20,21 +20,39 @@ let failed = 0;
 const check = (label, ok) => { console.log(`${ok ? '✅' : '❌'} ${label}`); if (!ok) failed++; };
 // 排盤引擎改為動態載入(submit 後非同步),送出表單後需等引擎載入+渲染完成
 const settle = () => new Promise((r) => setTimeout(r, 300));
+// 出生日期改成年/月/日三欄後,填值要各別觸發對應事件,模擬使用者實際輸入
+const setDateParts = (prefix, y, m, d) => {
+  $(`#${prefix}-year`).value = String(y);
+  $(`#${prefix}-year`).dispatchEvent(new w.Event('input'));
+  $(`#${prefix}-month`).value = String(m);
+  $(`#${prefix}-month`).dispatchEvent(new w.Event('change'));
+  $(`#${prefix}-day`).value = String(d);
+  $(`#${prefix}-day`).dispatchEvent(new w.Event('change'));
+};
 
 // --- 進站空白狀態(未排盤) ---
 check('進站顯示歡迎畫面', $('#view-dashboard').textContent.includes('開始排盤'));
 check('進站不顯示任何命盤', $$('.palace-cell').length === 0);
+check('側邊導覽分成核心排盤／延伸工具兩組', $$('.side-nav .section-label').length === 2);
+
+// --- 表單驗證:年份留空送出,要就地顯示錯誤而不是靜默無反應 ---
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+check('出生年留空送出時顯示錯誤訊息', !$('#birth-date-error').hidden && $('#birth-date-error').textContent.includes('西元年'));
+check('留空送出不會產生命盤', $$('.palace-cell').length === 0);
 
 // --- 填表排盤 ---
 $('#name-input').value = 'Shelly';
-$('#birth-date').value = '2002-09-04';
+setDateParts('birth', 2002, 9, 4);
 $('#birth-hour').value = '13';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
+check('排盤成功後錯誤訊息應消失', $('#birth-date-error').hidden);
 
 // --- 命盤總覽 ---
 check('12 宮位格', $$('.palace-cell').length === 12);
 check('中央摘要格', $$('.chart-center').length === 1);
+check('大限標記有 tooltip 說明', !!$('.luck-tag.decadal')?.title);
 check('頁首標題含姓名', $('#page-title').textContent.includes('Shelly'));
 check('生辰摘要含五行局', $('#birth-summary').textContent.includes('木三局'));
 check('八字四柱含日主反白', $$('.bz-char.day-master').length === 1);
@@ -111,10 +129,10 @@ check('全盤概覽等主要段落預設仍展開', $$('#view-comprehensive .acc
 // --- 雙人合盤 ---
 $$('.nav-item').find((n) => n.dataset.view === 'synastry').click();
 check('合盤視圖顯示', !$('#view-synastry').hidden);
-check('合盤表單存在', !!$('#syn-date') && !!$('#syn-run'));
+check('合盤表單存在', !!$('#syn-year') && !!$('#syn-run'));
 check('已存命盤可帶入乙方', $$('#view-synastry [data-syn-load]').length >= 1);
 $('#syn-name').value = '弟弟'; $('#syn-name').dispatchEvent(new w.Event('input'));
-$('#syn-date').value = '2006-07-12'; $('#syn-date').dispatchEvent(new w.Event('input'));
+setDateParts('syn', 2006, 7, 12);
 $('#syn-hour').value = '19'; $('#syn-hour').dispatchEvent(new w.Event('input'));
 $('#syn-gender').value = 'male'; $('#syn-gender').dispatchEvent(new w.Event('input'));
 $('#syn-run').click();
@@ -170,7 +188,7 @@ check('切回大眾版,命盤解析不再含十神依據', !$('#view-comprehensi
 
 // --- 重新排盤(換男生日期) ---
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
-$('#birth-date').value = '1998-03-15';
+setDateParts('birth', 1998, 3, 15);
 $('#birth-hour').value = '11';
 $$('#gender-toggle .pill').find((p) => p.dataset.value === 'male').click();
 $('#birth-form').dispatchEvent(new w.Event('submit'));

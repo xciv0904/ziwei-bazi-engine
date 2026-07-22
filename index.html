@@ -52,8 +52,13 @@
             </div>
           </div>
           <div class="field">
-            <label for="birth-date">出生日期</label>
-            <input id="birth-date" type="date" required />
+            <label for="birth-year">出生日期</label>
+            <div class="date-parts">
+              <input id="birth-year" type="text" inputmode="numeric" maxlength="4" placeholder="年" aria-label="出生年(西元4碼)" />
+              <select id="birth-month" aria-label="出生月"></select>
+              <select id="birth-day" aria-label="出生日"></select>
+            </div>
+            <div id="birth-date-error" class="field-error" hidden></div>
           </div>
           <div class="field">
             <label for="birth-hour">時辰</label>
@@ -84,10 +89,11 @@
         <div class="divider"></div>
 
         <nav class="side-nav">
-          <div class="section-label">命盤導覽</div>
+          <div class="section-label">核心排盤</div>
           <button class="nav-item active" data-view="dashboard">命盤總覽</button>
           <button class="nav-item" data-view="report">解讀報告</button>
           <button class="nav-item" data-view="comprehensive">命盤解析</button>
+          <div class="section-label nav-group-label">延伸工具</div>
           <button class="nav-item" data-view="synastry">雙人合盤</button>
           <button class="nav-item" data-view="compare">命盤比對</button>
           <button class="nav-item" data-view="naming">姓名學</button>
