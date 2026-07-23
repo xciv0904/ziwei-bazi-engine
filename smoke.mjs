@@ -267,5 +267,17 @@ check('奇門結構盤顯示九宮', $$('.qimen-palace').length === 9);
 check('奇門地盤三奇六儀至少排入一宮', $$('.qimen-yiqi').some((el) => el.textContent.trim() && el.textContent.trim() !== '—'));
 check('奇門含白話重點與 AI 解讀', !!$('#qimen-result .plain-summary') && !!$('#ai-qimen'));
 
+// --- 迴歸測試:大限與流年同宮時(annual 合併為 null)不可讓整張盤崩潰、側邊欄卡死 ---
+// 1980/8/12 戌時(19-21)出生、預設性別(女)在本次修正前會在 renderComprehensive() 拋出
+// TypeError: Cannot read properties of null (reading 'text'),整個 renderAll() 中斷,
+// has-chart 沒被加上、側邊導覽全部停用,畫面卻不顯示任何錯誤訊息。
+setDateParts('birth', 1980, 8, 12);
+$('#birth-hour').value = '19';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+check('大限流年同宮的邊界案例排盤後仍標記已有命盤(has-chart)', doc.body.classList.contains('has-chart'));
+check('大限流年同宮的邊界案例排盤後側邊導覽可點擊', $$('.side-nav [data-view]').every((n) => !n.disabled));
+check('大限流年同宮的邊界案例仍能正常顯示 12 宮位', $$('.palace-cell').length === 12);
+
 console.log(failed === 0 ? '\n全部通過 ✅' : `\n${failed} 項失敗 ❌`);
 process.exit(failed === 0 ? 0 : 1);

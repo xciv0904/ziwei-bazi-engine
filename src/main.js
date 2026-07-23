@@ -153,6 +153,16 @@ const state = {
 async function computeAll() {
   const parsed = birthDateCtl?.read();
   if (!parsed) return false; // 錯誤原因已由 birthDateCtl 就地顯示在欄位下方
+  try {
+    return await computeAllInner(parsed);
+  } catch (err) {
+    console.error('computeAll 失敗:', err);
+    toast('排盤時發生錯誤，請確認出生資料後再試一次；若重複發生請回報這組生辰資料。');
+    return false;
+  }
+}
+
+async function computeAllInner(parsed) {
   const { convertToZiWei, convertToBaZi, Solar, Lunar } = await loadEngines();
   const name = $('#name-input').value.trim() || '命主';
   // 「不確定時辰」:以午時(11時)暫排,並在畫面明確標示僅供參考
@@ -654,7 +664,7 @@ function reportItems() {
     { key: 'guanlu', color: 'var(--red)', letter: '祿', title: '事業（官祿宮）', text: readingOf('官祿宮').text },
     { key: 'fuqi', color: 'var(--gold)', letter: '緣', title: '感情（夫妻宮）', text: readingOf('夫妻宮').text },
     { key: 'jie', color: 'var(--red)', letter: '健', title: '健康（疾厄宮）', text: readingOf('疾厄宮').text },
-    { key: 'xian', color: 'var(--gold)', letter: '限', title: '大限・流年重點', text: [zwLuck.decadal?.text, zwLuck.annual.text].filter(Boolean).join('\n\n') },
+    { key: 'xian', color: 'var(--gold)', letter: '限', title: '大限・流年重點', text: [zwLuck.decadal?.text, zwLuck.annual?.text].filter(Boolean).join('\n\n') },
   ];
   const dayEntries = tenGods.entries.filter((e) => e.pillar === '日柱').map((e) => e.text).join('\n');
   const bazi = [
@@ -1415,17 +1425,24 @@ function renderMetaphysics() {
 }
 
 function renderAll() {
-  renderHead();
-  renderDashboard();
-  renderReport();
-  renderComprehensive();
-  renderSynastry();
-  renderShare();
-  renderCompare();
-  renderNaming();
-  renderMetaphysics();
-  document.body.classList.add('has-chart');
-  $$('.side-nav [data-view]').forEach((n) => { n.disabled = false; n.removeAttribute('aria-disabled'); });
+  // 防護網:任何一段畫面組裝在排盤資料的邊界情況下出錯,都要讓使用者看得到、
+  // 而不是靜默失敗、側邊欄卡死在 disabled 狀態(曾發生過大限與流年同宮時的 null 例外)。
+  try {
+    renderHead();
+    renderDashboard();
+    renderReport();
+    renderComprehensive();
+    renderSynastry();
+    renderShare();
+    renderCompare();
+    renderNaming();
+    renderMetaphysics();
+    document.body.classList.add('has-chart');
+    $$('.side-nav [data-view]').forEach((n) => { n.disabled = false; n.removeAttribute('aria-disabled'); });
+  } catch (err) {
+    console.error('renderAll 失敗:', err);
+    toast('顯示命盤時發生錯誤，請重新整理頁面再試一次；若重複發生請回報這組生辰資料。');
+  }
 }
 
 /**
