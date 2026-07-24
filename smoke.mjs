@@ -61,7 +61,7 @@ check('命盤小教室預設命宮', $('.classroom-title').textContent.includes(
 check('大限 chips = 10', $$('[data-limit]').length === 10);
 check('流年 chips = 10', $$('[data-year]').length === 10);
 check('大限流年瀏覽器標出「現在」徽章', $$('.now-badge').length >= 1);
-check('命盤總覽有分享命卡導引按鈕', !!$('#summary-share-btn'));
+check('命盤總覽摘要卡不再過早出現分享按鈕', !$('#summary-share-btn'));
 
 // 點財帛宮 → 小教室更新
 $$('.palace-cell').find((c) => c.dataset.palace === '財帛宮').click();
@@ -74,6 +74,12 @@ check('大限宮位高亮 1 格', $$('.palace-cell.decadal-palace').length === 1
 check('流年四化落點標記存在', $$('.flow-mut').length >= 3);
 check('命宮的三方四正虛線 3 格', $$('.palace-cell.related').length === 3);
 check('盤面圖例', !!$('.chart-legend'));
+check('點擊命盤符號會用 toast 顯示說明(手機無 hover 也看得到)', (() => {
+  const marker = $('.luck-tag.decadal') || $('.flow-mut');
+  if (!marker) return false;
+  marker.click();
+  return !$('#toast').hidden && $('#toast').textContent.length > 0;
+})());
 
 // --- 命盤收藏 ---
 check('儲存按鈕在排盤後顯示', !$('#save-chart-btn').hidden);
@@ -107,6 +113,10 @@ $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
 check('八字手風琴 5 項(含喜用神)', $$('#view-report .acc-item').length === 5);
 check('預設展開日主分析', $('#view-report .acc-item.open .acc-title').textContent.includes('日主分析'));
 check('含喜用神與忌神項', $$('#view-report .acc-title').some((t) => t.textContent.includes('喜用神與忌神')));
+check('解讀報告讀完後才出現分享命卡邀請', !!$('#report-share-btn'));
+$('#report-share-btn').click();
+check('點擊報告頁分享邀請會切到分享命卡視圖', !$('#view-share').hidden);
+$$('.nav-item').find((n) => n.dataset.view === 'report').click();
 
 // --- 命盤解析(綜合報告) ---
 $$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();

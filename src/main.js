@@ -408,7 +408,7 @@ function renderResultSummary() {
       <div class="summary-item"><div class="summary-label">八字日主</div><div class="summary-value">${esc(dayMaster)}</div></div>
       <div class="summary-item"><div class="summary-label">五行重點</div><div class="summary-value">${esc(elements.dominant.join('、') || '平衡')}偏旺</div></div>
       <div class="summary-item"><div class="summary-label">目前運勢焦點</div><div class="summary-value">${esc(year)}・${esc(focus)}</div></div>
-      <div class="summary-action"><span>第一次看命盤？先閱讀白話報告，再回來點選十二宮深入探索。</span><div class="summary-action-btns"><button type="button" id="summary-report-btn">閱讀白話報告 →</button><button type="button" id="summary-share-btn" class="ghost">✦ 產生分享命卡 →</button></div></div>
+      <div class="summary-action"><span>第一次看命盤？先閱讀白話報告，再回來點選十二宮深入探索。</span><button type="button" id="summary-report-btn">閱讀白話報告 →</button></div>
     </div>
   </section>`;
 }
@@ -514,6 +514,7 @@ function renderBaZiCard() {
     <div class="bazi-grid">${heads}${gods}${stems}${branches}${hidden}${nayin}</div>
     <div class="el-bars">
       <div class="bars-label">四柱五行分布（共 ${total} 字）</div>
+      <div class="el-radar-hint">圖形頂點離中心越遠，代表這個五行的字數越多；實際數字看右邊圖例。</div>
       <div class="el-radar-wrap">
         ${fiveElementRadarSVG(baZi.fiveElementDistribution)}
         <div class="el-legend">${legend}</div>
@@ -551,7 +552,7 @@ function renderClassroom() {
     }
   }
 
-  return `<div class="card">
+  return `<div class="card" id="classroom-card">
     <div class="classroom-head">
       <div class="round-icon">宮</div>
       <div class="classroom-title">${esc(state.selectedPalace)}　<small>地支：${esc(branch)}　星曜：${esc(stars)}</small></div>
@@ -666,9 +667,14 @@ function renderDashboard() {
   $$('#view-dashboard .chart-tab').forEach((tab) =>
     tab.addEventListener('click', () => { state.chartTab = tab.dataset.chart; renderDashboard(); }));
   $('#summary-report-btn')?.addEventListener('click', () => switchView('report'));
-  $('#summary-share-btn')?.addEventListener('click', () => switchView('share'));
   $$('#view-dashboard .palace-cell').forEach((cell) =>
-    cell.addEventListener('click', () => { state.selectedPalace = cell.dataset.palace; renderDashboard(); }));
+    cell.addEventListener('click', () => {
+      state.selectedPalace = cell.dataset.palace;
+      renderDashboard();
+      // 宮格放大後,命盤小教室常被推到可視範圍外,點擊宮位卻像沒反應——主動捲過去,不用使用者自己往下找
+      const classroomCard = $('#classroom-card');
+      if (classroomCard?.scrollIntoView) classroomCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }));
   $$('#view-dashboard [data-limit]').forEach((chip) =>
     chip.addEventListener('click', () => { state.limitIdx = Number(chip.dataset.limit); state.yearIdx = 0; renderDashboard(); }));
   $$('#view-dashboard [data-year]').forEach((chip) =>
@@ -759,18 +765,27 @@ function renderReport() {
     </div>`;
   }).join('');
 
+  // 分享邀請放在報告讀完之後(頁尾),而不是命盤總覽一進來就跟「閱讀報告」平起平坐——
+  // 使用者對命盤內容還沒有感覺時被邀請分享,順序上太早;看完摘要覺得「準」或有共鳴,才是自然的分享時機
+  const shareInvite = `<div class="card share-invite">
+    <div class="share-invite-text"><b>看完這份摘要了嗎？</b><span>如果覺得有共鳴，可以做一張命卡分享給朋友。</span></div>
+    <button type="button" class="mini-btn" id="report-share-btn">✦ 產生分享命卡 →</button>
+  </div>`;
+
   $('#view-report').innerHTML = `
     <div class="report-tabs">
       <button type="button" class="report-tab${isZiwei ? ' active' : ''}" data-tab="ziwei">紫微斗數</button>
       <button type="button" class="report-tab${isZiwei ? '' : ' active'}" data-tab="bazi">八字</button>
     </div>
     <div class="report-intro">${intro}</div>
-    <div class="accordion">${list}</div>`;
+    <div class="accordion">${list}</div>
+    ${shareInvite}`;
 
   $$('#view-report .report-tab').forEach((tab) =>
     tab.addEventListener('click', () => { state.reportTab = tab.dataset.tab; renderReport(); }));
   $$('#view-report [data-jump-dashboard]').forEach((btn) =>
     btn.addEventListener('click', (e) => { e.stopPropagation(); switchView('dashboard'); }));
+  $('#report-share-btn')?.addEventListener('click', () => switchView('share'));
   $$('#view-report .acc-row').forEach((row) =>
     row.addEventListener('click', () => {
       const key = row.dataset.acc;
@@ -1338,9 +1353,11 @@ const META_PRIORITY_KEYS = ['daily', 'iching', 'meihua'];
 function metaGuideHtml() {
   const guideKeys = state.metaGuideExpanded ? META_TABS.map(([key]) => key) : META_PRIORITY_KEYS;
   const guideCards = guideKeys.map((key) => `<button type="button" data-meta-jump="${key}"${state.metaphysicsTab === key ? ' class="active"' : ''}><b>${META_INFO[key].title}</b><span>${META_INFO[key].use}</span></button>`).join('');
-  const remaining = META_TABS.length - META_PRIORITY_KEYS.length;
-  const guideToggle = remaining > 0
-    ? `<button type="button" class="mini-btn" id="meta-guide-toggle" style="margin-top:10px">${state.metaGuideExpanded ? '︿ 收合' : `＋ 顯示其餘 ${remaining} 個工具`}</button>`
+  // 按鈕文字直接列出被收合的工具名稱,而不是「其餘 4 個工具」這種空泛說法——
+  // 讓已經知道自己要找什麼的人(例如想確認時辰的人),一眼就能認出「時辰驗盤」藏在這裡,不用先點開才知道
+  const hiddenLabels = META_TABS.filter(([key]) => !META_PRIORITY_KEYS.includes(key)).map(([, label]) => label);
+  const guideToggle = hiddenLabels.length > 0
+    ? `<button type="button" class="mini-btn" id="meta-guide-toggle" style="margin-top:10px">${state.metaGuideExpanded ? '︿ 收合' : `＋ 還有${hiddenLabels.join('、')}等 ${hiddenLabels.length} 個工具`}</button>`
     : '';
   return `<div class="card-label" id="meta-guide-title">不知道從哪開始？先選你的目的</div><div class="card-hint" style="margin:0 0 10px">${state.metaGuideExpanded ? '全部 7 個工具:' : '先列出不用額外準備、今天就能直接用的幾個:'}</div><div class="meta-choices">${guideCards}</div>${guideToggle}`;
 }
@@ -1603,6 +1620,13 @@ function renderEmpty() {
 // ---------- 初始化 ----------
 function setupControls() {
   birthDateCtl = wireDateParts({ yearId: '#birth-year', monthId: '#birth-month', dayId: '#birth-day', errorId: '#birth-date-error' });
+
+  // 命盤上的符號(限/年/祿權科忌小標記、・身)原本只靠 title 屬性做 hover 提示,手機沒有 hover 等於看不到說明——
+  // 綁一個委派點擊事件,點到這些符號時直接用 toast 顯示同樣的文字,桌面版 hover 仍然保留,手機版多了點擊也能看
+  $('#view-dashboard').addEventListener('click', (e) => {
+    const marker = e.target.closest('.luck-tag, .flow-mut, .body-mark, sup[title]');
+    if (marker?.title) toast(marker.title);
+  });
 
   // 時辰選單(預設子時,列表第一個選項,避免下拉選單一開始就停在中間某個時辰,
   // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選,這裡只是給一個不易混淆的起始值)

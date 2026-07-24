@@ -201,6 +201,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 
 .el-bars { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(43, 38, 33, .1); }
 .el-bars .bars-label { font: 500 10.5px/1 var(--sans); color: var(--ink-45); margin-bottom: 8px; }
+.el-radar-hint { font: 400 10px/1.6 var(--sans); color: var(--ink-40); margin-bottom: 10px; }
 .el-radar-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .el-radar { flex-shrink: 0; }
 .el-legend { display: flex; flex-direction: column; gap: 7px; }
@@ -257,6 +258,14 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .report-tab.active { background: var(--red); color: var(--cream); border-color: var(--red); font-weight: 600; }
 .report-intro { font: 400 13px/1.7 var(--sans); color: var(--ink-60); max-width: 760px; margin-bottom: 16px; }
 .accordion { display: flex; flex-direction: column; gap: 10px; }
+.share-invite {
+  margin-top: 16px; display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; background: rgba(138, 109, 59, .06); border-color: rgba(138, 109, 59, .25);
+}
+.share-invite-text { display: flex; flex-direction: column; gap: 2px; }
+.share-invite-text b { font: 700 13px/1.3 var(--serif); color: var(--ink); }
+.share-invite-text span { font: 400 11.5px/1.5 var(--sans); color: var(--ink-45); }
+.share-invite #report-share-btn { color: var(--gold); border-color: rgba(138, 109, 59, .35); flex-shrink: 0; }
 .acc-item { background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .acc-row { display: flex; align-items: center; gap: 12px; padding: 14px 20px; cursor: pointer; width: 100%; text-align: left; }
 .acc-item.open .acc-row { background: var(--card-em); }
@@ -269,7 +278,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 /* ---------- 分享命卡 ---------- */
 .share-wrap { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
 .fate-card {
-  width: 340px; flex-shrink: 0; background: var(--card-bg);
+  width: 340px; max-width: 100%; flex-shrink: 0; background: var(--card-bg);
   border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden;
   box-shadow: 0 6px 24px rgba(43, 38, 33, .14);
   border-top: 4px solid var(--el-accent, var(--red));
@@ -313,7 +322,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .share-btn {
   display: flex; align-items: center; gap: 10px;
   background: var(--card-bg); border: 1px solid var(--border-strong);
-  border-radius: 6px; padding: 12px 18px; width: 260px;
+  border-radius: 6px; padding: 12px 18px; width: 260px; max-width: 100%;
   font: 500 13px/1 var(--sans); color: var(--ink);
 }
 .share-btn:hover { background: var(--card-em); }
