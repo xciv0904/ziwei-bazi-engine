@@ -56,10 +56,12 @@ check('大限標記有 tooltip 說明', !!$('.luck-tag.decadal')?.title);
 check('頁首標題含姓名', $('#page-title').textContent.includes('Shelly'));
 check('生辰摘要含五行局', $('#birth-summary').textContent.includes('木三局'));
 check('八字四柱含日主反白', $$('.bz-char.day-master').length === 1);
-check('五行分布 5 條色條', $$('.bar-col').length === 5);
+check('五行分布雷達圖與五項圖例', !!$('.el-radar') && $$('.el-legend-item').length === 5);
 check('命盤小教室預設命宮', $('.classroom-title').textContent.includes('命宮'));
 check('大限 chips = 10', $$('[data-limit]').length === 10);
 check('流年 chips = 10', $$('[data-year]').length === 10);
+check('大限流年瀏覽器標出「現在」徽章', $$('.now-badge').length >= 1);
+check('命盤總覽有分享命卡導引按鈕', !!$('#summary-share-btn'));
 
 // 點財帛宮 → 小教室更新
 $$('.palace-cell').find((c) => c.dataset.palace === '財帛宮').click();
@@ -96,6 +98,11 @@ $$('.nav-item').find((n) => n.dataset.view === 'report').click();
 check('報告視圖顯示', !$('#view-report').hidden);
 check('紫微手風琴 6 項', $$('#view-report .acc-item').length === 6);
 check('預設展開命宮總論', $('#view-report .acc-item.open .acc-title').textContent.includes('命宮總論'));
+$$('#view-report .acc-row').find((r) => r.textContent.includes('大限・流年重點')).click();
+check('大限流年重點區塊有跳轉命盤總覽按鈕', !!$('#view-report [data-jump-dashboard]'));
+$('#view-report [data-jump-dashboard]').click();
+check('點擊跳轉按鈕會切到命盤總覽', !$('#view-dashboard').hidden);
+$$('.nav-item').find((n) => n.dataset.view === 'report').click();
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
 check('八字手風琴 5 項(含喜用神)', $$('#view-report .acc-item').length === 5);
 check('預設展開日主分析', $('#view-report .acc-item.open .acc-title').textContent.includes('日主分析'));
@@ -173,6 +180,7 @@ await settle();
 // --- 分享命卡 ---
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
 check('命卡姓名', $('.fate-name').textContent === 'Shelly');
+check('命卡有五行色徽章', !!$('.fate-el-chip')?.textContent.trim());
 check('命宮主星標籤(空宮借星)', $('.fate-tags').textContent.includes('借'));
 check('日主標籤 乙木', $('.fate-tags').textContent.includes('乙木'));
 
@@ -229,7 +237,9 @@ check('複姓三字姓名五格剖象法可完整計算', $('#view-naming').text
 $$('.nav-item').find((n) => n.dataset.view === 'metaphysics').click();
 await settle();
 check('進階玄學分頁顯示', !$('#view-metaphysics').hidden);
-check('進階玄學有目的導覽 7 選項', $$('#view-metaphysics [data-meta-jump]').length === 7);
+check('進階玄學導覽預設只顯示 3 個今日建議', $$('#view-metaphysics [data-meta-jump]').length === 3);
+$('#meta-guide-toggle').click();
+check('點「顯示其餘工具」後展開全部 7 選項', $$('#view-metaphysics [data-meta-jump]').length === 7);
 check('目前工具顯示用途、所需資料與三步驟', !!$('.meta-intro') && $$('.meta-intro li').length === 3 && $('.meta-intro').textContent.includes('需要：'));
 check('未來七日運勢 7 張', $$('.daily-card').length === 7);
 check('每日週運顯示目前大限脈絡', $('#view-metaphysics').textContent.includes('目前大限'));
@@ -239,6 +249,9 @@ $$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'timeline').c
 check('生涯時間軸含十個大限', $$('.timeline-block').length === 10);
 check('生涯時間軸每個大限顯示四化', $$('.timeline-block').every((b) => b.textContent.includes('大限四化')));
 check('生涯時間軸有專用 AI 解讀', !!$('#ai-timeline'));
+check('生涯時間軸每個區塊有手機版展開按鈕', $$('.tl-toggle').length === 10);
+$$('.tl-toggle')[0].click();
+check('點擊展開按鈕會標記該區塊為 expanded', $$('.timeline-block')[0].classList.contains('expanded'));
 $$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'rectify').click();
 $('#run-rectify').click();
 await settle();

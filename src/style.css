@@ -98,6 +98,16 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 }
 .submit-btn:hover { filter: brightness(1.08); }
 .submit-btn:disabled, .mini-btn:disabled, .compare-run-btn:disabled { opacity: .6; cursor: progress; filter: none; }
+/* 送出後的小小儀式感:按鈕本身多一個轉圈,而不是文字換一下就沒了 */
+.submit-btn:disabled { position: relative; padding-left: 34px; }
+.submit-btn:disabled::before {
+  content: ''; position: absolute; left: 12px; top: 50%; width: 14px; height: 14px;
+  margin-top: -7px; border-radius: 50%;
+  border: 2px solid rgba(244, 237, 224, .35); border-top-color: var(--cream);
+  animation: btn-spin .7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .submit-btn:disabled::before { animation: none; } }
 
 .side-nav { display: flex; flex-direction: column; gap: 6px; }
 .side-nav .nav-group-label { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(244, 237, 224, .12); }
@@ -110,6 +120,10 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 
 /* ============ 主內容 ============ */
 .main { flex: 1; padding: 32px 40px; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+/* 排盤完成的小小揭曉感,取代結果無聲直接切換出現 */
+.main.reveal-in { animation: reveal-fade .5s ease; }
+@keyframes reveal-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .main.reveal-in { animation: none; } }
 .page-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .page-head h1 { margin: 0; font: 700 20px/1 var(--serif); color: var(--ink); }
 .birth-summary { font: 400 12px/1 var(--sans); color: rgba(43, 38, 33, .5); }
@@ -137,22 +151,23 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 
 /* ---------- 紫微命盤 ---------- */
 .ziwei-card { flex: 1.3; min-width: 400px; }
-.chart-frame { background: rgba(43, 38, 33, .85); padding: 1px; border-radius: 4px; }
+.chart-frame { background: rgba(43, 38, 33, .85); padding: 2px; border-radius: 6px; }
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(4, minmax(78px, auto));
-  gap: 1px;
+  grid-template-rows: repeat(4, minmax(96px, auto));
+  gap: 2px;
 }
 .palace-cell {
-  border: 0; padding: 6px 7px; background: var(--card-bg);
-  display: flex; flex-direction: column; gap: 3px;
+  border: 0; padding: 9px 10px; background: var(--card-bg);
+  display: flex; flex-direction: column; gap: 4px;
   min-width: 0; overflow-wrap: break-word; cursor: pointer; text-align: left;
+  border-left: 3px solid transparent; transition: background .15s, border-color .15s;
 }
 .palace-cell:hover { background: #f0e4d3; }
-.palace-cell .p-name { font: 600 10px var(--serif); color: var(--red); }
-.palace-cell .p-stars { font: 500 10px var(--sans); color: var(--ink); }
-.palace-cell .p-minor { font: 400 8.5px/1.5 var(--sans); color: var(--ink-40); }
+.palace-cell .p-name { font: 700 12px var(--serif); color: var(--red); letter-spacing: .02em; }
+.palace-cell .p-stars { font: 500 12px/1.5 var(--sans); color: var(--ink); }
+.palace-cell .p-minor { font: 400 9.5px/1.6 var(--sans); color: var(--ink-40); }
 .palace-cell.self { background: var(--card-em); box-shadow: inset 0 0 0 1px var(--red); }
 .palace-cell.self .p-name { font-weight: 700; }
 .palace-cell.self:hover { background: #eeddc9; }
@@ -161,11 +176,11 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .chart-center {
   grid-column: 2 / 4; grid-row: 2 / 4;
   background: var(--card-em); border: 1px solid var(--border-strong);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  padding: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  padding: 10px;
 }
-.chart-center .c-name { font: 700 13px/1 var(--serif); color: var(--ink); }
-.chart-center .c-meta { font: 400 10px/1.6 var(--sans); color: var(--ink-60); text-align: center; }
+.chart-center .c-name { font: 700 17px/1 var(--serif); color: var(--ink); }
+.chart-center .c-meta { font: 400 11px/1.7 var(--sans); color: var(--ink-60); text-align: center; }
 
 /* ---------- 八字四柱 ---------- */
 .bazi-card { flex: 1; min-width: 300px; align-self: stretch; }
@@ -186,11 +201,13 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 
 .el-bars { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(43, 38, 33, .1); }
 .el-bars .bars-label { font: 500 10.5px/1 var(--sans); color: var(--ink-45); margin-bottom: 8px; }
-.bars { display: flex; gap: 6px; }
-.bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 30px; }
-.bar-col .bar { width: 100%; height: 6px; border-radius: 3px; }
-.bar-col span { font: 600 10px/1 var(--sans); }
-.el-note { font: 400 10.5px/1.6 var(--sans); color: var(--ink-45); margin-top: 8px; }
+.el-radar-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.el-radar { flex-shrink: 0; }
+.el-legend { display: flex; flex-direction: column; gap: 7px; }
+.el-legend-item { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--sans); color: var(--ink-60); }
+.el-legend-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.el-legend-item b { font: 700 12px/1 var(--serif); color: var(--ink); margin-left: 2px; }
+.el-note { font: 400 10.5px/1.6 var(--sans); color: var(--ink-45); margin-top: 10px; }
 
 /* ---------- 命盤小教室 / 大限流年 ---------- */
 .classroom-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
@@ -210,15 +227,22 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 
 .card-hint { font: 400 11px/1 var(--sans); color: var(--ink-40); margin-bottom: 12px; }
 .chip-label { font: 500 10.5px/1 var(--sans); color: var(--ink-45); margin-bottom: 6px; }
-.chip-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; }
+.chip-row { display: flex; gap: 6px; overflow-x: auto; padding: 10px 2px 6px; margin-bottom: 14px; scroll-behavior: smooth; }
 .chip {
-  flex: none; min-width: 62px; text-align: center; padding: 8px 10px; border-radius: 6px;
+  position: relative; flex: none; min-width: 62px; text-align: center; padding: 8px 10px; border-radius: 6px;
   background: rgba(43, 38, 33, .06); color: rgba(43, 38, 33, .55);
   font: 500 11px/1.4 var(--sans);
 }
 .chip.wide { min-width: 74px; }
 .chip.active { background: var(--red); color: var(--cream); font-weight: 700; }
 .chip small { font-size: 10px; }
+.chip.is-now:not(.active) { box-shadow: inset 0 0 0 1.5px var(--gold); background: rgba(138, 109, 59, .08); }
+.chip .now-badge {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  background: var(--gold); color: var(--cream); font: 700 8.5px/1 var(--sans);
+  padding: 2px 6px; border-radius: 8px; white-space: nowrap; letter-spacing: .04em;
+  box-shadow: 0 1px 3px rgba(43, 38, 33, .25);
+}
 .luck-detail { padding-top: 12px; border-top: 1px solid rgba(43, 38, 33, .1); display: flex; flex-direction: column; gap: 8px; }
 .luck-year { font: 600 12px/1 var(--serif); color: var(--ink); }
 
@@ -248,13 +272,24 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
   width: 340px; flex-shrink: 0; background: var(--card-bg);
   border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden;
   box-shadow: 0 6px 24px rgba(43, 38, 33, .14);
+  border-top: 4px solid var(--el-accent, var(--red));
 }
-.fate-brand { background: var(--ink); padding: 20px 24px; display: flex; align-items: center; gap: 10px; }
+.fate-brand {
+  background: linear-gradient(135deg, var(--ink) 55%, color-mix(in srgb, var(--el-accent, var(--red)) 45%, var(--ink)) 130%);
+  padding: 20px 24px; display: flex; align-items: center; gap: 10px;
+}
 .fate-brand .brand-icon { width: 28px; height: 28px; font-size: 12px; }
 .fate-brand span { font: 600 12px/1.3 var(--serif); color: var(--cream); }
+.fate-el-chip {
+  margin-left: auto; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--el-accent, var(--red)); color: var(--cream) !important;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 12px/1 var(--serif) !important; flex-shrink: 0;
+}
 .fate-id {
   padding: 28px 24px; display: flex; flex-direction: column; align-items: center; gap: 6px;
   border-bottom: 1px dashed rgba(43, 38, 33, .25);
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--el-accent, var(--red)) 10%, transparent), transparent 70%);
 }
 .fate-name { font: 700 26px/1 var(--serif); color: var(--ink); }
 .fate-birth { font: 400 11.5px/1.6 var(--sans); color: rgba(43, 38, 33, .5); }
@@ -364,7 +399,10 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .summary-label { color: var(--ink-45); font-size: 10px; margin-bottom: 6px; }
 .summary-value { color: var(--ink); font: 700 14px/1.45 var(--serif); }
 .summary-action { display: flex; align-items: center; justify-content: space-between; gap: 14px; grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--ink-60); }
-.summary-action button { flex: none; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 16px; color: var(--red); }
+.summary-action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.summary-action button { flex: none; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 16px; color: var(--red); white-space: nowrap; }
+.summary-action button.ghost { color: var(--gold); border-color: rgba(138, 109, 59, .35); background: rgba(138, 109, 59, .06); }
+.summary-action button.ghost:hover { background: rgba(138, 109, 59, .12); }
 
 /* ---------- 命盤比對 ---------- */
 .compare-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
@@ -490,6 +528,7 @@ a.nav-item { display: block; text-decoration: none; }
 .timeline { display: flex; flex-direction: column; }
 .timeline-block { display: grid; grid-template-columns: 78px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border); }
 .timeline-block:last-child { border-bottom: 0; }
+.tl-toggle { display: none; }
 .timeline-age { color: var(--red); font: 700 14px/1.4 var(--serif); }
 .timeline-block b { font: 600 13px/1.4 var(--serif); }
 .timeline-block p { margin: 5px 0; color: var(--ink-60); font-size: 12px; line-height: 1.7; }
@@ -595,10 +634,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .chart-area.show-bazi .ziwei-card { display: none; }
 
   /* 紫微 12 宮在窄螢幕的可讀性 */
-  .chart-grid { grid-template-rows: repeat(4, minmax(64px, auto)); }
-  .palace-cell { padding: 5px 5px; }
+  .chart-grid { grid-template-rows: repeat(4, minmax(72px, auto)); }
+  .palace-cell { padding: 7px 8px; border-left-width: 2px; }
+  .palace-cell .p-name { font-size: 11px; }
+  .palace-cell .p-stars { font-size: 11px; }
   .palace-cell .p-minor { display: none; }
-  .chart-center .c-meta { font-size: 9px; }
+  .chart-center .c-name { font-size: 14px; }
+  .chart-center .c-meta { font-size: 9.5px; }
   .classroom-head { flex-wrap: wrap; }
   .classroom-head .mini-btn { margin-left: 36px; }
   .classroom-body { margin-left: 0; }
@@ -609,6 +651,18 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .date-results { grid-template-columns: 1fr; }
   .meta-choices { grid-template-columns: 1fr 1fr; }
   .meta-intro { grid-template-columns: 1fr; gap: 14px; }
+
+  /* 生涯時間軸:手機版預設只顯示兩行預覽,點「展開全部內容」再看完整段落, 避免十個大限一次攤開變成一長串文字牆 */
+  .tl-body {
+    max-height: 3em; overflow: hidden; position: relative;
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  }
+  .timeline-block.expanded .tl-body { max-height: none; -webkit-mask-image: none; mask-image: none; }
+  .tl-toggle {
+    display: inline-block; margin-top: 6px; padding: 0; background: none; border: none;
+    color: var(--red); font: 600 11.5px/1 var(--sans);
+  }
 }
 
 @media (max-width: 430px) {

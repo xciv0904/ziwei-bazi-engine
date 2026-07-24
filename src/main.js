@@ -111,6 +111,40 @@ const EL_COLOR = { 木: 'var(--el-wood)', 火: 'var(--el-fire)', 土: 'var(--el-
 const STEM_EL = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
 const BRANCH_EL = { 子: '水', 丑: '土', 寅: '木', 卯: '木', 辰: '土', 巳: '火', 午: '火', 未: '土', 申: '金', 酉: '金', 戌: '土', 亥: '水' };
 const EL_KEY = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
+
+/**
+ * 五行分佈雷達圖(SVG,不依賴外部套件):五個軸對應木火土金水,
+ * 描出分佈輪廓,取代單純的橫條——雷達圖的「形狀」比長度更能一眼看出偏旺/偏弱的整體平衡感。
+ */
+function fiveElementRadarSVG(distribution) {
+  const order = ['wood', 'fire', 'earth', 'metal', 'water'];
+  const size = 168; const cx = size / 2; const cy = size / 2; const maxR = 58;
+  const maxVal = Math.max(4, ...order.map((k) => distribution[k] ?? 0));
+  const angleFor = (i) => -Math.PI / 2 + i * (2 * Math.PI / 5);
+  const ptAt = (i, r) => [cx + r * Math.cos(angleFor(i)), cy + r * Math.sin(angleFor(i))];
+  const rings = [0.34, 0.67, 1].map((f) =>
+    `<polygon points="${order.map((_, i) => ptAt(i, maxR * f).join(',')).join(' ')}" fill="none" style="stroke:rgba(43,38,33,.14)" stroke-width="1"/>`,
+  ).join('');
+  const axes = order.map((k, i) => {
+    const [x, y] = ptAt(i, maxR);
+    const [lx, ly] = ptAt(i, maxR + 16);
+    const el = EL_KEY[k];
+    return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:rgba(43,38,33,.16)" stroke-width="1"/>
+      <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="12" font-weight="700" style="fill:${EL_COLOR[el]}">${el}</text>`;
+  }).join('');
+  const dataPts = order.map((k, i) => ptAt(i, maxR * Math.min(1, (distribution[k] ?? 0) / maxVal)).map((n) => n.toFixed(1)).join(',')).join(' ');
+  const dots = order.map((k, i) => {
+    const r = maxR * Math.min(1, (distribution[k] ?? 0) / maxVal);
+    const [x, y] = ptAt(i, r);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" style="fill:${EL_COLOR[EL_KEY[k]]}"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="el-radar" role="img" aria-label="五行分佈雷達圖">
+    ${rings}
+    ${axes}
+    <polygon points="${dataPts}" style="fill:var(--red);fill-opacity:.16;stroke:var(--red)" stroke-width="1.6"/>
+    ${dots}
+  </svg>`;
+}
 const SHICHEN = [
   { name: '子時', hour: 0, label: '子時（23–1）' }, { name: '丑時', hour: 1, label: '丑時（1–3）' },
   { name: '寅時', hour: 3, label: '寅時（3–5）' }, { name: '卯時', hour: 5, label: '卯時（5–7）' },
@@ -146,6 +180,7 @@ const state = {
   compareSelected: new Set(), // 命盤比對:目前勾選的已存命盤 index
   naming: { surname: '', given: '' }, // 姓名學:姓/名輸入值(獨立分頁,不依賴目前命盤)
   metaphysicsTab: 'daily',
+  metaGuideExpanded: false, // 進階玄學「不知道從哪開始」導覽卡:預設只顯示今天適合的幾個,其餘收合
   data: null, // { name, input, ziWei, baZi, readings, elements, zwLuck, bzLuck, tenGods, byBranch }
 };
 
@@ -373,7 +408,7 @@ function renderResultSummary() {
       <div class="summary-item"><div class="summary-label">八字日主</div><div class="summary-value">${esc(dayMaster)}</div></div>
       <div class="summary-item"><div class="summary-label">五行重點</div><div class="summary-value">${esc(elements.dominant.join('、') || '平衡')}偏旺</div></div>
       <div class="summary-item"><div class="summary-label">目前運勢焦點</div><div class="summary-value">${esc(year)}・${esc(focus)}</div></div>
-      <div class="summary-action"><span>第一次看命盤？先閱讀白話報告，再回來點選十二宮深入探索。</span><button type="button" id="summary-report-btn">閱讀白話報告 →</button></div>
+      <div class="summary-action"><span>第一次看命盤？先閱讀白話報告，再回來點選十二宮深入探索。</span><div class="summary-action-btns"><button type="button" id="summary-report-btn">閱讀白話報告 →</button><button type="button" id="summary-share-btn" class="ghost">✦ 產生分享命卡 →</button></div></div>
     </div>
   </section>`;
 }
@@ -421,8 +456,9 @@ function renderZiWeiCard() {
     ].join('');
     const mutMarks = (sihuaByPalace[p.name] ?? [])
       .map((m) => `<span class="flow-mut ${MUT_CLASS[m]}" title="${year}年流年化${m}：${esc(lookupTransformation(m) ?? '')}">${m}</span>`).join('');
+    const elAccent = EL_COLOR[BRANCH_EL[branch]];
     return `<button type="button" class="${cls}" data-palace="${esc(p.name)}"
-      style="grid-row:${pos.row};grid-column:${pos.col}">
+      style="grid-row:${pos.row};grid-column:${pos.col};border-left-color:${elAccent}">
       <div class="p-name">${esc(p.name)} ${esc(branch)}${p.isBodyPalace ? `<span class="body-mark" title="身宮:與命宮並列,影響後天際遇與行為傾向">・身</span>` : ''}${luckTags}</div>
       <div class="p-stars">${stars || ''}${mutMarks}</div>
       <div class="p-minor">${p.minorStars.slice(0, 4).map((s) => esc(s.replace(/\(.*?\)/, ''))).join(' ')}</div>
@@ -467,12 +503,9 @@ function renderBaZiCard() {
   const nayin = keys.map((k) => `<div class="bz-nayin">${esc(baZi.pillarDetails[`${k}Pillar`].nayin)}</div>`).join('');
 
   const total = Object.values(baZi.fiveElementDistribution).reduce((a, b) => a + b, 0);
-  const bars = Object.entries(baZi.fiveElementDistribution).map(([key, count]) => {
+  const legend = Object.entries(baZi.fiveElementDistribution).map(([key, count]) => {
     const el = EL_KEY[key];
-    return `<div class="bar-col" style="flex:${Math.max(count, 0.4)}">
-      <div class="bar" style="background:${EL_COLOR[el]}"></div>
-      <span style="color:${EL_COLOR[el]}">${el} ${count}</span>
-    </div>`;
+    return `<div class="el-legend-item"><span class="dot" style="background:${EL_COLOR[el]}"></span><span style="color:${EL_COLOR[el]}">${el}</span><b>${count}</b></div>`;
   }).join('');
   const note = `${elements.dominant.join('、')}偏旺,${elements.weak.join('、')}偏弱,可透過後天培養補強平衡。`;
 
@@ -481,7 +514,10 @@ function renderBaZiCard() {
     <div class="bazi-grid">${heads}${gods}${stems}${branches}${hidden}${nayin}</div>
     <div class="el-bars">
       <div class="bars-label">四柱五行分布（共 ${total} 字）</div>
-      <div class="bars">${bars}</div>
+      <div class="el-radar-wrap">
+        ${fiveElementRadarSVG(baZi.fiveElementDistribution)}
+        <div class="el-legend">${legend}</div>
+      </div>
       <div class="el-note">${esc(note)}</div>
     </div>
   </div>`;
@@ -536,10 +572,21 @@ function renderLuckBrowser() {
   const limit = limits[state.limitIdx];
   const [startAge] = limit.ageRange.split('~').map(Number);
 
+  // 「現在」是哪個大限、哪一年——用來在一排 chips 裡標出「現在」徽章,
+  // 跟使用者點選瀏覽的「選取中」區分開,避免切換幾次後忘記自己現在實際在哪個階段
+  const nowYear = new Date().getFullYear();
+  const nominalAge = nowYear - input.year + 1;
+  const nowLimitIdx = limits.findIndex((l) => {
+    const [a, b] = l.ageRange.split('~').map(Number);
+    return nominalAge >= a && nominalAge <= b;
+  });
+  const nowYearIdxInThisLimit = state.limitIdx === nowLimitIdx ? nominalAge - startAge : -1;
+
   const limitChips = limits.map((l, i) => {
     const palaceName = state.data.byBranch[l.ganZhi[1]].name;
-    return `<button type="button" class="chip wide${i === state.limitIdx ? ' active' : ''}" data-limit="${i}">
-      ${esc(l.ageRange.replace('~', '–'))}<br><small>${esc(palaceName)}</small></button>`;
+    const isNow = i === nowLimitIdx;
+    return `<button type="button" class="chip wide${i === state.limitIdx ? ' active' : ''}${isNow ? ' is-now' : ''}" data-limit="${i}">
+      ${isNow ? '<span class="now-badge">現在</span>' : ''}${esc(l.ageRange.replace('~', '–'))}<br><small>${esc(palaceName)}</small></button>`;
   }).join('');
 
   const years = Array.from({ length: 10 }, (_, i) => {
@@ -547,9 +594,11 @@ function renderLuckBrowser() {
     const year = input.year + age - 1; // 虛歲 → 西元年
     return { i, age, year, gz: yearGanZhi(year) };
   });
-  const yearChips = years.map((yy) =>
-    `<button type="button" class="chip${yy.i === state.yearIdx ? ' active' : ''}" data-year="${yy.i}">
-      ${yy.year}<br><small>${esc(yy.gz)}</small></button>`).join('');
+  const yearChips = years.map((yy) => {
+    const isNow = yy.i === nowYearIdxInThisLimit;
+    return `<button type="button" class="chip${yy.i === state.yearIdx ? ' active' : ''}${isNow ? ' is-now' : ''}" data-year="${yy.i}">
+      ${isNow ? '<span class="now-badge">今年</span>' : ''}${yy.year}<br><small>${esc(yy.gz)}</small></button>`;
+  }).join('');
 
   const sel = years[state.yearIdx];
   const daxianPalace = state.data.byBranch[limit.ganZhi[1]].name;
@@ -557,7 +606,7 @@ function renderLuckBrowser() {
 
   return `<div class="card">
     <div class="card-label">大限・流年</div>
-    <div class="card-hint">先選十年大限，再選其中某一年，逐年查看流年命宮落於何處</div>
+    <div class="card-hint">先選十年大限，再選其中某一年，逐年查看流年命宮落於何處——這裡可自由切換任何年份，跟「解讀報告」固定顯示現在的摘要不同。</div>
     <div class="chip-label">大限（十年）</div>
     <div class="chip-row">${limitChips}</div>
     <div class="chip-label">流年（${esc(limit.ageRange.replace('~', '–'))} 歲・${esc(daxianPalace)}大限）</div>
@@ -617,12 +666,18 @@ function renderDashboard() {
   $$('#view-dashboard .chart-tab').forEach((tab) =>
     tab.addEventListener('click', () => { state.chartTab = tab.dataset.chart; renderDashboard(); }));
   $('#summary-report-btn')?.addEventListener('click', () => switchView('report'));
+  $('#summary-share-btn')?.addEventListener('click', () => switchView('share'));
   $$('#view-dashboard .palace-cell').forEach((cell) =>
     cell.addEventListener('click', () => { state.selectedPalace = cell.dataset.palace; renderDashboard(); }));
   $$('#view-dashboard [data-limit]').forEach((chip) =>
     chip.addEventListener('click', () => { state.limitIdx = Number(chip.dataset.limit); state.yearIdx = 0; renderDashboard(); }));
   $$('#view-dashboard [data-year]').forEach((chip) =>
     chip.addEventListener('click', () => { state.yearIdx = Number(chip.dataset.year); state.monthIdx = null; renderDashboard(); }));
+  // 大限／流年目前選取的 chip 自動捲動到可視範圍,不用使用者自己在窄窄的一排裡找
+  $$('#view-dashboard .chip-row').forEach((row) => {
+    const activeChip = row.querySelector('.chip.active');
+    if (activeChip?.scrollIntoView) activeChip.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  });
   $('#open-monthly')?.addEventListener('click', () => {
     // 展開時預設選「現在的月份」(若瀏覽的是當年),否則 1 月
     const { year } = currentLuckSelection();
@@ -684,18 +739,23 @@ function renderReport() {
   const expandedKey = isZiwei ? state.expandedZiwei : state.expandedBazi;
 
   const intro = isZiwei
-    ? '依紫微命盤十二宮與現行大限、流年，整理出以下重點解讀。'
-    : '依八字四柱日主強弱、五行喜忌與十神配置，整理出以下重點解讀。';
+    ? '依紫微命盤十二宮與現行大限、流年，整理出「現在」這個時間點的固定摘要。想探索其他年份或宮位，請到「命盤總覽」互動查看。'
+    : '依八字四柱日主強弱、五行喜忌與十神配置，整理出「現在」這個時間點的固定摘要。想探索其他年份，請到「命盤總覽」互動查看。';
 
   const list = items.map((it) => {
     const open = expandedKey === it.key;
+    // 大限/大運這兩項跟「命盤總覽」的互動大限流年瀏覽器內容有重疊,這裡只保留現在的固定摘要,
+    // 並加一個跳轉按鈕,引導想看其他年份的人去真正能自由切換的地方,而不是把所有年份都重複印一次
+    const jumpNote = (it.key === 'xian' || it.key === 'dayun')
+      ? '<button type="button" class="mini-btn acc-jump" data-jump-dashboard="1" style="margin-top:10px">→ 到「命盤總覽」切換查看其他大限／流年</button>'
+      : '';
     return `<div class="acc-item${open ? ' open' : ''}">
       <button type="button" class="acc-row" data-acc="${it.key}">
         <div class="round-icon" style="background:${it.color}">${it.letter}</div>
         <div class="acc-title">${esc(it.title)}</div>
         <div class="acc-chevron">›</div>
       </button>
-      ${open ? `<div class="acc-body">${esc(it.text)}</div>` : ''}
+      ${open ? `<div class="acc-body">${esc(it.text)}${jumpNote}</div>` : ''}
     </div>`;
   }).join('');
 
@@ -709,6 +769,8 @@ function renderReport() {
 
   $$('#view-report .report-tab').forEach((tab) =>
     tab.addEventListener('click', () => { state.reportTab = tab.dataset.tab; renderReport(); }));
+  $$('#view-report [data-jump-dashboard]').forEach((btn) =>
+    btn.addEventListener('click', (e) => { e.stopPropagation(); switchView('dashboard'); }));
   $$('#view-report .acc-row').forEach((row) =>
     row.addEventListener('click', () => {
       const key = row.dataset.acc;
@@ -747,6 +809,7 @@ function renderComprehensive() {
     </div>`;
 
   $('#view-comprehensive').innerHTML =
+    '<div class="card-hint" style="margin-bottom:14px">這裡是最完整的長文分析,把命盤脈絡串成故事來讀。如果只想看現在的重點摘要,「解讀報告」更快;想自己切換宮位或年份探索,則到「命盤總覽」。</div>' +
     block('紫微斗數・綜合解析', zw.sections) +
     '<div style="height:20px"></div>' +
     block('八字・綜合解析', bz.sections);
@@ -915,13 +978,14 @@ function renderShare() {
     quote = `「${nowYear}年${catWord ? `整體是「${catWord}」性質的一年` : '運勢平穩'}${luDomain ? `,${luDomain}迎來順風` : ''}${jiDomain ? `;${jiDomain}宜放慢腳步` : ''}。」`;
   }
 
+  const cardEl = STEM_EL[dayStem]; // 用日主天干的五行,替命卡上色做個人化區隔(木火土金水各不同)
   $('#view-share').innerHTML = `<div class="share-wrap">
     <div style="flex-basis:100%;display:flex;gap:10px">
       <button type="button" class="report-tab${isAnnualCard ? '' : ' active'}" data-card="life">本命卡</button>
       <button type="button" class="report-tab${isAnnualCard ? ' active' : ''}" data-card="annual">${nowYear} 流年卡</button>
     </div>
-    <div class="fate-card" id="fate-card">
-      <div class="fate-brand"><div class="brand-icon">命</div><span>紫微斗數．八字排盤</span></div>
+    <div class="fate-card" id="fate-card" style="--el-accent:${EL_COLOR[cardEl]}">
+      <div class="fate-brand"><div class="brand-icon">命</div><span>紫微斗數．八字排盤</span><span class="fate-el-chip" title="日主五行：${esc(cardEl)}">${esc(cardEl)}</span></div>
       <div class="fate-id">
         <div class="fate-name">${cardTitle}</div>
         <div class="fate-birth">${cardSub}</div>
@@ -1264,14 +1328,41 @@ function aiPromptBase(tool, result, question = '') {
   return `你是一位熟悉傳統術數、但不採宿命論的繁體中文解讀者。\n工具：${tool}\n${question ? `使用者問題：${question}\n` : ''}計算結果：\n${result}\n\n請依序回答：\n1. 先用三句白話摘要重點。\n2. 說明每個術語代表什麼，以及推論如何從結果而來。\n3. 分成「可運用的方向」「需要留意」「一個可立即執行的行動」。\n4. 明確區分傳統象徵、推測與已知事實。\n5. 不預言死亡、疾病、災難或保證財運；醫療、法律、財務問題應建議尋求專業意見。\n6. 若資料不足或規則存在門派差異，直接說明限制。`;
 }
 
+// 「今天適合先看」的預設 3 個工具:不用額外輸入資料就能立刻用,對第一次來的人負擔最小;
+// 其餘 4 個(需要時間軸事件、候選時辰比對、日期範圍搜尋、排盤時間)點「顯示其餘工具」再展開,
+// 避免一進頁面就是 7 張卡片的資訊量。
+const META_PRIORITY_KEYS = ['daily', 'iching', 'meihua'];
+
+// 導覽卡片的內容獨立成一個函式:展開/收合只重繪這一小塊,不重跑整個 metaShell(body)——
+// 否則像「每日週運」這種本體是非同步計算的分頁,點一下展開/收合會讓已經算好的結果整個被清空重算。
+function metaGuideHtml() {
+  const guideKeys = state.metaGuideExpanded ? META_TABS.map(([key]) => key) : META_PRIORITY_KEYS;
+  const guideCards = guideKeys.map((key) => `<button type="button" data-meta-jump="${key}"${state.metaphysicsTab === key ? ' class="active"' : ''}><b>${META_INFO[key].title}</b><span>${META_INFO[key].use}</span></button>`).join('');
+  const remaining = META_TABS.length - META_PRIORITY_KEYS.length;
+  const guideToggle = remaining > 0
+    ? `<button type="button" class="mini-btn" id="meta-guide-toggle" style="margin-top:10px">${state.metaGuideExpanded ? '︿ 收合' : `＋ 顯示其餘 ${remaining} 個工具`}</button>`
+    : '';
+  return `<div class="card-label" id="meta-guide-title">不知道從哪開始？先選你的目的</div><div class="card-hint" style="margin:0 0 10px">${state.metaGuideExpanded ? '全部 7 個工具:' : '先列出不用額外準備、今天就能直接用的幾個:'}</div><div class="meta-choices">${guideCards}</div>${guideToggle}`;
+}
+
+function bindMetaGuideEvents() {
+  $$('#view-metaphysics .meta-guide [data-meta-jump]').forEach((btn) =>
+    btn.addEventListener('click', () => { state.metaphysicsTab = btn.dataset.metaJump; renderMetaphysics(); }));
+  $('#meta-guide-toggle')?.addEventListener('click', () => {
+    state.metaGuideExpanded = !state.metaGuideExpanded;
+    const el = $('.meta-guide');
+    if (el) { el.innerHTML = metaGuideHtml(); bindMetaGuideEvents(); }
+  });
+}
+
 function metaShell(body) {
   const info = META_INFO[state.metaphysicsTab];
   const tabs = META_TABS.map(([key, label]) => `<button type="button" class="report-tab${state.metaphysicsTab === key ? ' active' : ''}" data-meta="${key}" aria-pressed="${state.metaphysicsTab === key}">${label}</button>`).join('');
-  const guide = `<section class="card meta-guide" aria-labelledby="meta-guide-title"><div class="card-label" id="meta-guide-title">不知道從哪開始？先選你的目的</div><div class="meta-choices">${META_TABS.map(([key]) => `<button type="button" data-meta-jump="${key}"${state.metaphysicsTab === key ? ' class="active"' : ''}><b>${META_INFO[key].title}</b><span>${META_INFO[key].use}</span></button>`).join('')}</div></section>`;
+  const guide = `<section class="card meta-guide" aria-labelledby="meta-guide-title">${metaGuideHtml()}</section>`;
   const intro = `<section class="card meta-intro"><div><span class="meta-kicker">目前工具</span><h2>${info.title}</h2><p>${info.use}</p><small>需要：${info.need}</small></div><ol>${info.steps.map((s) => `<li>${s}</li>`).join('')}</ol></section>`;
   $('#view-metaphysics').innerHTML = `${guide}<div class="meta-tabs" role="tablist" aria-label="進階玄學工具">${tabs}</div>${intro}<div class="stack">${body}</div>`;
   $$('#view-metaphysics [data-meta]').forEach((btn) => btn.addEventListener('click', () => { state.metaphysicsTab = btn.dataset.meta; renderMetaphysics(); }));
-  $$('#view-metaphysics [data-meta-jump]').forEach((btn) => btn.addEventListener('click', () => { state.metaphysicsTab = btn.dataset.metaJump; renderMetaphysics(); }));
+  bindMetaGuideEvents();
 }
 
 async function renderDaily() {
@@ -1312,12 +1403,19 @@ function renderTimeline() {
     const palace = byBranch[l.ganZhi[1]]?.name ?? '—';
     const inside = events.filter((e) => Number(e.year) >= from && Number(e.year) <= to);
     const decadal = flat(composeZiWeiDecadalChange(ziWei, l, { mode: state.readingMode }).text);
-    return `<article class="timeline-block"><div class="timeline-age">${start}–${end}歲</div><div><b>${from}–${to}・${esc(palace)}</b><p>${esc(flat(readingOf(palace)?.text ?? ''))}</p><p class="reading-line"><span class="lead gold">大限四化　</span>${esc(decadal)}</p>${inside.map((e) => `<span class="event-tag">${esc(e.year)} ${esc(e.title)}</span>`).join('')}</div></article>`;
+    return `<article class="timeline-block"><div class="timeline-age">${start}–${end}歲</div><div><b>${from}–${to}・${esc(palace)}</b><div class="tl-body"><p>${esc(flat(readingOf(palace)?.text ?? ''))}</p><p class="reading-line"><span class="lead gold">大限四化　</span>${esc(decadal)}</p></div><button type="button" class="tl-toggle">展開全部內容 ﹀</button>${inside.map((e) => `<span class="event-tag">${esc(e.year)} ${esc(e.title)}</span>`).join('')}</div></article>`;
   }).join('');
   metaShell(`<div class="card"><div class="card-label">生涯運勢時間軸</div><div class="card-hint">將每個十年大限的宮位、四化重點與你輸入的真實事件並排，用來回顧與驗證；不是預言未來必然發生的事情。</div><div class="timeline">${blocks}</div></div>
     <div class="card"><div class="card-label">加入過往事件</div><div class="event-form"><input id="event-year" type="number" min="1900" max="2100" placeholder="年份" aria-label="事件年份"><input id="event-title" maxlength="40" placeholder="例如：轉職、搬家、結婚" aria-label="事件名稱"><button id="event-add" type="button" class="submit-btn">加入時間軸</button></div>${events.length ? `<div class="event-list">${events.map((e, i) => `<button type="button" data-event-del="${i}" title="刪除事件">${esc(e.year)}・${esc(e.title)} ×</button>`).join('')}</div>` : ''}${aiButton('ai-timeline', '複製時間軸給 AI 分析')}</div>`);
   $('#event-add')?.addEventListener('click', () => { const year=$('#event-year').value; const title=$('#event-title').value.trim(); if(!year||!title)return toast('請輸入年份與事件'); const next=[...loadEvents(),{year:Number(year),title}]; saveEvents(next); renderTimeline(); });
   $$('[data-event-del]').forEach((b) => b.addEventListener('click', () => { const list=loadEvents(); list.splice(Number(b.dataset.eventDel),1); saveEvents(list); renderTimeline(); }));
+  // 手機版預設把每個大限的詳細內容收合成兩行預覽,點「展開全部內容」再看完整段落——
+  // 十個大限一次全展開,在窄螢幕上是一長串文字牆,先看結論比較不會滑到放棄
+  $$('#view-metaphysics .tl-toggle').forEach((btn) => btn.addEventListener('click', () => {
+    const block = btn.closest('.timeline-block');
+    const expanded = block.classList.toggle('expanded');
+    btn.textContent = expanded ? '收合 ﹀' : '展開全部內容 ﹀';
+  }));
   bindAiPrompt('ai-timeline', formatTimelinePromptForAI({ input, baZi, ziWei, events }));
 }
 
@@ -1567,6 +1665,11 @@ function setupControls() {
     await withLoading(btn, '排盤中…', async () => {
       if (await computeAll()) {
         renderAll();
+        // 排盤完成的小小揭曉感:主內容區加一個淡入效果,而不是直接無聲切換畫面
+        const main = $('#main-content');
+        main.classList.remove('reveal-in');
+        void main.offsetWidth; // 強制重新觸發動畫(reflow)
+        main.classList.add('reveal-in');
         if (matchMedia('(max-width: 900px)').matches) {
           $('.sidebar').classList.remove('open');
           $('#sidebar-toggle').setAttribute('aria-expanded', 'false');
