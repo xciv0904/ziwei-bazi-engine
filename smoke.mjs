@@ -99,20 +99,30 @@ $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
 check('切大限後流年變動仍在', $('.luck-detail').textContent.includes('流年變動'));
 
-// --- 解讀報告 ---
+// --- 解讀報告(白話摘要分析卡片) ---
 $$('.nav-item').find((n) => n.dataset.view === 'report').click();
 check('報告視圖顯示', !$('#view-report').hidden);
-check('紫微手風琴 6 項', $$('#view-report .acc-item').length === 6);
-check('預設展開命宮總論', $('#view-report .acc-item.open .acc-title').textContent.includes('命宮總論'));
-$$('#view-report .acc-row').find((r) => r.textContent.includes('大限・流年重點')).click();
+check('紫微白話摘要卡片 6 項', $$('#view-report .analysis-card').length === 6);
+check('預設展開命宮總論', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('命宮總論'));
+check('命宮總論卡片含 7 段式白話結構(重點/解釋/自我對照/專業依據)', (() => {
+  const card = $$('#view-report .analysis-card').find((c) => c.querySelector('.analysis-card__title').textContent.includes('命宮總論'));
+  return !!card.querySelector('.analysis-card__summary')
+    && !!card.querySelector('.analysis-card__explanation')
+    && !!card.querySelector('.analysis-card__reflection')
+    && !!card.querySelector('.analysis-card__technical');
+})());
+check('專業命理依據預設收合(大眾版)', !$$('#view-report .analysis-card__technical').some((d) => d.open));
+$$('#view-report .analysis-card__header').find((r) => r.textContent.includes('財帛宮')).click();
+check('點擊卡片標題可再展開第二張(卡片各自獨立展開,非手風琴)', $$('#view-report .analysis-card.open').length === 2);
+$$('#view-report .analysis-card__header').find((r) => r.textContent.includes('大限・流年重點')).click();
 check('大限流年重點區塊有跳轉命盤總覽按鈕', !!$('#view-report [data-jump-dashboard]'));
 $('#view-report [data-jump-dashboard]').click();
 check('點擊跳轉按鈕會切到命盤總覽', !$('#view-dashboard').hidden);
 $$('.nav-item').find((n) => n.dataset.view === 'report').click();
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
-check('八字手風琴 5 項(含喜用神)', $$('#view-report .acc-item').length === 5);
-check('預設展開日主分析', $('#view-report .acc-item.open .acc-title').textContent.includes('日主分析'));
-check('含喜用神與忌神項', $$('#view-report .acc-title').some((t) => t.textContent.includes('喜用神與忌神')));
+check('八字白話摘要卡片 5 項(含喜用神)', $$('#view-report .analysis-card').length === 5);
+check('預設展開日主分析', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('日主分析'));
+check('含喜用神與忌神項', $$('#view-report .analysis-card__title').some((t) => t.textContent.includes('喜用神與忌神')));
 check('解讀報告讀完後才出現分享命卡邀請', !!$('#report-share-btn'));
 $('#report-share-btn').click();
 check('點擊報告頁分享邀請會切到分享命卡視圖', !$('#view-share').hidden);
@@ -203,6 +213,12 @@ $$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
 check('學習版命盤解析含十神依據(細節上)', $('#view-comprehensive').textContent.includes('細節上'));
 $('.mode-pill[data-mode="public"]').click();
 check('切回大眾版,命盤解析不再含十神依據', !$('#view-comprehensive').textContent.includes('細節上'));
+
+// 解讀報告的白話摘要卡片也要吃這個開關:「專業命盤」模式下,卡片內的「專業命理依據」預設直接展開
+$('.mode-pill[data-mode="study"]').click();
+check('專業命盤模式:解讀報告已展開卡片的專業命理依據預設展開', $$('#view-report .analysis-card__technical').length > 0 && $$('#view-report .analysis-card__technical').every((d) => d.open));
+$('.mode-pill[data-mode="public"]').click();
+check('切回白話摘要模式:解讀報告的專業命理依據恢復預設收合', !$$('#view-report .analysis-card__technical').some((d) => d.open));
 
 // --- 重新排盤(換男生日期) ---
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();

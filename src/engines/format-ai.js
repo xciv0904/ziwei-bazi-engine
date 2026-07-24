@@ -6,6 +6,7 @@ import { relationDisplayName, relationsBetween } from './compose-branch-relation
 import { computeYongShen } from './compose-yongshen.js';
 import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './compose-annual.js';
 import { computeWuGe, analyzeNameElements, analyzeZiweiOverlap, zodiacOf } from './naming.js';
+import { generatePlainZiweiTopics, generatePlainBaziTopics } from './compose-plain.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
@@ -222,7 +223,34 @@ const AI_INSTRUCTION = `請以此資料為唯一事實來源進行分析:不要�
 - 20%輸出保留必要的依據(命宮、身宮、三方四正、大限流年四化)
 - 不要逐條解釋每顆星、每個宮位
 - 只在關鍵結論後簡短說明依據
-請務必依據提供的命盤資料說明。`;
+請務必依據提供的命盤資料說明。
+
+請先回答使用者實際提出的問題，不要先輸出完整命盤總論。分析時以資料包提供的命盤結果為唯一事實來源，不要重新排盤，不要補充資料中不存在的星曜、宮位、四化、十神、喜用神或限運資訊。先用一般人看得懂的語言說明結論，再於必要時補充專業命理依據。避免只重述命盤資料，必須說明這些配置在日常生活中的可能表現、挑戰與具體建議。`;
+
+// ---------- 白話摘要區塊(compose-plain.js 產出的 7 段式卡片,壓縮成給AI參考的精簡文字) ----------
+// 「複製給AI解讀」的資料包除了完整命盤資料(上面兩個 section)之外,也要附上網站上
+// 已經生成好的白話摘要,讓AI知道網站對這張命盤已經給出的白話結論是什麼,
+// 避免AI自己重新用生硬的術語從頭解釋一次,或跟網站上顯示的白話說法兜不起來。
+function formatPlainCard(card) {
+  const lines = [`【${card.title}】${card.summary}`];
+  if (card.explanation?.length) lines.push(card.explanation.join(' '));
+  if (card.lifeExamples?.length) lines.push(`生活中的表現:${card.lifeExamples.join(';')}`);
+  if (card.challenges?.length) lines.push(`可能的挑戰:${card.challenges.join(';')}`);
+  if (card.advice?.length) lines.push(`發揮建議:${card.advice.join(';')}`);
+  return lines.join('\n');
+}
+
+function formatPlainSummarySection(ziWei, baZi, zwLuck, bzLuck, elements) {
+  const ziweiCards = generatePlainZiweiTopics(ziWei, zwLuck);
+  const baziCards = generatePlainBaziTopics(baZi, bzLuck, elements);
+  return [
+    '◆ 網站已生成的白話摘要(紫微)',
+    ...ziweiCards.map(formatPlainCard),
+    '',
+    '◆ 網站已生成的白話摘要(八字)',
+    ...baziCards.map(formatPlainCard),
+  ].join('\n');
+}
 
 /**
  * 把排盤引擎的輸出轉成給AI解讀用的純文字。
@@ -230,14 +258,19 @@ const AI_INSTRUCTION = `請以此資料為唯一事實來源進行分析:不要�
  * @param {object} chartData.input  { year, month, day, hour, gender } (computeAll() 組出的排盤輸入)
  * @param {object} chartData.ziWei  convertToZiWei() 的輸出
  * @param {object} chartData.baZi   convertToBaZi() 的輸出
+ * @param {object} [chartData.zwLuck]   composeZiWeiLuck() 的輸出(有給的話,資料包會多附上白話摘要)
+ * @param {object} [chartData.bzLuck]   composeBaZiLuck() 的輸出
+ * @param {object} [chartData.elements] composeElementAnalysis() 的輸出
  * @returns {string} 純文字字串,可直接複製貼給AI
  */
-export function formatChartForAI({ input, ziWei, baZi, year = null }) {
+export function formatChartForAI({ input, ziWei, baZi, zwLuck = null, bzLuck = null, elements = null, year = null }) {
+  const hasPlainData = zwLuck && bzLuck && elements;
   return [
     formatZiWeiSection(ziWei, input),
     '',
     formatBaZiSection(baZi, year),
     '',
+    ...(hasPlainData ? ['---', '', formatPlainSummarySection(ziWei, baZi, zwLuck, bzLuck, elements), ''] : []),
     '---',
     '',
     AI_INSTRUCTION,

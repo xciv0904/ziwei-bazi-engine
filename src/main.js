@@ -3,6 +3,7 @@ import { composeChartReading } from './engines/compose.js';
 import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck, tenGodOf } from './engines/compose-luck.js';
+import { generatePlainZiweiTopics, generatePlainBaziTopics } from './engines/compose-plain.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI, formatNamingPromptForAI, formatDailyPromptForAI, formatTimelinePromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
@@ -168,8 +169,8 @@ const state = {
   selectedPalace: '命宮',
   limitIdx: 0,
   yearIdx: 0,
-  expandedZiwei: 'ming',
-  expandedBazi: 'zhu',
+  expandedZiwei: ['ming'], // 解讀報告:白話摘要卡片各自獨立展開/收合,用陣列存已展開的 key(可同時展開多張)
+  expandedBazi: ['zhu'],
   // 命盤解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
   // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
@@ -718,50 +719,84 @@ function renderDashboard() {
 
 // ---------- 分頁二:解讀報告 ----------
 function reportItems() {
-  const { zwLuck, bzLuck, elements, tenGods } = state.data;
-  const ziwei = [
-    { key: 'ming', color: 'var(--red)', letter: '命', title: '命宮總論', text: readingOf('命宮').text },
-    { key: 'caibo', color: 'var(--gold)', letter: '財', title: '財帛宮', text: readingOf('財帛宮').text },
-    { key: 'guanlu', color: 'var(--red)', letter: '祿', title: '事業（官祿宮）', text: readingOf('官祿宮').text },
-    { key: 'fuqi', color: 'var(--gold)', letter: '緣', title: '感情（夫妻宮）', text: readingOf('夫妻宮').text },
-    { key: 'jie', color: 'var(--red)', letter: '健', title: '健康（疾厄宮）', text: readingOf('疾厄宮').text },
-    { key: 'xian', color: 'var(--gold)', letter: '限', title: '大限・流年重點', text: [zwLuck.decadal?.text, zwLuck.annual?.text].filter(Boolean).join('\n\n') },
-  ];
-  const dayEntries = tenGods.entries.filter((e) => e.pillar === '日柱').map((e) => e.text).join('\n');
-  const bazi = [
-    { key: 'zhu', color: 'var(--gold)', letter: '主', title: '日主分析', text: [tenGods.dayMaster, dayEntries].filter(Boolean).join('\n') },
-    { key: 'xiji', color: 'var(--red)', letter: '喜', title: '五行喜忌', text: state.readingMode === 'study' ? elements.text : elements.summary },
-    { key: 'yongshen', color: 'var(--gold)', letter: '用', title: '喜用神與忌神', text: composeYongShenReading(state.data.baZi, { mode: state.readingMode }).text },
-    { key: 'shishen', color: 'var(--gold)', letter: '神', title: '十神配置', text: tenGods.entries.map((e) => e.text).join('\n') },
-    { key: 'dayun', color: 'var(--red)', letter: '運', title: '大運概況', text: [bzLuck.decadal?.text, bzLuck.annual?.text].filter(Boolean).join('\n\n') },
-  ];
+  // 白話摘要卡片(7 段式結構)全部交給 compose-plain.js 組裝,這裡只負責取用已經算好的
+  // 命盤資料(ziWei/baZi)與現行大限流年(zwLuck/bzLuck)、五行分佈(elements),不重新排盤、
+  // 不重算星曜宮位或十神喜用神——沿用 applyReadingMode() 已組裝好的資料。
+  const { ziWei, baZi, zwLuck, bzLuck, elements } = state.data;
+  const ziwei = generatePlainZiweiTopics(ziWei, zwLuck);
+  const bazi = generatePlainBaziTopics(baZi, bzLuck, elements);
   return { ziwei, bazi };
+}
+
+/** 白話摘要卡片內的清單型區塊(生活中的表現／可能的挑戰／發揮建議) */
+function analysisSectionHtml(title, items) {
+  if (!items || items.length === 0) return '';
+  return `<div class="analysis-card__section">
+    <div class="analysis-card__section-title">${esc(title)}</div>
+    <ul class="analysis-card__list">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>
+  </div>`;
+}
+
+/**
+ * 專業命理依據區塊(預設收合,點開才看得到)。
+ * 結構固定為 4 小節:命盤資料 / 專業判斷 / 白話對應 / 限制與需綜合參考處。
+ * isStudy(頁首「白話摘要／專業命盤」切換為「專業命盤」時)為 true 時預設展開,
+ * 方便想深入了解命理依據的使用者不用逐一點開每張卡片。
+ */
+function analysisTechnicalHtml(technical, isStudy) {
+  if (!technical) return '';
+  const warnings = technical.warnings ?? [];
+  return `<details class="analysis-card__technical"${isStudy ? ' open' : ''}>
+    <summary>專業命理依據</summary>
+    <div class="analysis-card__tech-body">
+      <div class="tech-block"><b>命盤資料</b><p>${esc(technical.chartData || '—')}</p></div>
+      <div class="tech-block"><b>專業判斷</b><p>${esc(technical.judgment || '—')}</p></div>
+      <div class="tech-block"><b>白話對應</b><p>${esc(technical.plainMapping || '—')}</p></div>
+      ${warnings.length ? `<div class="tech-block"><b>限制與需綜合參考處</b><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+    </div>
+  </details>`;
 }
 
 function renderReport() {
   const { ziwei, bazi } = reportItems();
   const isZiwei = state.reportTab === 'ziwei';
   const items = isZiwei ? ziwei : bazi;
-  const expandedKey = isZiwei ? state.expandedZiwei : state.expandedBazi;
+  const expandedKeys = isZiwei ? state.expandedZiwei : state.expandedBazi;
+  // 頁首「白話摘要／專業命盤」切換(#reading-mode-toggle)沿用既有的 state.readingMode:
+  // 在這裡的作用是控制每張卡片的「專業命理依據」預設展開或收合,而不是另外做一套切換邏輯
+  const isStudy = state.readingMode === 'study';
 
   const intro = isZiwei
-    ? '依紫微命盤十二宮與現行大限、流年，整理出「現在」這個時間點的固定摘要。想探索其他年份或宮位，請到「命盤總覽」互動查看。'
-    : '依八字四柱日主強弱、五行喜忌與十神配置，整理出「現在」這個時間點的固定摘要。想探索其他年份，請到「命盤總覽」互動查看。';
+    ? '依紫微命盤十二宮與現行大限、流年，整理出「現在」這個時間點的白話摘要；點開卡片看完整說明，卡片內的「專業命理依據」可另外展開查看對應的命盤判斷。想探索其他年份或宮位，請到「命盤總覽」互動查看。'
+    : '依八字四柱日主強弱、五行喜忌與十神配置，整理出「現在」這個時間點的白話摘要；點開卡片看完整說明，卡片內的「專業命理依據」可另外展開查看對應的命盤判斷。想探索其他年份，請到「命盤總覽」互動查看。';
 
   const list = items.map((it) => {
-    const open = expandedKey === it.key;
+    const open = expandedKeys.includes(it.key);
     // 大限/大運這兩項跟「命盤總覽」的互動大限流年瀏覽器內容有重疊,這裡只保留現在的固定摘要,
     // 並加一個跳轉按鈕,引導想看其他年份的人去真正能自由切換的地方,而不是把所有年份都重複印一次
     const jumpNote = (it.key === 'xian' || it.key === 'dayun')
       ? '<button type="button" class="mini-btn acc-jump" data-jump-dashboard="1" style="margin-top:10px">→ 到「命盤總覽」切換查看其他大限／流年</button>'
       : '';
-    return `<div class="acc-item${open ? ' open' : ''}">
-      <button type="button" class="acc-row" data-acc="${it.key}">
+    const explanationHtml = (it.explanation || []).map((p) => `<p>${esc(p)}</p>`).join('');
+    return `<div class="analysis-card${open ? ' open' : ''}${it.borrowed ? ' is-borrowed' : ''}">
+      <button type="button" class="analysis-card__header" data-acc="${it.key}" aria-expanded="${open}">
         <div class="round-icon" style="background:${it.color}">${it.letter}</div>
-        <div class="acc-title">${esc(it.title)}</div>
+        <div class="analysis-card__headtext">
+          <div class="analysis-card__title">${esc(it.title)}</div>
+          ${!open ? `<div class="analysis-card__peek">${esc(it.summary)}</div>` : ''}
+        </div>
         <div class="acc-chevron">›</div>
       </button>
-      ${open ? `<div class="acc-body">${esc(it.text)}${jumpNote}</div>` : ''}
+      ${open ? `<div class="analysis-card__content">
+        <p class="analysis-card__summary">${esc(it.summary)}</p>
+        <div class="analysis-card__explanation">${explanationHtml}</div>
+        ${analysisSectionHtml('生活中的表現', it.lifeExamples)}
+        ${analysisSectionHtml('可能的挑戰', it.challenges)}
+        ${analysisSectionHtml('發揮建議', it.advice)}
+        ${it.reflection ? `<div class="analysis-card__reflection"><span>自我對照</span>${esc(it.reflection)}</div>` : ''}
+        ${analysisTechnicalHtml(it.technical, isStudy)}
+        ${jumpNote}
+      </div>` : ''}
     </div>`;
   }).join('');
 
@@ -778,7 +813,7 @@ function renderReport() {
       <button type="button" class="report-tab${isZiwei ? '' : ' active'}" data-tab="bazi">八字</button>
     </div>
     <div class="report-intro">${intro}</div>
-    <div class="accordion">${list}</div>
+    <div class="analysis-card-list">${list}</div>
     ${shareInvite}`;
 
   $$('#view-report .report-tab').forEach((tab) =>
@@ -786,11 +821,12 @@ function renderReport() {
   $$('#view-report [data-jump-dashboard]').forEach((btn) =>
     btn.addEventListener('click', (e) => { e.stopPropagation(); switchView('dashboard'); }));
   $('#report-share-btn')?.addEventListener('click', () => switchView('share'));
-  $$('#view-report .acc-row').forEach((row) =>
+  $$('#view-report .analysis-card__header').forEach((row) =>
     row.addEventListener('click', () => {
       const key = row.dataset.acc;
-      if (state.reportTab === 'ziwei') state.expandedZiwei = state.expandedZiwei === key ? null : key;
-      else state.expandedBazi = state.expandedBazi === key ? null : key;
+      const stateKey = state.reportTab === 'ziwei' ? 'expandedZiwei' : 'expandedBazi';
+      const cur = state[stateKey];
+      state[stateKey] = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
       renderReport();
     }));
 }
@@ -1673,8 +1709,8 @@ function setupControls() {
 
   $('#copy-ai-btn').addEventListener('click', async () => {
     if (!state.data) return;
-    const { input, ziWei, baZi } = state.data;
-    const text = formatChartForAI({ input, ziWei, baZi });
+    const { input, ziWei, baZi, zwLuck, bzLuck, elements } = state.data;
+    const text = formatChartForAI({ input, ziWei, baZi, zwLuck, bzLuck, elements });
     try {
       await navigator.clipboard.writeText(text);
       toast('已複製，可以貼給AI解讀了');

@@ -28,8 +28,8 @@ function stemsOfElement(el) {
   return Object.entries(STEM_EL).filter(([, e]) => e === el).map(([s]) => s).join('、');
 }
 
-// 喜用神影響(白話,依十神角色)
-const FAVOR_IMPACT = {
+// 喜用神影響(白話,依十神角色)——額外 export 供 compose-plain.js 白話摘要重用,避免重複撰寫同一份內容
+export const FAVOR_IMPACT = {
   印: '學習、進修、貴人與長輩的助力是你的補給站,多請教前輩、累積內在實力,運勢自然穩',
   比劫: '同伴與盟友是你的底氣,不要單打獨鬥,找對隊友、經營平輩情誼會事半功倍',
   食傷: '表達與創作是你的出口,把想法說出來、做出來,機會就會跟著來',
@@ -38,7 +38,7 @@ const FAVOR_IMPACT = {
 };
 
 // 忌神影響(白話,依十神角色)
-const AVOID_IMPACT = {
+export const AVOID_IMPACT = {
   印: '過度依賴保護傘會鈍化行動力,留意想太多、遲遲不決的慣性',
   比劫: '人情往來容易破財,合夥、借貸、擔保要格外謹慎',
   食傷: '鋒芒太露容易得罪權威或說錯話,重要發言前多想一步',
