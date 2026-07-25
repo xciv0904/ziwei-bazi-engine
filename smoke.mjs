@@ -95,6 +95,7 @@ check('儲存後收藏列表出現', !$('#saved-section').hidden && $$('.saved-c
 // --- 大限流年瀏覽器(白話短版:年度重點/有利方向/需要留意,專業依據收合) ---
 check('大限流年瀏覽器有年度一句話重點', !!$('.luck-detail .palace-takeaway')?.textContent.length);
 check('大限流年瀏覽器有有利方向/需要留意其中之一', $$('.luck-detail .analysis-card__section-title').some((t) => t.textContent === '有利方向' || t.textContent === '需要留意'));
+check('流年顯示該年度人生階段與年齡語境', !!$('.luck-detail .life-stage-note') && $('.luck-detail .life-stage-note').textContent.includes('主要關注'));
 check('專業運勢依據預設收合,展開後紫微/八字分開標示', (() => {
   const details = $('.luck-detail .palace-technical');
   if (!details || details.open) return false;
@@ -104,6 +105,23 @@ check('專業運勢依據預設收合,展開後紫微/八字分開標示', (() =
 })());
 check('宮位 AI 提示詞按鈕', !!$('#copy-palace-prompt'));
 check('流年 AI 提示詞按鈕', !!$('#copy-annual-prompt'));
+let copiedAnnualPrompt = '';
+Object.defineProperty(w.navigator, 'clipboard', {
+  configurable: true,
+  value: { writeText: async (text) => { copiedAnnualPrompt = text; } },
+});
+if (globalThis.navigator !== w.navigator) {
+  Object.defineProperty(globalThis.navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async (text) => { copiedAnnualPrompt = text; } },
+  });
+}
+$$('[data-limit]').at(-1).click();
+$$('[data-year]')[0].click();
+check('高齡流年改用超高齡生活語境', $('.luck-detail .life-stage-note').textContent.includes('超高齡生活期'));
+$('#copy-annual-prompt').click();
+await new Promise((r) => setTimeout(r, 0));
+check('流年 AI 提示詞含年齡階段與禁止錯置情境', copiedAnnualPrompt.includes('超高齡生活期') && copiedAnnualPrompt.includes('禁止不合年齡的預設'));
 $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
 check('切大限後年度重點仍在', !!$('.luck-detail .palace-takeaway')?.textContent.length);
@@ -198,9 +216,16 @@ check('合盤關係型態選單', !!$('#syn-rel') && $$('#syn-rel option').lengt
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
 $('#open-monthly')?.click();
 check('流月 chips 12 個', $$('[data-month]').length === 12);
-check('流月變動內容(八字)', $('.luck-detail').textContent.includes('流月變動'));
-check('流月命宮與四化(紫微)', $('.luck-detail').textContent.includes('流月命宮與四化'));
-check('紫微流月含四化落宮', $('.luck-detail').textContent.includes('化祿落在') || $('.luck-detail').textContent.includes('化祿,落本命'));
+check('流月正文改為白話重點/把握/留意/行動', (() => {
+  const text = $('.monthly-plain').textContent;
+  return text.includes('月重點') && text.includes('這個月可以把握')
+    && text.includes('這個月需要留意') && text.includes('先選一件');
+})());
+check('流月專業術語預設收合', (() => {
+  const details = $('.monthly-plain .palace-technical');
+  return details && !details.open && details.textContent.includes('紫微流月命宮與四化')
+    && details.textContent.includes('八字流月干支與引動');
+})());
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
 $$('#view-share [data-card]').find((t) => t.dataset.card === 'annual')?.click();
 check('流年命卡切換', $('#view-share').textContent.includes('流年卡') && $('.fate-birth').textContent.includes('運勢重點'));

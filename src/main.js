@@ -607,6 +607,57 @@ function renderClassroom() {
   </div>`;
 }
 
+/**
+ * 依「選定年份」而不是目前年齡建立生活語境。
+ * 周歲在生日當年前後會差一歲，因此畫面以「約」標示；虛歲仍保留給大限定位。
+ */
+function lifeStageForYear(input, year) {
+  const age = year - Number(input.year);
+  if (age <= 5) return { age, key: 'early-childhood', label: '幼兒成長期', focus: '照護、安全感、作息、探索與家庭互動' };
+  if (age <= 11) return { age, key: 'childhood', label: '兒童學習期', focus: '學習習慣、同儕、家庭支持與身心發展' };
+  if (age <= 17) return { age, key: 'teen', label: '青少年求學期', focus: '學業、同儕、自我探索、家庭與師長互動' };
+  if (age <= 24) return { age, key: 'transition', label: '升學／初入社會轉銜期', focus: '學業、實習、初入職場、人際與方向探索' };
+  if (age <= 39) return { age, key: 'adult', label: '成年發展期', focus: '工作、關係、財務獨立與生活選擇' };
+  if (age <= 59) return { age, key: 'midlife', label: '中年整合期', focus: '責任調整、家庭、工作節奏與長期生活品質' };
+  if (age <= 74) return { age, key: 'later-transition', label: '退休轉銜／熟齡期', focus: '生活重心轉換、健康、家庭、社群參與與資源安排' };
+  if (age <= 89) return { age, key: 'later-life', label: '高齡生活期', focus: '健康維持、生活自主、家人互動、陪伴與資源協調' };
+  return { age, key: 'advanced-age', label: '超高齡生活期', focus: '照護品質、生活舒適、安全、陪伴、家人與支持系統' };
+}
+
+function adaptToLifeStage(text, stage) {
+  if (!text) return '';
+  let value = String(text);
+  if (['early-childhood', 'childhood', 'teen'].includes(stage.key)) {
+    value = value
+      .replace(/職場/g, '校園與團體')
+      .replace(/工作環境/g, '學習環境')
+      .replace(/工作/g, '學業與成長任務')
+      .replace(/事業/g, '學習方向與未來探索')
+      .replace(/主管|上司/g, '師長或主要照顧者')
+      .replace(/同事/g, '同學與同儕')
+      .replace(/收入|賺錢/g, '資源與金錢觀念');
+  } else if (stage.key === 'transition') {
+    value = value
+      .replace(/工作環境/g, '學校、實習或初入職場的環境')
+      .replace(/職場/g, '學校、實習或初入職場')
+      .replace(/事業/g, '升學與職涯起步')
+      .replace(/工作/g, '學業、實習或工作');
+  } else if (stage.key === 'later-transition') {
+    value = value
+      .replace(/職場/g, '仍參與的工作、社群或家庭事務')
+      .replace(/事業/g, '生活重心與仍想投入的事務')
+      .replace(/工作/g, '工作、社群參與或日常安排');
+  } else if (stage.key === 'later-life' || stage.key === 'advanced-age') {
+    value = value
+      .replace(/職場|工作環境/g, '日常生活與支持系統')
+      .replace(/事業|職涯/g, '生活重心')
+      .replace(/工作/g, '日常安排、家庭事務或社群參與')
+      .replace(/主管|上司|同事/g, '家人、照護者或經常互動的人')
+      .replace(/收入|賺錢/g, '生活資源與財務安排');
+  }
+  return value;
+}
+
 function renderLuckBrowser() {
   const { ziWei, input } = state.data;
   const limits = ziWei.majorLimits;
@@ -649,9 +700,10 @@ function renderLuckBrowser() {
   // (沿用 compose-plain.js 既有的時間卡片生成邏輯,不重算任何排盤或四化十神資料,只是換一組 age/year 參數)
   const zwCard = generatePlainZiweiTimeCard(state.data.ziWei, { age: sel.age, year: sel.year });
   const bzCard = generatePlainBaziTimeCard(state.data.baZi, { year: sel.year });
+  const lifeStage = lifeStageForYear(input, sel.year);
   const dedupe = (arr, n) => [...new Set(arr.filter(Boolean))].slice(0, n);
-  const favorable = dedupe([...(zwCard.advice ?? []), ...(bzCard.advice ?? [])], 4);
-  const cautions = dedupe([...(zwCard.challenges ?? []), ...(bzCard.challenges ?? [])], 3);
+  const favorable = dedupe([...(zwCard.advice ?? []), ...(bzCard.advice ?? [])], 4).map((t) => adaptToLifeStage(t, lifeStage));
+  const cautions = dedupe([...(zwCard.challenges ?? []), ...(bzCard.challenges ?? [])], 3).map((t) => adaptToLifeStage(t, lifeStage));
   const themeList = (title, items) => items.length
     ? `<div class="analysis-card__section"><div class="analysis-card__section-title">${esc(title)}</div><ul class="analysis-card__list">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>`
     : '';
@@ -667,8 +719,9 @@ function renderLuckBrowser() {
       <div class="luck-year">${sel.year} 年　${esc(sel.gz)}　${sel.age} 歲
         <button type="button" class="mini-btn" id="copy-annual-prompt">複製此流年 AI 提示詞</button>
       </div>
-      <p class="palace-takeaway">${esc(zwCard.summary)}</p>
-      <p class="palace-explain" style="margin:0 0 4px">${esc(bzCard.summary)}</p>
+      <div class="life-stage-note"><b>${esc(lifeStage.label)}</b><span>該年度約 ${lifeStage.age} 歲；主要關注${esc(lifeStage.focus)}。</span></div>
+      <p class="palace-takeaway">${esc(adaptToLifeStage(zwCard.summary, lifeStage))}</p>
+      <p class="palace-explain" style="margin:0 0 4px">${esc(adaptToLifeStage(bzCard.summary, lifeStage))}</p>
       ${themeList('有利方向', favorable)}
       ${themeList('需要留意', cautions)}
       <details class="palace-technical">
@@ -695,13 +748,49 @@ function renderMonthlyBrowser(year) {
     return `<button type="button" class="chip${i === state.monthIdx ? ' active' : ''}" data-month="${i}">${m}月<br><small>${esc(gz)}</small></button>`;
   }).join('');
   const m = state.monthIdx + 1;
-  const detail = composeMonthlyChange(state.data.baZi, year, m, { mode: state.readingMode });
-  const zwMonthly = composeZiWeiMonthly(state.data.ziWei, year, m, { mode: state.readingMode });
+  const detail = composeMonthlyChange(state.data.baZi, year, m, { mode: 'study' });
+  const zwMonthly = composeZiWeiMonthly(state.data.ziWei, year, m, { mode: 'study' });
+  const stage = lifeStageForYear(state.data.input, year);
+  const domain = {
+    命宮: '自己的狀態與選擇', 兄弟宮: '手足、同儕與合作', 夫妻宮: '親密關係',
+    子女宮: '子女、晚輩與創作', 財帛宮: '資源與金錢安排', 疾厄宮: '身心狀態與生活習慣',
+    遷移宮: '外出、環境變化與適應', 僕役宮: '朋友、合作與支持網絡', 官祿宮: '責任、學習或投入的事務',
+    田宅宮: '家庭、居住與安全感', 福德宮: '休息、情緒與精神生活', 父母宮: '長輩、師長與制度互動',
+  }[zwMonthly.palaceName] ?? '日常生活';
+  const categoryPlain = {
+    比劫運: ['合作、自主與資源分配', '適合找可信任的人互相支援', '涉及人情、借貸或分工時要先說清楚'],
+    食傷運: ['表達、學習成果與創意輸出', '適合分享想法、練習新技能或完成作品', '說話太快或安排太滿時，容易增加摩擦'],
+    財運: ['資源運用、成果落地與生活安排', '適合整理預算、物品或可執行的計畫', '不要只看眼前利益，也要保留長期餘裕'],
+    官殺運: ['責任、規則與需要完成的任務', '適合處理有期限、有標準的事情', '壓力增加時不要硬撐，先排出優先順序'],
+    印運: ['學習、休息、支持與資訊整理', '適合請教他人、閱讀整理或補足能力', '蒐集太多資訊時，要替自己設定開始行動的時間'],
+  }[detail.category] ?? ['步調整理與日常調整', '照原本節奏完成重要的小事', '臨時變化出現時保留彈性'];
+  const favorable = [
+    adaptToLifeStage(categoryPlain[1], stage),
+    ...zwMonthly.entries.filter((e) => ['祿', '權', '科'].includes(e.mutagen)).slice(0, 1)
+      .map((e) => `${domain}較容易出現推進或被看見的機會，可以選一件重要的事主動處理。`),
+  ];
+  const cautions = [
+    adaptToLifeStage(categoryPlain[2], stage),
+    ...zwMonthly.entries.filter((e) => e.mutagen === '忌').slice(0, 1)
+      .map(() => `${domain}容易讓人多想或反覆，重要決定先留一點確認與休息時間。`),
+  ];
+  const list = (title, items) => `<div class="analysis-card__section"><div class="analysis-card__section-title">${title}</div><ul class="analysis-card__list">${[...new Set(items)].map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>`;
   return `
     <div class="chip-label" style="margin-top:4px">流月（${year} 年;八字以節氣月、紫微斗君以農曆月計,月界略有差異）</div>
     <div class="chip-row">${chips}</div>
-    <div class="reading-line"><span class="lead red">流月命宮與四化（紫微）　</span>${esc(flat(zwMonthly.text))}</div>
-    <div class="reading-line"><span class="lead gold">流月變動（八字）　</span>${esc(flat(detail.text))}</div>`;
+    <div class="monthly-plain">
+      <p class="palace-takeaway">${m} 月重點：${esc(domain)}，同時適合留意${esc(adaptToLifeStage(categoryPlain[0], stage))}。</p>
+      ${list('這個月可以把握', favorable)}
+      ${list('這個月需要留意', cautions)}
+      <p class="monthly-action">先選一件與「${esc(domain)}」有關、能在本月完成的小事；遇到變化時先確認資訊，再調整步調。</p>
+      <details class="palace-technical">
+        <summary>查看流月專業依據</summary>
+        <div class="analysis-card__panel--technical" style="margin-top:10px">
+          <div class="tech-block"><b>紫微流月命宮與四化</b><p>${esc(flat(zwMonthly.text))}</p></div>
+          <div class="tech-block"><b>八字流月干支與引動</b><p>${esc(flat(detail.text))}</p></div>
+        </div>
+      </details>
+    </div>`;
 }
 
 function renderDashboard() {

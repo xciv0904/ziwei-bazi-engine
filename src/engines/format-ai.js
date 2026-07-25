@@ -18,6 +18,19 @@ const STEMS_AI = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬',
 const BRANCHES_GZ = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const yearGanZhiOf = (y) => STEMS_AI[(y - 4) % 10] + BRANCHES_GZ[(y - 4) % 12];
 
+function annualLifeStage(input, year) {
+  const age = year - Number(input.year);
+  if (age <= 5) return { age, label: '幼兒成長期', focus: '照護、安全感、作息、探索與家庭互動', avoid: '工作、職場、事業、創業、升遷或理財操作' };
+  if (age <= 11) return { age, label: '兒童學習期', focus: '學習習慣、同儕、家庭支持與身心發展', avoid: '工作、職場、事業、創業或升遷' };
+  if (age <= 17) return { age, label: '青少年求學期', focus: '學業、同儕、自我探索、家庭與師長互動', avoid: '把職場、升遷、創業或收入當成主要生活情境' };
+  if (age <= 24) return { age, label: '升學／初入社會轉銜期', focus: '學業、實習、初入職場、人際與方向探索', avoid: '預設當事人已經有穩定職涯、婚姻或固定資產' };
+  if (age <= 39) return { age, label: '成年發展期', focus: '工作、關係、財務獨立與生活選擇', avoid: '預設每個人都會結婚、生子或創業' };
+  if (age <= 59) return { age, label: '中年整合期', focus: '責任調整、家庭、工作節奏與長期生活品質', avoid: '只談工作成就而忽略健康、照顧責任與生活品質' };
+  if (age <= 74) return { age, label: '退休轉銜／熟齡期', focus: '生活重心轉換、健康、家庭、社群參與與資源安排', avoid: '預設仍全職工作；若提到事業，需改寫為仍持續參與的工作、社群或家庭事務' };
+  if (age <= 89) return { age, label: '高齡生活期', focus: '健康維持、生活自主、家人互動、陪伴與資源協調', avoid: '以求職、升遷、創業、職場競爭或事業衝刺作為主要建議' };
+  return { age, label: '超高齡生活期', focus: '照護品質、生活舒適、安全、陪伴、家人與支持系統', avoid: '任何工作、求職、升遷、創業、職場競爭或事業衝刺的預設情境' };
+}
+
 /** 單顆主星:名稱(亮度[,化X]) */
 function formatMajorStar(s) {
   const tags = [];
@@ -488,9 +501,13 @@ export function formatSynastryPromptForAI({ a, b }) {
  */
 export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
   const gz = baZi.annualPillars?.[year] ?? yearGanZhiOf(year);
+  const lifeStage = annualLifeStage(input, year);
   const title = ziWei ? '紫微斗數×四柱八字' : '四柱八字';
   const lines = [
     `這是${title} 流年${year}年${gz ? `(${gz}年)` : ''}解讀提示詞。`,
+    `當事人在該年度約${lifeStage.age}歲(周歲可能因生日尚未到而少1歲)，人生階段為「${lifeStage.label}」。`,
+    `本年解讀應優先放在:${lifeStage.focus}。`,
+    `禁止不合年齡的預設:${lifeStage.avoid}。命盤術語中的「官祿／事業／財」若與年齡不符，必須轉譯為當時實際可能存在的責任、學習、生活資源或家庭事務。`,
     '',
   ];
 
@@ -537,6 +554,7 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
         '6) 交叉:比對八字全年主軸與紫微四化落宮,一致之處是這一年的確定主題;分歧之處視為不同層面的節奏差異,不要硬湊結論。',
         '7) 不要做吉凶斷語,而要具體化為這一年適合推進的事、需要保守觀望的事。',
         '8) 依流月干支給出季度層級的節奏建議。',
+        `9) 全部生活情境必須符合當事人約${lifeStage.age}歲的「${lifeStage.label}」；不得因官祿宮、財星或官殺出現，就自動寫成工作、升遷、創業或職場競爭。`,
       ]
     : [
         '1) 以流年天干對日主的十神關係判斷全年主軸(財/官殺/印/食傷/比劫),說明這一年的能量傾向。',
@@ -544,12 +562,14 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
         '3) 對照目前所在的大運方向,判斷這個流年是順勢加乘還是轉折試探。',
         '4) 不要做吉凶斷語,而要具體化為這一年適合推進的事、需要保守觀望的事。',
         '5) 依流月干支給出季度層級的節奏建議。',
+        `6) 全部生活情境必須符合當事人約${lifeStage.age}歲的「${lifeStage.label}」；不得因財星或官殺出現，就自動寫成工作、升遷、創業或職場競爭。`,
       ];
 
   lines.push(
     formatBaZiSection(baZi, year),
     '',
     line('性別', input.gender === 'female' ? '女性' : '男性'),
+    line('該年人生階段', `約${lifeStage.age}歲・${lifeStage.label}`),
     '',
     `問題: 請以 ${year} 年${gz ? `(${gz}年)` : ''}為基準,${ziWei ? '綜合紫微斗數與八字,' : ''}分析這一年整體運勢的變化與重點。`,
     '判讀順序:',

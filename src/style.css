@@ -362,6 +362,20 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .deep-connections {
   padding: 13px 15px; border-left: 3px solid var(--gold); background: rgba(138, 109, 59, .06);
 }
+.life-stage-note {
+  display: flex; gap: 8px; align-items: baseline; margin: 10px 0 12px; padding: 10px 12px;
+  border-radius: 6px; background: rgba(138, 109, 59, .08);
+  font: 400 12.5px/1.65 var(--sans); color: var(--ink-60);
+}
+.life-stage-note b { flex-shrink: 0; color: var(--gold); }
+.monthly-plain {
+  margin-top: 12px; padding: 14px 16px; border: 1px solid var(--border);
+  border-radius: 7px; background: rgba(255, 255, 255, .2);
+}
+.monthly-action {
+  margin: 16px 0 0; padding: 11px 13px; border-left: 3px solid var(--gold);
+  background: rgba(138, 109, 59, .06); font: 400 13px/1.75 var(--sans); color: var(--ink-60);
+}
 /* 白話／專業依據面板:由頁首「白話摘要／專業依據」按鈕整組切換(見 renderReport 的 hidden 屬性),
    不再是巢狀在卡片內容裡、預設收合的 <details>——這是修正按鈕沒有可見作用的關鍵改動,
    確保只要卡片本身是展開的,切換按鈕就一定會讓看得到的內容整組替換,而不是只多一個可以再點開的摺疊區塊。 */
@@ -772,6 +786,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .analysis-card__reflection { font-size: 13.5px; line-height: 1.85; }
   .deep-pattern-grid { grid-template-columns: 1fr; }
   .deep-section { margin-top: 16px; }
+  .life-stage-note { display: block; }
+  .life-stage-note b { display: block; margin-bottom: 3px; }
+  .monthly-plain { padding: 12px 13px; }
 
   .event-form,.date-form { grid-template-columns: 1fr; }
   .date-results { grid-template-columns: 1fr; }
