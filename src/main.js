@@ -3,7 +3,7 @@ import { composeChartReading } from './engines/compose.js';
 import { composeBaZiReading } from './engines/compose-bazi.js';
 import { composeElementAnalysis } from './engines/compose-elements.js';
 import { composeZiWeiLuck, composeBaZiLuck, tenGodOf } from './engines/compose-luck.js';
-import { generatePlainZiweiTopics, generatePlainBaziTopics } from './engines/compose-plain.js';
+import { generatePlainZiweiTopics, generatePlainBaziTopics, generatePlainPalaceCard, generatePlainZiweiTimeCard, generatePlainBaziTimeCard } from './engines/compose-plain.js';
 import { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } from './engines/comprehensive.js';
 import { formatChartForAI, formatPalacePromptForAI, formatAnnualPromptForAI, formatSynastryPromptForAI, formatNamingPromptForAI, formatDailyPromptForAI, formatTimelinePromptForAI } from './engines/format-ai.js';
 import { composeAnnualChange, composeZiWeiAnnualChange, composeZiWeiDecadalChange, composeMonthlyChange, composeZiWeiMonthly, monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace } from './engines/compose-annual.js';
@@ -169,9 +169,12 @@ const state = {
   selectedPalace: '命宮',
   limitIdx: 0,
   yearIdx: 0,
-  expandedZiwei: ['ming'], // 解讀報告:白話摘要卡片各自獨立展開/收合,用陣列存已展開的 key(可同時展開多張)
+  expandedZiwei: ['ming'], // 重點解讀:白話摘要卡片各自獨立展開/收合,用陣列存已展開的 key(可同時展開多張)
   expandedBazi: ['zhu'],
-  // 命盤解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
+  // 重點解讀頁的「白話摘要／專業依據」切換:紫微/八字分頁各自獨立記住自己的模式,
+  // 跟命盤總覽/深度解析共用的 state.readingMode 分開,互不影響(見 currentReadingMode()/setReadingMode())
+  reportViewMode: { ziwei: 'public', bazi: 'public' }, // 沿用跟 readingMode 一樣的值域('public'/'study'),對應按鈕 data-mode
+  // 深度解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
   // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
   // 雙人合盤:乙方表單值、關係型態與已排好的乙方命盤
@@ -266,6 +269,28 @@ function applyReadingMode() {
 
 const readingOf = (palaceName) =>
   state.data.readings.palaces.find((p) => p.palaceName === palaceName);
+
+// ---------- 頁首「白話摘要／專業依據」切換的模式讀寫 ----------
+// 命盤總覽、深度解析沒有紫微/八字分頁的概念(兩套資料同時呈現在同一頁),沿用原本單一的
+// state.readingMode;重點解讀有紫微斗數/八字兩個分頁,各自需要記住自己選的是白話還是專業,
+// 所以另外用 state.reportViewMode 分開存,由這兩個函式決定「現在這顆按鈕實際在改哪個值」。
+function currentReadingMode() {
+  return state.view === 'report' ? state.reportViewMode[state.reportTab] : state.readingMode;
+}
+function setReadingMode(mode) {
+  if (state.view === 'report') state.reportViewMode[state.reportTab] = mode;
+  else state.readingMode = mode;
+}
+/** 依目前頁面/分頁決定的模式,同步「白話摘要／專業依據」按鈕的 active 樣式與無障礙屬性 */
+function syncModeToggleUI() {
+  const mode = currentReadingMode();
+  $$('#reading-mode-toggle .mode-pill').forEach((p) => {
+    const active = p.dataset.mode === mode;
+    p.classList.toggle('active', active);
+    p.setAttribute('aria-pressed', String(active));
+  });
+  $('#reading-mode-toggle').setAttribute('aria-controls', `view-${state.view}`);
+}
 
 /** 大限流年瀏覽目前選中的大限與西元年(命盤高亮、四化、提示詞共用) */
 function currentLuckSelection() {
@@ -385,6 +410,7 @@ function renderHead() {
   $('#page-title').textContent = `${name}　的命盤`;
   $('#copy-ai-btn').hidden = false;
   $('#reading-mode-toggle').hidden = false;
+  syncModeToggleUI();
   $('#save-chart-btn').hidden = false;
   const shichen = SHICHEN.find((s) => s.hour === input.hour);
   const shichenLabel = state.data.hourUnknown ? '時辰未知(暫以午時排)' : shichen.name;
@@ -527,7 +553,6 @@ function renderBaZiCard() {
 
 function renderClassroom() {
   const { byBranch } = state.data;
-  const reading = readingOf(state.selectedPalace);
   const palace = state.data.ziWei.palaces.find((p) => p.name === state.selectedPalace);
   const branch = palace.position[1];
   const opposite = byBranch[BRANCHES[(BRANCHES.indexOf(branch) + 6) % 12]];
@@ -549,21 +574,35 @@ function renderClassroom() {
     }
     if (laiyin?.palaceName === state.selectedPalace) parts.push('此宮為來因宮(生年天干所落之宮,一生課題的起點)');
     if (parts.length) {
-      advancedLine = `<div class="reading-line"><span class="lead gold">飛星資訊　</span>${esc(parts.join(';'))}</div>`;
+      advancedLine = `<div class="tech-block"><b>飛星資訊</b><p>${esc(parts.join(';'))}</p></div>`;
     }
   }
+
+  // 命盤總覽偏向「查資料」,不放完整7段式人生分析(那是重點解讀/深度解析的事)——
+  // 只取白話卡片裡最前面兩層:一句話重點 + 簡短解釋,專業資料則完整列出(這裡本來就是給想看細節的人用的)
+  const card = generatePlainPalaceCard(state.data.ziWei, state.selectedPalace);
+  const explanationHtml = card.explanation.slice(0, 2).map((p) => `<p>${esc(p)}</p>`).join('');
 
   return `<div class="card" id="classroom-card">
     <div class="classroom-head">
       <div class="round-icon">宮</div>
-      <div class="classroom-title">${esc(state.selectedPalace)}　<small>地支：${esc(branch)}　星曜：${esc(stars)}</small></div>
+      <div class="classroom-title">${esc(state.selectedPalace)}　<small>地支：${esc(branch)}</small></div>
       <button type="button" class="mini-btn" id="copy-palace-prompt">複製此宮位 AI 提示詞</button>
     </div>
     <div class="classroom-hint">點選左側命盤十二宮，可切換查看不同宮位的說明 — 這是命盤小教室</div>
-    <div class="classroom-body">
-      <div class="reading-line"><span class="lead gold">宮位釋義　</span>${esc(palaceMeanings[state.selectedPalace] ?? '')}</div>
-      <div class="reading-line"><span class="lead red">本命解讀　</span>${esc(flat(reading.text))}</div>
-      ${advancedLine}
+    <div class="classroom-body palace-brief">
+      <div class="palace-topic">${esc(palaceMeanings[state.selectedPalace] ?? '')}</div>
+      <p class="palace-takeaway">${esc(card.summary)}</p>
+      <div class="palace-explain">${explanationHtml}</div>
+      <details class="palace-technical">
+        <summary>專業資料</summary>
+        <div class="analysis-card__panel--technical" style="margin-top:10px">
+          <div class="tech-block"><b>星曜</b><p>${esc(stars)}</p></div>
+          <div class="tech-block"><b>命盤資料</b><p>${esc(card.technical.chartData)}</p></div>
+          <div class="tech-block"><b>專業判斷</b><p>${esc(card.technical.judgment)}</p></div>
+          ${advancedLine}
+        </div>
+      </details>
     </div>
   </div>`;
 }
@@ -606,9 +645,20 @@ function renderLuckBrowser() {
   const daxianPalace = state.data.byBranch[limit.ganZhi[1]].name;
   const liunianPalace = state.data.byBranch[sel.gz[1]].name;
 
+  // 白話短版:年度一句話重點 + 有利方向/需要留意,紫微跟八字各自的完整依據收在「專業運勢依據」裡分開標示
+  // (沿用 compose-plain.js 既有的時間卡片生成邏輯,不重算任何排盤或四化十神資料,只是換一組 age/year 參數)
+  const zwCard = generatePlainZiweiTimeCard(state.data.ziWei, { age: sel.age, year: sel.year });
+  const bzCard = generatePlainBaziTimeCard(state.data.baZi, { year: sel.year });
+  const dedupe = (arr, n) => [...new Set(arr.filter(Boolean))].slice(0, n);
+  const favorable = dedupe([...(zwCard.advice ?? []), ...(bzCard.advice ?? [])], 4);
+  const cautions = dedupe([...(zwCard.challenges ?? []), ...(bzCard.challenges ?? [])], 3);
+  const themeList = (title, items) => items.length
+    ? `<div class="analysis-card__section"><div class="analysis-card__section-title">${esc(title)}</div><ul class="analysis-card__list">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>`
+    : '';
+
   return `<div class="card">
     <div class="card-label">大限・流年</div>
-    <div class="card-hint">先選十年大限，再選其中某一年，逐年查看流年命宮落於何處——這裡可自由切換任何年份，跟「解讀報告」固定顯示現在的摘要不同。</div>
+    <div class="card-hint">先選十年大限，再選其中某一年，逐年查看這一年的重點——這裡可自由切換任何年份，跟「重點解讀」固定顯示現在的摘要不同。</div>
     <div class="chip-label">大限（十年）</div>
     <div class="chip-row">${limitChips}</div>
     <div class="chip-label">流年（${esc(limit.ageRange.replace('~', '–'))} 歲・${esc(daxianPalace)}大限）</div>
@@ -617,11 +667,17 @@ function renderLuckBrowser() {
       <div class="luck-year">${sel.year} 年　${esc(sel.gz)}　${sel.age} 歲
         <button type="button" class="mini-btn" id="copy-annual-prompt">複製此流年 AI 提示詞</button>
       </div>
-      <div class="reading-line"><span class="lead gold">大限重心（${esc(daxianPalace)}）　</span>${esc(flat(readingOf(daxianPalace).text))}</div>
-      <div class="reading-line"><span class="lead gold">大限四化（紫微）　</span>${esc(flat(composeZiWeiDecadalChange(state.data.ziWei, limit, { mode: state.readingMode }).text))}</div>
-      <div class="reading-line"><span class="lead red">流年命宮（${esc(liunianPalace)}）　</span>${esc(flat(readingOf(liunianPalace).text))}</div>
-      <div class="reading-line"><span class="lead red">流年變動（紫微）　</span>${esc(flat(composeZiWeiAnnualChange(state.data.ziWei, sel.year, { mode: state.readingMode }).text))}</div>
-      <div class="reading-line"><span class="lead gold">流年變動（八字）　</span>${esc(flat(composeAnnualChange(state.data.baZi, sel.year, { mode: state.readingMode }).text))}</div>
+      <p class="palace-takeaway">${esc(zwCard.summary)}</p>
+      <p class="palace-explain" style="margin:0 0 4px">${esc(bzCard.summary)}</p>
+      ${themeList('有利方向', favorable)}
+      ${themeList('需要留意', cautions)}
+      <details class="palace-technical">
+        <summary>專業運勢依據</summary>
+        <div class="analysis-card__panel--technical" style="margin-top:10px">
+          <div class="tech-block"><b>紫微(大限重心：${esc(daxianPalace)}／流年命宮：${esc(liunianPalace)})</b><p>${esc(zwCard.technical.judgment)}</p></div>
+          <div class="tech-block"><b>八字</b><p>${esc(bzCard.technical.judgment)}</p></div>
+        </div>
+      </details>
       ${renderMonthlyBrowser(sel.year)}
     </div>
   </div>`;
@@ -653,7 +709,9 @@ function renderDashboard() {
   const hourWarn = state.data.hourUnknown
     ? `<div class="card" style="border-color:var(--gold)"><div class="card-hint" style="margin:0">⚠ 時辰未知:目前以「午時」暫排。紫微命盤的宮位與八字時柱會隨時辰改變,以下結果僅供參考;年柱、月柱、日柱與五行分佈不受影響,仍為準確資訊。</div></div>`
     : '';
+  const dashboardIntro = `<div class="report-intro">查看宮位、星曜、大限與流年的原始命盤資料。想直接閱讀生活化結論，可前往<button type="button" class="link-jump" data-goto="report">重點解讀</button>；想讀完整的人生主題分析，可前往<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。</div>`;
   $('#view-dashboard').innerHTML = `<div class="stack">
+    ${dashboardIntro}
     ${hourWarn}
     ${renderResultSummary()}
     <div class="chart-tabs">
@@ -717,7 +775,7 @@ function renderDashboard() {
   });
 }
 
-// ---------- 分頁二:解讀報告 ----------
+// ---------- 分頁二:重點解讀 ----------
 function reportItems() {
   // 白話摘要卡片(7 段式結構)全部交給 compose-plain.js 組裝,這裡只負責取用已經算好的
   // 命盤資料(ziWei/baZi)與現行大限流年(zwLuck/bzLuck)、五行分佈(elements),不重新排盤、
@@ -737,24 +795,35 @@ function analysisSectionHtml(title, items) {
   </div>`;
 }
 
+/** 白話摘要面板(data-report-panel="plain"):一句話重點/白話解釋/生活中的表現/可能的挑戰/發揮建議/自我對照句 */
+function analysisPlainPanelHtml(it, hidden) {
+  const explanationHtml = (it.explanation || []).map((p) => `<p>${esc(p)}</p>`).join('');
+  return `<div class="analysis-card__panel" data-report-panel="plain"${hidden ? ' hidden' : ''}>
+    <p class="analysis-card__summary">${esc(it.summary)}</p>
+    <div class="analysis-card__explanation">${explanationHtml}</div>
+    ${analysisSectionHtml('生活中的表現', it.lifeExamples)}
+    ${analysisSectionHtml('可能的挑戰', it.challenges)}
+    ${analysisSectionHtml('發揮建議', it.advice)}
+    ${it.reflection ? `<div class="analysis-card__reflection"><span>自我對照</span>${esc(it.reflection)}</div>` : ''}
+  </div>`;
+}
+
 /**
- * 專業命理依據區塊(預設收合,點開才看得到)。
- * 結構固定為 4 小節:命盤資料 / 專業判斷 / 白話對應 / 限制與需綜合參考處。
- * isStudy(頁首「白話摘要／專業命盤」切換為「專業命盤」時)為 true 時預設展開,
- * 方便想深入了解命理依據的使用者不用逐一點開每張卡片。
+ * 專業依據面板(data-report-panel="technical"):對應宮位/主星借星/三方四正/四化、大限流年小限、
+ * 八字日主十神五行喜忌等命盤原始判斷依據,以及白話結論與專業依據的對照。
+ * 固定 4 小節:命盤資料 / 專業判斷 / 白話對應 / 限制與需綜合參考處。
+ * 這裡永遠是完整內容(compose-plain.js 內部固定用 mode:'study' 組裝 technical.judgment),
+ * 由外層的 hidden 屬性決定要不要顯示,不是靠內容本身的詳略來切換。
  */
-function analysisTechnicalHtml(technical, isStudy) {
+function analysisTechnicalPanelHtml(technical, hidden) {
   if (!technical) return '';
   const warnings = technical.warnings ?? [];
-  return `<details class="analysis-card__technical"${isStudy ? ' open' : ''}>
-    <summary>專業命理依據</summary>
-    <div class="analysis-card__tech-body">
-      <div class="tech-block"><b>命盤資料</b><p>${esc(technical.chartData || '—')}</p></div>
-      <div class="tech-block"><b>專業判斷</b><p>${esc(technical.judgment || '—')}</p></div>
-      <div class="tech-block"><b>白話對應</b><p>${esc(technical.plainMapping || '—')}</p></div>
-      ${warnings.length ? `<div class="tech-block"><b>限制與需綜合參考處</b><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
-    </div>
-  </details>`;
+  return `<div class="analysis-card__panel analysis-card__panel--technical" data-report-panel="technical"${hidden ? ' hidden' : ''}>
+    <div class="tech-block"><b>命盤資料</b><p>${esc(technical.chartData || '—')}</p></div>
+    <div class="tech-block"><b>專業判斷</b><p>${esc(technical.judgment || '—')}</p></div>
+    <div class="tech-block"><b>白話對應</b><p>${esc(technical.plainMapping || '—')}</p></div>
+    ${warnings.length ? `<div class="tech-block"><b>限制與需綜合參考處</b><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+  </div>`;
 }
 
 function renderReport() {
@@ -762,13 +831,12 @@ function renderReport() {
   const isZiwei = state.reportTab === 'ziwei';
   const items = isZiwei ? ziwei : bazi;
   const expandedKeys = isZiwei ? state.expandedZiwei : state.expandedBazi;
-  // 頁首「白話摘要／專業命盤」切換(#reading-mode-toggle)沿用既有的 state.readingMode:
-  // 在這裡的作用是控制每張卡片的「專業命理依據」預設展開或收合,而不是另外做一套切換邏輯
-  const isStudy = state.readingMode === 'study';
+  // 紫微斗數/八字兩個分頁各自記住自己選的是「白話摘要」還是「專業依據」(見 state.reportViewMode)
+  const isStudy = state.reportViewMode[state.reportTab] === 'study';
 
   const intro = isZiwei
-    ? '依紫微命盤十二宮與現行大限、流年，整理出「現在」這個時間點的白話摘要；點開卡片看完整說明，卡片內的「專業命理依據」可另外展開查看對應的命盤判斷。想探索其他年份或宮位，請到「命盤總覽」互動查看。'
-    : '依八字四柱日主強弱、五行喜忌與十神配置，整理出「現在」這個時間點的白話摘要；點開卡片看完整說明，卡片內的「專業命理依據」可另外展開查看對應的命盤判斷。想探索其他年份，請到「命盤總覽」互動查看。';
+    ? '這裡整理你現在最值得注意的命盤重點，包括本命特質、目前大限與流年。想查看宮位、星曜或切換其他年份，請到<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>；想讀完整的人生主題分析，請到<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。'
+    : '這裡整理你現在最值得注意的命盤重點，包括日主特質、目前大運與流年。想查看四柱、十神或切換其他年份，請到<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>；想讀完整的人生主題分析，請到<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。'
 
   const list = items.map((it) => {
     const open = expandedKeys.includes(it.key);
@@ -777,9 +845,9 @@ function renderReport() {
     const jumpNote = (it.key === 'xian' || it.key === 'dayun')
       ? '<button type="button" class="mini-btn acc-jump" data-jump-dashboard="1" style="margin-top:10px">→ 到「命盤總覽」切換查看其他大限／流年</button>'
       : '';
-    const explanationHtml = (it.explanation || []).map((p) => `<p>${esc(p)}</p>`).join('');
+    const panelId = `report-panel-${it.key}`;
     return `<div class="analysis-card${open ? ' open' : ''}${it.borrowed ? ' is-borrowed' : ''}">
-      <button type="button" class="analysis-card__header" data-acc="${it.key}" aria-expanded="${open}">
+      <button type="button" class="analysis-card__header" data-acc="${it.key}" aria-expanded="${open}" aria-controls="${panelId}">
         <div class="round-icon" style="background:${it.color}">${it.letter}</div>
         <div class="analysis-card__headtext">
           <div class="analysis-card__title">${esc(it.title)}</div>
@@ -787,14 +855,9 @@ function renderReport() {
         </div>
         <div class="acc-chevron">›</div>
       </button>
-      ${open ? `<div class="analysis-card__content">
-        <p class="analysis-card__summary">${esc(it.summary)}</p>
-        <div class="analysis-card__explanation">${explanationHtml}</div>
-        ${analysisSectionHtml('生活中的表現', it.lifeExamples)}
-        ${analysisSectionHtml('可能的挑戰', it.challenges)}
-        ${analysisSectionHtml('發揮建議', it.advice)}
-        ${it.reflection ? `<div class="analysis-card__reflection"><span>自我對照</span>${esc(it.reflection)}</div>` : ''}
-        ${analysisTechnicalHtml(it.technical, isStudy)}
+      ${open ? `<div class="analysis-card__content" id="${panelId}">
+        ${analysisPlainPanelHtml(it, isStudy)}
+        ${analysisTechnicalPanelHtml(it.technical, !isStudy)}
         ${jumpNote}
       </div>` : ''}
     </div>`;
@@ -808,16 +871,20 @@ function renderReport() {
   </div>`;
 
   $('#view-report').innerHTML = `
-    <div class="report-tabs">
-      <button type="button" class="report-tab${isZiwei ? ' active' : ''}" data-tab="ziwei">紫微斗數</button>
-      <button type="button" class="report-tab${isZiwei ? '' : ' active'}" data-tab="bazi">八字</button>
+    <div class="report-tabs" role="tablist">
+      <button type="button" class="report-tab${isZiwei ? ' active' : ''}" data-tab="ziwei" role="tab" aria-selected="${isZiwei}">紫微斗數</button>
+      <button type="button" class="report-tab${isZiwei ? '' : ' active'}" data-tab="bazi" role="tab" aria-selected="${!isZiwei}">八字</button>
     </div>
     <div class="report-intro">${intro}</div>
     <div class="analysis-card-list">${list}</div>
     ${shareInvite}`;
 
   $$('#view-report .report-tab').forEach((tab) =>
-    tab.addEventListener('click', () => { state.reportTab = tab.dataset.tab; renderReport(); }));
+    tab.addEventListener('click', () => {
+      state.reportTab = tab.dataset.tab;
+      renderReport();
+      syncModeToggleUI(); // 換分頁後,按鈕要立刻反映這個分頁自己記住的白話/專業狀態
+    }));
   $$('#view-report [data-jump-dashboard]').forEach((btn) =>
     btn.addEventListener('click', (e) => { e.stopPropagation(); switchView('dashboard'); }));
   $('#report-share-btn')?.addEventListener('click', () => switchView('share'));
@@ -831,21 +898,90 @@ function renderReport() {
     }));
 }
 
-// ---------- 分頁:命盤解析(綜合報告) ----------
-// 命盤解析(綜合報告)裡屬於補充細節、預設收合的段落標題(點開才展開,避免一次全部展開資訊過載)
+// ---------- 分頁:深度解析(綜合報告) ----------
+// 深度解析(綜合報告)裡屬於補充細節、預設收合的段落標題(點開才展開,避免一次全部展開資訊過載)
 const COLLAPSIBLE_DETAIL_TITLES = new Set(['四、地支關係', '五、神煞']);
 
+// 深度解析的長文段落沿用 comprehensive.js 既有的組裝結果(不重寫那套模板邏輯),但這裡做兩件事:
+// 1) 把「從命宮來看」「官祿宮顯示」「日主丁(火日生)」這類白話模式不該出現的宮位/術語開頭句型
+//    做輕量清除,不動 comprehensive.js 本體,只在渲染這一層處理;
+// 2) 幫每段加一句白話 headline(重用命盤總覽/重點解讀已經有的白話摘要內容,不重新寫一份)。
+function stripJargonOpeners(text) {
+  return text
+    .replace(/從(?:命宮|身宮所在的)?[一-龥]{0,4}(?:宮)?來看[,，]?/g, '')
+    .replace(/而身宮所在的([一-龥]{2,4}宮)[,，]?則/g, '同時,你的$1也')
+    .replace(/([一-龥]{2,4}宮)(?:顯示|呈現|給的[一-龥]{0,4}提醒是)[,，]?/g, '你')
+    .replace(/日主[甲乙丙丁戊己庚辛壬癸][(（][^)）]*[)）](?:是這張命盤的核心)?[,，]?/g, '')
+    // readingDeduped() 的空宮借星備註句:「本宮無主星,借對宮XX的YY參看,方向與前述XX的特質一致」
+    .replace(/本宮無主星[,，]借對宮([一-龥]{2,4})的([^,，。]+)參看[,，]方向與前述\1的特質一致[,，。]?/g, '這裡跟前面提到的$1方向一致,呈現$2的傾向。')
+    // 呼應差異判斷邏輯裡「交集數量=0」的固定句,是唯一命中禁用詞「呈現差異」的地方
+    .replace(/呈現差異[,，]兩個宮位的特質分屬不同面向[,，]顯示需要兼顧不同性質的課題[。]?/g, '兩邊呈現的樣貌不太一樣,比較適合分開來看,不用勉強套成同一套邏輯。')
+    .replace(/^[,，]\s*/, '')
+    .trim();
+}
+
+/** 長段文字依句號拆成短段落(每段約 2 句),避免一大塊文字牆 */
+function splitParagraphs(text, sentencesPerParagraph = 2) {
+  const sentences = text.split(/(?<=。)/).map((s) => s.trim()).filter(Boolean);
+  const paragraphs = [];
+  for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
+    paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join(''));
+  }
+  return paragraphs.length ? paragraphs : [text];
+}
+
+/** 每段的白話 headline:能對應到單一宮位/主題的,直接重用命盤總覽/重點解讀已經產生的白話摘要;
+ * 沒有單一對應對象的(行動建議/地支關係/神煞),用誠實但不下定論的靜態導語。 */
+function comprehensiveHeadline(title, { ziWei, baZi, baziCards }) {
+  const findBazi = (key) => baziCards.find((c) => c.key === key)?.summary ?? '';
+  switch (title) {
+    case '一、性格與才華': return generatePlainPalaceCard(ziWei, '命宮').summary;
+    case '二、事業與金錢': return generatePlainPalaceCard(ziWei, '官祿宮').summary;
+    case '三、戀愛與婚姻': return generatePlainPalaceCard(ziWei, '夫妻宮').summary;
+    case '四、健康、家庭與人際': return generatePlainPalaceCard(ziWei, '疾厄宮').summary;
+    case '五、行動建議': return '以下整理幾個目前值得留意、可以主動調整的方向。';
+    case '六、當前焦點': return generatePlainZiweiTimeCard(ziWei, {}).summary;
+    case '全盤概覽':
+    case '一、個性本質': return findBazi('zhu');
+    case '二、財官流向': return findBazi('xiji');
+    case '三、人際健康與行動建議': return generatePlainBaziTimeCard(baZi, {}).summary;
+    case '四、地支關係': return '這裡整理你命盤四柱之間的地支互動，會反映在跟不同對象、不同人生階段的相處模式上。';
+    case '五、神煞': return '以下是命盤中幾個比較特別的印記，代表一些額外的加分或需要留意的地方。';
+    default: return '';
+  }
+}
+
 function renderComprehensive() {
-  const { ziWei, baZi } = state.data;
+  const { ziWei, baZi, bzLuck, elements } = state.data;
   const mode = state.readingMode;
   const zw = generateZiweiComprehensiveReading(ziWei, { mode });
   const bz = generateBaziComprehensiveReading(baZi, { mode });
+  // 專業命理依據永遠是完整版本(跟命盤總覽/重點解讀一致的做法),不受「白話摘要／專業依據」開關影響——
+  // 開關只影響上面白話段落的呈現,收合的專業依據本來就是給想深入看的人用,理所當然是完整內容
+  const zwStudy = generateZiweiComprehensiveReading(ziWei, { mode: 'study' });
+  const bzStudy = generateBaziComprehensiveReading(baZi, { mode: 'study' });
+  const zwStudyByTitle = Object.fromEntries(zwStudy.sections.map((s) => [s.title, s.text]));
+  const bzStudyByTitle = Object.fromEntries(bzStudy.sections.map((s) => [s.title, s.text]));
+  const baziCards = generatePlainBaziTopics(baZi, bzLuck, elements);
+  const ctx = { ziWei, baZi, baziCards };
 
-  const block = (label, sections) => `
+  const block = (label, sections, studyByTitle) => `
     <div class="report-intro" style="margin-bottom:8px">${esc(label)}</div>
     <div class="accordion">${sections.map((s) => {
       const collapsible = COLLAPSIBLE_DETAIL_TITLES.has(s.title);
       const open = !collapsible || state.expandedComprehensiveDetails.has(s.title);
+      const headline = comprehensiveHeadline(s.title, ctx);
+      const paragraphs = splitParagraphs(stripJargonOpeners(s.text));
+      const body = `<div class="acc-body comp-section">
+        ${headline ? `<p class="palace-takeaway">${esc(headline)}</p>` : ''}
+        <div class="palace-explain">${paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
+        <details class="palace-technical">
+          <summary>專業命理依據</summary>
+          <div class="analysis-card__panel--technical" style="margin-top:10px">
+            <div class="tech-block"><p>${esc(studyByTitle[s.title] ?? s.text)}</p></div>
+          </div>
+        </details>
+      </div>`;
       return `
       <div class="acc-item${open ? ' open' : ''}">
         ${collapsible
@@ -854,16 +990,18 @@ function renderComprehensive() {
               <div class="acc-chevron">›</div>
             </button>`
           : `<div class="acc-row"><div class="acc-title">${esc(s.title)}</div></div>`}
-        ${open ? `<div class="acc-body">${esc(s.text)}</div>` : ''}
+        ${open ? body : ''}
       </div>`;
     }).join('')}
     </div>`;
 
+  const intro = `<div class="report-intro">這裡從性格、工作、感情、家庭與人生課題等面向，整理完整的長篇分析。若只想看現在最值得注意的內容，請到<button type="button" class="link-jump" data-goto="report">重點解讀</button>；想自己切換宮位或年份探索，則到<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>。</div>`;
+
   $('#view-comprehensive').innerHTML =
-    '<div class="card-hint" style="margin-bottom:14px">這裡是最完整的長文分析,把命盤脈絡串成故事來讀。如果只想看現在的重點摘要,「解讀報告」更快;想自己切換宮位或年份探索,則到「命盤總覽」。</div>' +
-    block('紫微斗數・綜合解析', zw.sections) +
+    intro +
+    block('紫微斗數・綜合解析', zw.sections, zwStudyByTitle) +
     '<div style="height:20px"></div>' +
-    block('八字・綜合解析', bz.sections);
+    block('八字・綜合解析', bz.sections, bzStudyByTitle);
 
   $$('#view-comprehensive .acc-row[data-detail]').forEach((row) =>
     row.addEventListener('click', () => {
@@ -1123,6 +1261,9 @@ function switchView(view) {
   state.view = view;
   $$('.nav-item[data-view]').forEach((n) => n.classList.toggle('active', n.dataset.view === view));
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
+  // 「白話摘要／專業依據」按鈕在重點解讀頁對應的是分頁各自的 reportViewMode,離開/進入這個頁面時
+  // 按鈕要立刻反映正確頁面的模式,不然切頁面回來後按鈕看起來像是「壞掉」(顯示上一頁的狀態)
+  if (state.data) syncModeToggleUI();
   if (matchMedia('(max-width: 900px)').matches) {
     $('.sidebar').classList.remove('open');
     $('#sidebar-toggle').setAttribute('aria-expanded', 'false');
@@ -1299,7 +1440,7 @@ function renderNameElementCard(fullName) {
 
   return `<div class="card">
     <div class="card-label">姓名五行 × ${esc(state.data.name)}的紫微八字</div>
-    <div class="card-hint">每個人的八字都能算出「喜用神」(對你比較有幫助的五行)跟「忌神」(比較不搭的五行)——排盤時就已經算好。這裡是看姓名用字的五行組成跟你的喜用神/忌神合不合,再補一段紫微命宮主星五行的參考角度。喜用神判斷跟命盤解析頁的八字綜合解讀是同一份邏輯。</div>
+    <div class="card-hint">每個人的八字都能算出「喜用神」(對你比較有幫助的五行)跟「忌神」(比較不搭的五行)——排盤時就已經算好。這裡是看姓名用字的五行組成跟你的喜用神/忌神合不合,再補一段紫微命宮主星五行的參考角度。喜用神判斷跟深度解析頁的八字綜合解讀是同一份邏輯。</div>
     ${rows ? `<div class="wuge-grid">${rows}</div>` : ''}
     <div class="reading-line"><span class="lead gold">判斷　</span>${esc(r.verdict)}</div>
     <div class="reading-line">${esc(r.verdictNote)}</div>
@@ -1695,16 +1836,26 @@ function setupControls() {
   });
   renderSavedList();
 
+  // 三頁互相導引用的跳轉連結([data-goto])用事件代理綁在 #main-content 上,不管內容重繪幾次都不用重新綁定,
+  // 命盤總覽/重點解讀/深度解析裡任何一顆 data-goto 按鈕都共用這一個監聽器
+  $('#main-content').addEventListener('click', (e) => {
+    const gotoBtn = e.target.closest('[data-goto]');
+    if (gotoBtn) switchView(gotoBtn.dataset.goto);
+  });
+
   $('#reading-mode-toggle').addEventListener('click', (e) => {
     const btn = e.target.closest('.mode-pill');
     if (!btn || !state.data) return;
-    state.readingMode = btn.dataset.mode;
-    $$('#reading-mode-toggle .mode-pill').forEach((p) => {
-      p.classList.toggle('active', p === btn);
-      p.setAttribute('aria-pressed', String(p === btn));
-    });
-    applyReadingMode();
-    renderAll();
+    setReadingMode(btn.dataset.mode);
+    syncModeToggleUI();
+    if (state.view === 'report') {
+      // 重點解讀的專業依據永遠是預先算好的完整版本(compose-plain.js 內部固定用 mode:'study'
+      // 組裝 technical),切換白話/專業只是換哪個面板可見,不需要整頁 renderAll,避免不必要的重繪與捲動風險
+      renderReport();
+    } else {
+      applyReadingMode();
+      renderAll();
+    }
   });
 
   $('#copy-ai-btn').addEventListener('click', async () => {

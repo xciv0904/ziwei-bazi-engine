@@ -21,6 +21,7 @@ import { composePalaceReading } from './compose.js';
 import { composeBaZiReading } from './compose-bazi.js';
 import { computeYongShen, FAVOR_IMPACT, AVOID_IMPACT } from './compose-yongshen.js';
 import { composeZiWeiLuck, composeBaZiLuck } from './compose-luck.js';
+import { palaceMeanings } from '../data/palace-meanings.js';
 
 const STAR_PROFILES = starDb['主星白話性格'];
 const STAR_DOMAIN = starDb['主星白話領域延伸'];
@@ -43,6 +44,19 @@ const DOMAIN_REFLECTION = {
   relationship: '在感情裡,你是否也常常出現剛剛提到的這些反應?',
   health: '你最近一次感覺特別累的時候,是不是也是這樣的狀況?',
 };
+
+// 12 宮之中,財帛/官祿/夫妻/疾厄有專屬的領域延伸內容庫(見 plain-star-profiles.json 的「主星白話領域延伸」)。
+// 命宮直接用主星性格庫本身。其餘 7 宮(兄弟/子女/遷移/交友/田宅/福德/父母)目前沒有各自獨立的
+// 白話內容庫(工程量過大,見完成回報的取捨說明),改用「一般化橋接」:沿用該主星的性格描述,
+// 但開頭先點出這個宮位實際在看的主題(沿用 palace-meanings.js 的短句),避免使用者誤以為是在講命宮個性。
+const PALACE_DOMAIN_MAP = { 財帛宮: 'money', 官祿宮: 'career', 夫妻宮: 'relationship', 疾厄宮: 'health' };
+
+function paletteModeOf(palaceName) {
+  if (palaceName === '命宮') return { mode: 'personality', domain: null };
+  const domain = PALACE_DOMAIN_MAP[palaceName];
+  if (domain) return { mode: 'domain', domain };
+  return { mode: 'generic', domain: null };
+}
 
 // 忌用神/大運類別另外需要的簡短建議(FAVOR_IMPACT/AVOID_IMPACT 是完整說明句,
 // 這裡另外準備「可執行」的動作版本,避免建議欄位只是把說明句重講一次)
@@ -87,11 +101,32 @@ function resolvePalaceStars(ziWei, palaceName) {
   return { palace, opposite, borrowed, stars };
 }
 
-function borrowedOpener(palaceName, domain) {
+// 三方四正:本宮 + 對宮(+6) + 三合兩宮(+4、+8),回傳另外 3 個關聯宮位的名稱與主星,
+// 只用來把「專業命理依據」的命盤資料補完整,不影響任何白話判斷邏輯。
+function trianglePalacesOf(ziWei, palaceName) {
+  const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [branchOf(p), p]));
+  const self = ziWei.palaces.find((p) => p.name === palaceName);
+  const idx = BRANCHES.indexOf(branchOf(self));
+  return [6, 4, 8].map((off) => byBranch[BRANCHES[(idx + off) % 12]]).filter(Boolean).map((p) => ({
+    name: p.name,
+    stars: p.majorStars.map((s) => s.name).join('、') || '無主星',
+  }));
+}
+
+function formatChartData(palaceName, stars, borrowed, opposite, ziWei) {
+  const starLine = borrowed
+    ? `${palaceName}(本宮無主星,借對宮「${opposite?.name ?? ''}」星曜參看):${stars.map((s) => `${s.name}(亮度${s.brightness}${s.transformation ? `,化${String(s.transformation).replace(/^化/, '')}` : ''})`).join('、') || '無可借星曜'}`
+    : `${palaceName}:${stars.map((s) => `${s.name}(亮度${s.brightness}${s.transformation ? `,化${String(s.transformation).replace(/^化/, '')}` : ''})`).join('、')}`;
+  const selfPalace = ziWei.palaces.find((p) => p.name === palaceName);
+  const minor = selfPalace?.minorStars?.length ? `輔星/煞曜:${selfPalace.minorStars.join('、')}` : '輔星/煞曜:無';
+  const triangle = trianglePalacesOf(ziWei, palaceName).map((t) => `${t.name}(${t.stars})`).join('、');
+  return [starLine, minor, `三方四正關聯宮位:${triangle}`].join('\n');
+}
+
+function borrowedOpener(palaceName, label) {
   if (palaceName === '命宮') {
     return '你的個性不是天生固定的類型,而是會隨著環境、經歷與後天選擇逐漸成形。';
   }
-  const label = DOMAIN_LABEL[domain] ?? palaceName;
   return `${label}方面沒有專屬的固定主星坐鎮,這代表這個領域的樣貌比較不是天生註定,而是更容易隨環境、經驗與你的選擇而變化,以下參考對宮呼應的星曜傾向。`;
 }
 
@@ -110,14 +145,30 @@ function buildDomainExplanation(primary, tag, domainSrc) {
   return [p1, p2];
 }
 
-function starPalaceTopic({ key, title, letter, color, palaceName, domain }, ziWei) {
+// 「一般化橋接」explanation:給沒有專屬領域內容庫的 7 個宮位用。先點出這個宮位實際在看什麼主題
+// (沿用 palace-meanings.js 的短句),再帶出主星性格傾向,避免使用者誤以為在講命宮本身的個性。
+function buildGenericExplanation(primary, palaceLabel) {
+  const p = STAR_PROFILES[primary];
+  return [
+    `這裡看的是${palaceLabel}。從命盤這個位置的星曜來看,你帶著${p.tag}的傾向:${p.summary}`,
+    p.explanation[0],
+  ];
+}
+
+function contentFor(mode, starName, domain) {
+  if (mode === 'domain') return STAR_DOMAIN[starName]?.[domain];
+  return STAR_PROFILES[starName]; // personality 與 generic 都直接用主星性格庫
+}
+
+function starPalaceTopic({ key, title, letter, color, palaceName, domain: forcedDomain }, ziWei) {
   const { palace, opposite, borrowed, stars } = resolvePalaceStars(ziWei, palaceName);
   const names = stars.map((s) => s.name).filter((n) => STAR_PROFILES[n]);
 
   const studyReading = composePalaceReading(palace, opposite, { mode: 'study' });
-  const chartData = borrowed
-    ? `${palaceName}(本宮無主星,借對宮「${opposite?.name ?? ''}」星曜參看):${stars.map((s) => `${s.name}(亮度${s.brightness}${s.transformation ? `,化${String(s.transformation).replace(/^化/, '')}` : ''})`).join('、') || '無可借星曜'}`
-    : `${palaceName}:${stars.map((s) => `${s.name}(亮度${s.brightness}${s.transformation ? `,化${String(s.transformation).replace(/^化/, '')}` : ''})`).join('、')}`;
+  const chartData = formatChartData(palaceName, stars, borrowed, opposite, ziWei);
+  const { mode, domain: resolvedDomain } = paletteModeOf(palaceName);
+  const domain = forcedDomain !== undefined ? forcedDomain : resolvedDomain;
+  const palaceLabel = DOMAIN_LABEL[domain] ?? palaceMeanings[palaceName] ?? palaceName;
 
   if (names.length === 0) {
     // 兩端都沒有主星資料可對應(極少數狀況),仍輸出誠實的 7 段式卡片,不硬套個性描述
@@ -133,25 +184,23 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain }, ziWe
 
   const primary = names[0];
   const secondary = names[1];
-  const isPersonality = domain === null;
-  const src = isPersonality ? STAR_PROFILES[primary] : STAR_DOMAIN[primary]?.[domain];
+  const isPersonality = mode === 'personality';
+  const isGeneric = mode === 'generic';
+  const src = contentFor(mode, primary, domain);
 
   const card = clone({
-    summary: src.summary,
-    explanation: isPersonality ? src.explanation : buildDomainExplanation(primary, STAR_PROFILES[primary].tag, src),
+    summary: isGeneric ? `${palaceLabel}:${src.summary}` : src.summary,
+    explanation: isPersonality ? src.explanation : isGeneric ? buildGenericExplanation(primary, palaceLabel) : buildDomainExplanation(primary, STAR_PROFILES[primary].tag, src),
     lifeExamples: src.lifeExamples ?? [],
     challenges: src.challenges ?? [],
     advice: src.advice ?? [],
   });
 
-  if (secondary) {
-    const extraSrc = isPersonality ? STAR_PROFILES[secondary] : STAR_DOMAIN[secondary]?.[domain];
-    mergeExtra(card, extraSrc);
-  }
+  if (secondary) mergeExtra(card, contentFor(mode, secondary, domain));
 
-  if (borrowed) card.explanation = [borrowedOpener(palaceName, domain), ...card.explanation];
+  if (borrowed) card.explanation = [borrowedOpener(palaceName, palaceLabel), ...card.explanation];
 
-  const reflection = isPersonality ? STAR_PROFILES[primary].reflection : DOMAIN_REFLECTION[domain];
+  const reflection = mode === 'domain' ? DOMAIN_REFLECTION[domain] : STAR_PROFILES[primary].reflection;
   const tagLabel = names.map((n) => `${n}(${STAR_PROFILES[n]?.tag ?? ''})`).join('、');
 
   return {
@@ -169,6 +218,14 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain }, ziWe
       warnings: '此處僅呈現單一宮位的基礎判斷,完整解讀仍需綜合三方四正、四化飛星與大限流年等因素,本區塊為輔助參考、非最終定論。',
     }),
   };
+}
+
+/**
+ * 給命盤總覽「命盤小教室」用的單一宮位白話卡片,支援全部 12 宮(不限報告頁那 5 個)。
+ * 沒有專屬領域內容庫的宮位會用「一般化橋接」(見 buildGenericExplanation)。
+ */
+export function generatePlainPalaceCard(ziWei, palaceName) {
+  return starPalaceTopic({ key: 'palace', title: palaceName, letter: palaceName[0], color: 'var(--red)', palaceName, domain: undefined }, ziWei);
 }
 
 // ---------- 紫微:大限流年重點(時間軸主題,沿用既有大限/流年組裝結果,不另建內容庫) ----------
@@ -429,4 +486,31 @@ export function generatePlainBaziTopics(baZi, bzLuck, elements) {
   const timeCard = baziTimeTopic(baZi, bzLuck);
   if (timeCard) cards.push(timeCard);
   return cards;
+}
+
+/**
+ * 給命盤總覽「大限流年瀏覽器」用:任一大限/流年(不限「現在」)的紫微白話時間卡片。
+ * age/year 對應瀏覽器目前選中的大限、流年,composeZiWeiLuck 本來就支援指定任意 age/year,
+ * 這裡只是把已經存在的能力包成一個好呼叫的入口,不重算任何排盤資料。
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @param {{age?: number, year?: number}} [sel]
+ */
+export function generatePlainZiweiTimeCard(ziWei, { age, year } = {}) {
+  const opts = { mode: 'public' };
+  if (age != null) opts.age = age;
+  if (year != null) opts.year = year;
+  const zwLuck = composeZiWeiLuck(ziWei, opts);
+  return ziweiTimeTopic(ziWei, zwLuck);
+}
+
+/**
+ * 給命盤總覽「大限流年瀏覽器」用:任一年份的八字白話時間卡片(大運或流年,依 composeBaZiLuck 判斷)。
+ * @param {object} baZi convertToBaZi() 輸出
+ * @param {{year?: number}} [sel]
+ */
+export function generatePlainBaziTimeCard(baZi, { year } = {}) {
+  const opts = { mode: 'public' };
+  if (year != null) opts.year = year;
+  const bzLuck = composeBaZiLuck(baZi, opts);
+  return baziTimeTopic(baZi, bzLuck);
 }

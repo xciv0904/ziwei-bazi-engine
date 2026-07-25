@@ -225,6 +225,25 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .reading-line .lead { font: 600 12px/1 var(--serif); }
 .lead.gold { color: var(--gold); }
 .lead.red { color: var(--red); }
+/* 命盤總覽的宮位卡片(命盤小教室):三層結構——宮位主題(短句)/一句話重點/簡短解釋,
+   底下的「專業資料」用 details/summary 收合,key-value 陳列,不把星曜資料串成一整段長句 */
+.palace-brief { gap: 4px; }
+.palace-topic { font: 600 11.5px/1 var(--sans); color: var(--gold); letter-spacing: .04em; }
+.palace-takeaway {
+  margin: 6px 0 4px; padding: 10px 12px; background: var(--card-em); border-radius: 6px;
+  font: 700 13.5px/1.7 var(--serif); color: var(--ink);
+}
+.palace-explain { font: 400 13px/1.8 var(--sans); color: rgba(43, 38, 33, .68); }
+.palace-explain p { margin: 0 0 8px; }
+.palace-explain p:last-child { margin-bottom: 0; }
+.palace-technical { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.palace-technical summary {
+  cursor: pointer; font: 600 12px/1 var(--sans); color: var(--ink-45); list-style: none;
+  display: flex; align-items: center; gap: 6px; padding: 4px 0; min-height: 32px;
+}
+.palace-technical summary::-webkit-details-marker { display: none; }
+.palace-technical summary::before { content: '▸'; font-size: 10px; transition: transform .15s; }
+.palace-technical[open] summary::before { transform: rotate(90deg); }
 
 .card-hint { font: 400 11px/1 var(--sans); color: var(--ink-40); margin-bottom: 12px; }
 .chip-label { font: 500 10.5px/1 var(--sans); color: var(--ink-45); margin-bottom: 6px; }
@@ -316,21 +335,23 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .analysis-card__reflection span {
   display: block; font: 600 11.5px/1 var(--sans); color: var(--gold); letter-spacing: .06em; margin-bottom: 6px;
 }
-.analysis-card__technical { margin-top: 18px; border-top: 1px dashed var(--border); padding-top: 14px; }
-.analysis-card__technical summary {
-  cursor: pointer; font: 600 12.5px/1 var(--sans); color: var(--ink-45); list-style: none;
-  display: flex; align-items: center; gap: 6px; padding: 6px 0; min-height: 32px; /* 足夠的點擊區域 */
-}
-.analysis-card__technical summary::-webkit-details-marker { display: none; }
-.analysis-card__technical summary::before { content: '▸'; font-size: 10px; transition: transform .15s; }
-.analysis-card__technical[open] summary::before { transform: rotate(90deg); }
-.analysis-card__tech-body { margin-top: 10px; display: flex; flex-direction: column; gap: 12px; }
+/* 白話／專業依據面板:由頁首「白話摘要／專業依據」按鈕整組切換(見 renderReport 的 hidden 屬性),
+   不再是巢狀在卡片內容裡、預設收合的 <details>——這是修正按鈕沒有可見作用的關鍵改動,
+   確保只要卡片本身是展開的,切換按鈕就一定會讓看得到的內容整組替換,而不是只多一個可以再點開的摺疊區塊。 */
+.analysis-card__panel--technical { padding-top: 4px; display: flex; flex-direction: column; gap: 12px; }
 .tech-block b {
   display: block; font: 600 11.5px/1 var(--sans); color: var(--ink-45); letter-spacing: .04em; margin-bottom: 4px;
 }
 .tech-block p, .tech-block ul { margin: 0; font: 400 12.5px/1.8 var(--sans); color: var(--ink-45); white-space: pre-line; }
 .tech-block ul { padding-left: 18px; }
 .tech-block ul li { margin-bottom: 4px; }
+/* 頁面頂部定位說明裡的可點擊跳轉字(命盤總覽/重點解讀/深度解析互相導引用),
+   刻意做成行內文字連結而不是按鈕外觀,融入句子閱讀,不搶白話內容的視覺重量 */
+.link-jump {
+  background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--red);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer; display: inline;
+}
+.link-jump:hover { color: var(--gold); }
 
 
 /* ---------- 分享命卡 ---------- */

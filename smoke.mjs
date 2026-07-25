@@ -8,6 +8,12 @@ for (const k of ['document', 'Event', 'HTMLElement', 'Node', 'location', 'naviga
 }
 globalThis.window = w;
 
+// 攔截 console.error,整輪跑完後檢查有沒有任何一次程式自己 catch 到例外時記錄下來的錯誤
+// (畫面互動本身若丟出未捕捉例外,happy-dom 會直接讓這支腳本整個中斷、跑不完,等同另一種形式的錯誤偵測)
+const consoleErrors = [];
+const realConsoleError = console.error.bind(console);
+console.error = (...args) => { consoleErrors.push(args.map(String).join(' ')); realConsoleError(...args); };
+
 const html = readFileSync('./index.html', 'utf-8');
 w.document.body.innerHTML = html.match(/<body>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/, '');
 
@@ -66,7 +72,7 @@ check('命盤總覽摘要卡不再過早出現分享按鈕', !$('#summary-share-
 // 點財帛宮 → 小教室更新
 $$('.palace-cell').find((c) => c.dataset.palace === '財帛宮').click();
 check('點財帛宮 → 小教室切換', $('.classroom-title').textContent.includes('財帛宮'));
-check('小教室含機巨雙星補充', $('.classroom-body').textContent.includes('雙星組合'));
+check('小教室含機巨雙星補充(收在專業資料裡)', $('.classroom-body').textContent.includes('雙星組合'));
 
 // --- 盤面連動(大限/流年/三方四正/流年四化) ---
 check('流年命宮高亮 1 格', $$('.palace-cell.annual-palace').length === 1);
@@ -86,18 +92,21 @@ check('儲存按鈕在排盤後顯示', !$('#save-chart-btn').hidden);
 $('#save-chart-btn').click();
 check('儲存後收藏列表出現', !$('#saved-section').hidden && $$('.saved-chip').length === 1);
 
-// --- 大限四化 ---
-check('大限四化(紫微)區塊', $('.luck-detail').textContent.includes('大限四化'));
-
-// 大限流年互動
-check('流年變動(八字)區塊', $('.luck-detail').textContent.includes('流年變動（八字）'));
-check('流年變動(紫微)區塊', $('.luck-detail').textContent.includes('流年變動（紫微）'));
-check('紫微流年含四化落宮', $('.luck-detail').textContent.includes('化祿落在') || $('.luck-detail').textContent.includes('化祿,落本命'));
+// --- 大限流年瀏覽器(白話短版:年度重點/有利方向/需要留意,專業依據收合) ---
+check('大限流年瀏覽器有年度一句話重點', !!$('.luck-detail .palace-takeaway')?.textContent.length);
+check('大限流年瀏覽器有有利方向/需要留意其中之一', $$('.luck-detail .analysis-card__section-title').some((t) => t.textContent === '有利方向' || t.textContent === '需要留意'));
+check('專業運勢依據預設收合,展開後紫微/八字分開標示', (() => {
+  const details = $('.luck-detail .palace-technical');
+  if (!details || details.open) return false;
+  details.setAttribute('open', '');
+  const labels = $$('.luck-detail .palace-technical .tech-block b').map((b) => b.textContent);
+  return labels.some((l) => l.includes('紫微')) && labels.some((l) => l.includes('八字'));
+})());
 check('宮位 AI 提示詞按鈕', !!$('#copy-palace-prompt'));
 check('流年 AI 提示詞按鈕', !!$('#copy-annual-prompt'));
 $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
-check('切大限後流年變動仍在', $('.luck-detail').textContent.includes('流年變動'));
+check('切大限後年度重點仍在', !!$('.luck-detail .palace-takeaway')?.textContent.length);
 
 // --- 解讀報告(白話摘要分析卡片) ---
 $$('.nav-item').find((n) => n.dataset.view === 'report').click();
@@ -109,9 +118,10 @@ check('命宮總論卡片含 7 段式白話結構(重點/解釋/自我對照/專
   return !!card.querySelector('.analysis-card__summary')
     && !!card.querySelector('.analysis-card__explanation')
     && !!card.querySelector('.analysis-card__reflection')
-    && !!card.querySelector('.analysis-card__technical');
+    && !!card.querySelector('[data-report-panel="technical"]');
 })());
-check('專業命理依據預設收合(大眾版)', !$$('#view-report .analysis-card__technical').some((d) => d.open));
+check('專業依據面板預設收合(白話摘要模式)', $$('#view-report [data-report-panel="technical"]').every((p) => p.hidden));
+check('白話面板預設顯示(白話摘要模式)', $$('#view-report [data-report-panel="plain"]').every((p) => !p.hidden));
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('財帛宮')).click();
 check('點擊卡片標題可再展開第二張(卡片各自獨立展開,非手風琴)', $$('#view-report .analysis-card.open').length === 2);
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('大限・流年重點')).click();
@@ -204,21 +214,28 @@ check('命卡有五行色徽章', !!$('.fate-el-chip')?.textContent.trim());
 check('命宮主星標籤(空宮借星)', $('.fate-tags').textContent.includes('借'));
 check('日主標籤 乙木', $('.fate-tags').textContent.includes('乙木'));
 
-// --- 大眾版/學習版切換(命盤解析、解讀報告、命盤總覽單宮說明都要吃這個開關) ---
+// --- 大眾版/學習版切換(命盤總覽/深度解析用共用的 state.readingMode;重點解讀另外用分頁各自的
+//     state.reportViewMode,見下面單獨的區塊——命盤小教室與深度解析的「專業資料/專業命理依據」
+//     現在永遠是完整內容,收合、不受開關影響,開關只影響上面白話段落的引用詳略程度) ---
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
-check('預設大眾版,小教室不含依據句', !$('.classroom-body').textContent.includes('亮度是'));
+check('預設大眾版,小教室白話段落不含依據句', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
+check('小教室的專業資料永遠是完整內容,不受開關影響', $('.palace-technical').textContent.includes('亮度') || $('.palace-technical').textContent.includes('借對宮'));
 $('.mode-pill[data-mode="study"]').click();
-check('切學習版,小教室含依據句', $('.classroom-body').textContent.includes('亮度是') || $('.classroom-body').textContent.includes('借對宮'));
+check('切學習版,小教室白話段落仍維持白話(不因開關混入依據句)', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
 $$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
-check('學習版命盤解析含十神依據(細節上)', $('#view-comprehensive').textContent.includes('細節上'));
+check('學習版命盤解析:白話段落含十神依據(細節上)', $$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
+check('深度解析的專業命理依據永遠是完整內容,不受開關影響', $$('#view-comprehensive .palace-technical').length > 0);
 $('.mode-pill[data-mode="public"]').click();
-check('切回大眾版,命盤解析不再含十神依據', !$('#view-comprehensive').textContent.includes('細節上'));
+check('切回大眾版,白話段落不再含十神依據', !$$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
 
-// 解讀報告的白話摘要卡片也要吃這個開關:「專業命盤」模式下,卡片內的「專業命理依據」預設直接展開
+// 重點解讀的「白話摘要／專業依據」是分頁各自獨立的狀態(state.reportViewMode),要先切到這個頁面,
+// 開關才會改到它、而不是改到命盤總覽/深度解析共用的 state.readingMode(見 currentReadingMode())
+$$('.nav-item').find((n) => n.dataset.view === 'report').click();
 $('.mode-pill[data-mode="study"]').click();
-check('專業命盤模式:解讀報告已展開卡片的專業命理依據預設展開', $$('#view-report .analysis-card__technical').length > 0 && $$('#view-report .analysis-card__technical').every((d) => d.open));
+check('專業命盤模式:解讀報告已展開卡片直接顯示專業依據面板', $$('#view-report [data-report-panel="technical"]').length > 0 && $$('#view-report [data-report-panel="technical"]').every((p) => !p.hidden));
+check('專業命盤模式:白話面板改為隱藏', $$('#view-report [data-report-panel="plain"]').every((p) => p.hidden));
 $('.mode-pill[data-mode="public"]').click();
-check('切回白話摘要模式:解讀報告的專業命理依據恢復預設收合', !$$('#view-report .analysis-card__technical').some((d) => d.open));
+check('切回白話摘要模式:解讀報告的專業依據面板恢復預設收合', $$('#view-report [data-report-panel="technical"]').every((p) => p.hidden));
 
 // --- 重新排盤(換男生日期) ---
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
@@ -317,6 +334,40 @@ await settle();
 check('大限流年同宮的邊界案例排盤後仍標記已有命盤(has-chart)', doc.body.classList.contains('has-chart'));
 check('大限流年同宮的邊界案例排盤後側邊導覽可點擊', $$('.side-nav [data-view]').every((n) => !n.disabled));
 check('大限流年同宮的邊界案例仍能正常顯示 12 宮位', $$('.palace-cell').length === 12);
+
+// --- 資訊架構改版:導覽名稱統一、三頁互相導引、按鈕鍵盤可操作、無 console.error ---
+check('導覽列已改名為「重點解讀」「深度解析」', $$('.nav-item').some((n) => n.textContent === '重點解讀') && $$('.nav-item').some((n) => n.textContent === '深度解析'));
+check('導覽列不再出現舊名稱「解讀報告」「命盤解析」', !$$('.nav-item').some((n) => n.textContent === '解讀報告' || n.textContent === '命盤解析'));
+$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+check('命盤總覽有跳轉到重點解讀/深度解析的導引連結', !!$('#view-dashboard [data-goto="report"]') && !!$('#view-dashboard [data-goto="comprehensive"]'));
+$$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
+check('深度解析有跳轉到重點解讀/命盤總覽的導引連結', !!$('#view-comprehensive [data-goto="report"]') && !!$('#view-comprehensive [data-goto="dashboard"]'));
+$$('.nav-item').find((n) => n.dataset.view === 'report').click();
+check('重點解讀有跳轉到命盤總覽/深度解析的導引連結', !!$('#view-report [data-goto="dashboard"]') && !!$('#view-report [data-goto="comprehensive"]'));
+
+// 「白話摘要／專業依據」按鈕是原生 <button>,鍵盤 Enter/Space 本來就能觸發 click,這裡直接驗證
+// dispatchEvent(new w.Event('click')) 等效於鍵盤觸發後行為一致(happy-dom 沒有另外模擬鍵盤事件的 API,
+// 用「原生 button 元素 + 沒有 tabindex=-1 + 沒有攔截 keydown」三個條件驗證鍵盤可達性)
+check('切換按鈕是原生 button,鍵盤可操作(無 tabindex=-1、無攔截 keydown)', (() => {
+  const pills = $$('#reading-mode-toggle .mode-pill');
+  return pills.every((p) => p.tagName === 'BUTTON' && p.getAttribute('tabindex') !== '-1');
+})());
+check('切換按鈕有 aria-pressed 標示目前狀態', $$('#reading-mode-toggle .mode-pill').every((p) => p.hasAttribute('aria-pressed')));
+check('切換按鈕群組有 aria-controls 指向目前頁面', $('#reading-mode-toggle').hasAttribute('aria-controls'));
+
+// 紫微/八字分頁各自記住「白話摘要／專業依據」狀態,互不影響
+$$('#view-report .report-tab').find((t) => t.dataset.tab === 'ziwei')?.click();
+$('.mode-pill[data-mode="public"]').click();
+$$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi')?.click();
+$('.mode-pill[data-mode="study"]').click();
+$$('#view-report .report-tab').find((t) => t.dataset.tab === 'ziwei')?.click();
+check('紫微分頁不受剛剛八字分頁切換專業依據影響,仍是白話摘要', $('.mode-pill[data-mode="public"]').classList.contains('active'));
+$$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi')?.click();
+check('切回八字分頁,記得剛剛切的專業依據', $('.mode-pill[data-mode="study"]').classList.contains('active'));
+$('.mode-pill[data-mode="public"]').click();
+
+check('整輪互動下來沒有任何 console.error', consoleErrors.length === 0);
+if (consoleErrors.length) consoleErrors.forEach((e) => console.log('  console.error:', e.slice(0, 200)));
 
 console.log(failed === 0 ? '\n全部通過 ✅' : `\n${failed} 項失敗 ❌`);
 process.exit(failed === 0 ? 0 : 1);
