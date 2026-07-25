@@ -795,16 +795,15 @@ function analysisSectionHtml(title, items) {
   </div>`;
 }
 
-/** 白話摘要面板(data-report-panel="plain"):一句話重點/白話解釋/生活中的表現/可能的挑戰/發揮建議/自我對照句 */
+/** 重點解讀只回答「現在最值得注意什麼、接下來怎麼做」；完整資料仍保留給其他用途。 */
 function analysisPlainPanelHtml(it, hidden) {
-  const explanationHtml = (it.explanation || []).map((p) => `<p>${esc(p)}</p>`).join('');
+  const explanationHtml = (it.explanation || []).filter(Boolean).slice(0, 1).map((p) => `<p>${esc(p)}</p>`).join('');
   return `<div class="analysis-card__panel" data-report-panel="plain"${hidden ? ' hidden' : ''}>
     <p class="analysis-card__summary">${esc(it.summary)}</p>
     <div class="analysis-card__explanation">${explanationHtml}</div>
-    ${analysisSectionHtml('生活中的表現', it.lifeExamples)}
-    ${analysisSectionHtml('可能的挑戰', it.challenges)}
-    ${analysisSectionHtml('發揮建議', it.advice)}
-    ${it.reflection ? `<div class="analysis-card__reflection"><span>自我對照</span>${esc(it.reflection)}</div>` : ''}
+    ${analysisSectionHtml('現在可能出現', (it.lifeExamples || []).slice(0, 2))}
+    ${analysisSectionHtml('現在需要留意', (it.challenges || []).slice(0, 1))}
+    ${analysisSectionHtml('接下來可以做', (it.advice || []).slice(0, 2))}
   </div>`;
 }
 
@@ -893,7 +892,7 @@ function renderReport() {
       const key = row.dataset.acc;
       const stateKey = state.reportTab === 'ziwei' ? 'expandedZiwei' : 'expandedBazi';
       const cur = state[stateKey];
-      state[stateKey] = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+      state[stateKey] = cur.includes(key) ? [] : [key];
       renderReport();
     }));
 }
@@ -951,6 +950,64 @@ function comprehensiveHeadline(title, { ziWei, baZi, baziCards }) {
   }
 }
 
+const DEEP_CONNECTIONS = {
+  '一、性格與才華': '這個核心性格會延伸到你的工作選擇與關係互動：能付出、會觀察是優勢，但也要留意是否把別人的需求排在自己前面。',
+  '二、事業與金錢': '工作方式與金錢態度通常互相牽動。越清楚自己重視的工作節奏與安全感，越容易做出一致的職涯和資源選擇。',
+  '三、戀愛與婚姻': '親密關係中的反應往往延續你平常照顧人、做決定與表達需求的方式，因此界線和溝通會是長期關鍵。',
+  '四、健康、家庭與人際': '家庭責任、人際壓力與身體狀態會彼此影響；當你長期配合外界而沒有休息，身心通常會先出現訊號。',
+  '全盤概覽': '八字各部分不是分開運作：你的能量強弱、表達方式與安全感需求，會一起影響工作、關係與面對壓力的反應。',
+  '一、個性本質': '這個內在氣質會影響你如何吸收資訊、採取行動和與人合作，也是理解其他人生主題的起點。',
+  '二、財官流向': '資源、責任與成就感之間會互相拉動；選擇符合自身節奏的目標，比單純追求外在標準更容易長久。',
+  '三、人際健康與行動建議': '人際互動與身心負荷常是同一件事的兩面：界線越清楚，越能保留穩定行動與照顧自己的空間。',
+};
+
+const DEEP_STRENGTHS = {
+  '一、性格與才華': ['能快速察覺環境與他人的需要', '願意承擔責任，也能主動提供支持'],
+  '二、事業與金錢': ['能把觀察力轉成工作上的判斷', '適合在清楚節奏中累積專業與可信度'],
+  '三、戀愛與婚姻': ['重視關係品質，願意為兩人的相處投入', '能留意伴侶的感受與關係中的細節'],
+  '四、健康、家庭與人際': ['對身邊人的狀態敏感，容易成為可靠的支持者', '能從生活細節察覺需要調整的地方'],
+  '全盤概覽': ['能依情境調整做法，不容易只用單一角度看事情', '內在動力與外在行動之間具有整合空間'],
+  '一、個性本質': ['有自己的感受與判斷方式', '在熟悉且有安全感的環境中更能穩定發揮'],
+  '二、財官流向': ['能把責任感轉成具體成果', '適合透過長期累積建立資源與成就感'],
+  '三、人際健康與行動建議': ['能感受到互動氣氛並調整回應', '願意維持關係，也具備實際照顧人的能力'],
+};
+
+function deepSourceCard(title, { ziWei, baziCards }) {
+  const bazi = (key) => baziCards.find((c) => c.key === key);
+  switch (title) {
+    case '一、性格與才華': return generatePlainPalaceCard(ziWei, '命宮');
+    case '二、事業與金錢': return generatePlainPalaceCard(ziWei, '官祿宮');
+    case '三、戀愛與婚姻': return generatePlainPalaceCard(ziWei, '夫妻宮');
+    case '四、健康、家庭與人際': return generatePlainPalaceCard(ziWei, '疾厄宮');
+    case '全盤概覽':
+    case '一、個性本質': return bazi('zhu');
+    case '二、財官流向': return bazi('xiji') || bazi('yongshen');
+    case '三、人際健康與行動建議': return bazi('shishen') || bazi('dayun');
+    default: return null;
+  }
+}
+
+function deepListHtml(title, items, className = '') {
+  const values = [...new Set((items || []).filter(Boolean))].slice(0, 4);
+  if (!values.length) return '';
+  return `<section class="deep-section ${className}">
+    <h4>${esc(title)}</h4>
+    <ul>${values.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
+  </section>`;
+}
+
+function deepPatternsHtml(items) {
+  const contexts = ['在人際與日常中', '在工作或學習中', '在壓力增加時'];
+  const values = [...new Set((items || []).filter(Boolean))].slice(0, 3);
+  if (!values.length) return '';
+  return `<section class="deep-section deep-patterns">
+    <h4>不同情境中的表現</h4>
+    <div class="deep-pattern-grid">${values.map((item, index) => `
+      <div class="deep-pattern"><b>${contexts[index]}</b><p>${esc(item)}</p></div>`).join('')}
+    </div>
+  </section>`;
+}
+
 function renderComprehensive() {
   const { ziWei, baZi, bzLuck, elements } = state.data;
   const mode = state.readingMode;
@@ -972,9 +1029,17 @@ function renderComprehensive() {
       const open = !collapsible || state.expandedComprehensiveDetails.has(s.title);
       const headline = comprehensiveHeadline(s.title, ctx);
       const paragraphs = splitParagraphs(stripJargonOpeners(s.text));
+      const source = deepSourceCard(s.title, ctx);
       const body = `<div class="acc-body comp-section">
         ${headline ? `<p class="palace-takeaway">${esc(headline)}</p>` : ''}
-        <div class="palace-explain">${paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
+        <div class="palace-explain">${paragraphs.slice(0, source ? 3 : paragraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
+        ${source ? deepListHtml('你可以發揮的地方', DEEP_STRENGTHS[s.title], 'deep-strengths') : ''}
+        ${source ? deepPatternsHtml(source.lifeExamples) : ''}
+        ${source ? deepListHtml('容易反覆出現的課題', source.challenges, 'deep-challenges') : ''}
+        ${source ? deepListHtml('長期發展建議', source.advice, 'deep-advice') : ''}
+        ${DEEP_CONNECTIONS[s.title] ? `<section class="deep-section deep-connections">
+          <h4>與其他人生主題的關聯</h4><p>${esc(DEEP_CONNECTIONS[s.title])}</p>
+        </section>` : ''}
         <details class="palace-technical">
           <summary>專業命理依據</summary>
           <div class="analysis-card__panel--technical" style="margin-top:10px">

@@ -113,17 +113,19 @@ $$('.nav-item').find((n) => n.dataset.view === 'report').click();
 check('報告視圖顯示', !$('#view-report').hidden);
 check('紫微白話摘要卡片 6 項', $$('#view-report .analysis-card').length === 6);
 check('預設展開命宮總論', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('命宮總論'));
-check('命宮總論卡片含 7 段式白話結構(重點/解釋/自我對照/專業依據)', (() => {
+check('命宮總論卡片採快速摘要結構(重點/近期訊號/行動/專業依據)', (() => {
   const card = $$('#view-report .analysis-card').find((c) => c.querySelector('.analysis-card__title').textContent.includes('命宮總論'));
   return !!card.querySelector('.analysis-card__summary')
     && !!card.querySelector('.analysis-card__explanation')
-    && !!card.querySelector('.analysis-card__reflection')
+    && card.textContent.includes('現在可能出現')
+    && card.textContent.includes('接下來可以做')
+    && !card.querySelector('.analysis-card__reflection')
     && !!card.querySelector('[data-report-panel="technical"]');
 })());
 check('專業依據面板預設收合(白話摘要模式)', $$('#view-report [data-report-panel="technical"]').every((p) => p.hidden));
 check('白話面板預設顯示(白話摘要模式)', $$('#view-report [data-report-panel="plain"]').every((p) => !p.hidden));
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('財帛宮')).click();
-check('點擊卡片標題可再展開第二張(卡片各自獨立展開,非手風琴)', $$('#view-report .analysis-card.open').length === 2);
+check('重點解讀同時間只展開一張卡片', $$('#view-report .analysis-card.open').length === 1);
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('大限・流年重點')).click();
 check('大限流年重點區塊有跳轉命盤總覽按鈕', !!$('#view-report [data-jump-dashboard]'));
 $('#view-report [data-jump-dashboard]').click();
@@ -147,6 +149,14 @@ check('含八字財官流向段', $('#view-comprehensive').textContent.includes(
 check('含全盤概覽段', $('#view-comprehensive').textContent.includes('全盤概覽'));
 check('含地支關係段', $('#view-comprehensive').textContent.includes('地支關係'));
 check('含神煞段', $('#view-comprehensive').textContent.includes('神煞'));
+check('深度解析具備完整內容層級', (() => {
+  const text = $('#view-comprehensive').textContent;
+  return text.includes('你可以發揮的地方')
+    && text.includes('不同情境中的表現')
+    && text.includes('容易反覆出現的課題')
+    && text.includes('長期發展建議')
+    && text.includes('與其他人生主題的關聯');
+})());
 
 // 地支關係/神煞屬於補充細節,預設收合(acc-item 沒有 open class,內文不渲染),點開才展開
 const findDetailItem = (title) => $$('#view-comprehensive .acc-item').find((it) => it.querySelector('.acc-title')?.textContent.includes(title));

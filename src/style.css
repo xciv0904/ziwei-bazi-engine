@@ -294,9 +294,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .acc-subtle { font: 400 11.5px/1.3 var(--sans); color: var(--ink-40); margin-left: 8px; }
 .acc-body { padding: 0 20px 18px 58px; font: 400 13.5px/2 var(--sans); color: rgba(43, 38, 33, .62); white-space: pre-line; }
 
-/* ---------- 解讀報告:白話摘要分析卡片(analysis-card) ---------- */
-/* 每張卡片固定 7 段式白話結構(一句話重點/白話解釋/生活中的表現/可能的挑戰/發揮建議/
-   自我對照句)+ 1 段預設收合的專業命理依據。各卡片可獨立展開/收合,互不影響(非手風琴)。 */
+/* ---------- 重點解讀:快速摘要卡片 ---------- */
 .analysis-card-list { display: flex; flex-direction: column; gap: 12px; }
 .analysis-card {
   background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
@@ -334,6 +332,35 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 }
 .analysis-card__reflection span {
   display: block; font: 600 11.5px/1 var(--sans); color: var(--gold); letter-spacing: .06em; margin-bottom: 6px;
+}
+
+/* ---------- 深度解析:完整人生主題層級 ---------- */
+.comp-section { white-space: normal; }
+.deep-section { margin-top: 18px; }
+.deep-section h4 {
+  margin: 0 0 9px; font: 600 12px/1.2 var(--sans); color: var(--red);
+  letter-spacing: .04em;
+}
+.deep-section ul {
+  margin: 0; padding-left: 20px; font: 400 13.5px/1.85 var(--sans);
+  color: rgba(43, 38, 33, .72);
+}
+.deep-section li { margin-bottom: 6px; }
+.deep-pattern-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+}
+.deep-pattern {
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 6px;
+  background: rgba(255, 255, 255, .24);
+}
+.deep-pattern b {
+  display: block; margin-bottom: 5px; font: 600 11.5px/1.3 var(--sans); color: var(--gold);
+}
+.deep-pattern p, .deep-connections p {
+  margin: 0; font: 400 13.5px/1.85 var(--sans); color: rgba(43, 38, 33, .72);
+}
+.deep-connections {
+  padding: 13px 15px; border-left: 3px solid var(--gold); background: rgba(138, 109, 59, .06);
 }
 /* 白話／專業依據面板:由頁首「白話摘要／專業依據」按鈕整組切換(見 renderReport 的 hidden 屬性),
    不再是巢狀在卡片內容裡、預設收合的 <details>——這是修正按鈕沒有可見作用的關鍵改動,
@@ -743,6 +770,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .analysis-card__explanation { font-size: 14px; line-height: 1.9; }
   .analysis-card__list { font-size: 13.5px; line-height: 1.9; }
   .analysis-card__reflection { font-size: 13.5px; line-height: 1.85; }
+  .deep-pattern-grid { grid-template-columns: 1fr; }
+  .deep-section { margin-top: 16px; }
 
   .event-form,.date-form { grid-template-columns: 1fr; }
   .date-results { grid-template-columns: 1fr; }
