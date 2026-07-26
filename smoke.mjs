@@ -131,10 +131,17 @@ check('切大限後年度重點仍在', !!$('.luck-detail .palace-takeaway')?.te
 $$('.nav-item').find((n) => n.dataset.view === 'topics').click();
 check('主題分析視圖顯示', !$('#view-topics').hidden);
 check('主題分析共 10 個主題', $$('#view-topics .topic-tab').length === 10);
-check('每個主題顯示 3 個具體問題', $$('#view-topics .topic-question-card').length === 3);
+check('每個主題至少顯示 6 個具體問題', (() => {
+  const tabs = $$('#view-topics .topic-tab');
+  return tabs.every((tab) => {
+    tab.click();
+    return $$('#view-topics .topic-question-card').length >= 6;
+  });
+})());
+$$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'love').click();
 check('每題顯示一個紫微八字綜合回答', (() => {
   const text = $('#view-topics').textContent;
-  return $$('#view-topics .topic-answer--combined').length === 3
+  return $$('#view-topics .topic-answer--combined').length === 6
     && text.includes('綜合回答') && !text.includes('八字補充')
     && !text.includes('命盤無法判定') && !text.includes('水多')
     && !text.includes('五行') && !text.includes('日主') && !text.includes('十神');
