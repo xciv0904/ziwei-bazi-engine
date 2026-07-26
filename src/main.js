@@ -59,7 +59,7 @@ function fillDayOptions(sel, year, month) {
   sel.value = keep;
 }
 /** @returns {{read:()=>({y,m,d}|null), set:(y,m,d)=>void, clearError:()=>void}} */
-function wireDateParts({ yearId, monthId, dayId, errorId }) {
+function wireDateParts({ yearId, monthId, dayId, errorId, nextId = null }) {
   const yearEl = $(yearId), monthEl = $(monthId), dayEl = $(dayId), errEl = $(errorId);
   fillMonthOptions(monthEl);
   fillDayOptions(dayEl, null, 1);
@@ -74,7 +74,10 @@ function wireDateParts({ yearId, monthId, dayId, errorId }) {
     if (yearEl.value.length === 4 && y >= 1900 && y <= 2100) monthEl.focus();
   });
   monthEl.addEventListener('change', () => { clearError(); syncDays(); dayEl.focus(); });
-  dayEl.addEventListener('change', clearError);
+  dayEl.addEventListener('change', () => {
+    clearError();
+    if (nextId) $(nextId)?.focus();
+  });
   return {
     read() {
       const yStr = yearEl.value;
@@ -86,9 +89,11 @@ function wireDateParts({ yearId, monthId, dayId, errorId }) {
     },
     set(y, m, d) {
       yearEl.value = y ? String(y) : '';
+      monthEl.value = String(m || 1);
+      // 先選月份再重建日期選項。部分 DOM／行動瀏覽器在日期選項先更新時，
+      // 後續設定月份會把兩個 select 的選取狀態清空。
       fillDayOptions(dayEl, y, m || 1);
-      monthEl.value = m || 1;
-      dayEl.value = d || 1;
+      dayEl.value = String(d || 1);
       clearError();
     },
     clearError,
@@ -181,6 +186,9 @@ const state = {
   expandedComprehensiveDetails: new Set(),
   topicKey: 'love',
   topicQuestion: 0,
+  // 命盤總覽會在切換宮位、大限、流年與流月時整區重繪；原生 details 若不另存狀態，
+  // 每次重繪都會回到預設收合。集中保存所有總覽折疊狀態，讓內部互動不再把使用者彈出去。
+  dashboardOpenDetails: new Set(),
   // 雙人合盤:乙方表單值、關係型態與已排好的乙方命盤
   synastry: { form: { name: '', date: '', hour: '0', gender: 'female', rel: '戀人' }, b: null },
   monthIdx: null, // 流月瀏覽(null = 未展開)
@@ -239,6 +247,7 @@ async function computeAllInner(parsed) {
     elements: composeElementAnalysis(baZi.fiveElementDistribution), // 兩版本共用同一份,顯示時再依mode選summary/text
   };
   state.monthIdx = null;
+  state.dashboardOpenDetails.clear();
   state.shareCard = 'life';
   // 姓名學分頁帶入目前排盤的姓名(使用者若在姓名學頁另外手動改過,下次重新排盤/切換命盤時仍會被目前這筆姓名蓋過——
   // 這是預期行為,「帶入」的意思就是跟著目前排盤的人走)
@@ -622,7 +631,7 @@ function renderClassroom() {
       <div class="palace-topic">${esc(palaceMeanings[state.selectedPalace] ?? '')}</div>
       <p class="palace-takeaway">${esc(card.summary)}</p>
       <div class="palace-explain">${explanationHtml}</div>
-      <details class="palace-technical">
+      <details class="palace-technical" data-dashboard-detail="classroom-technical"${state.dashboardOpenDetails.has('classroom-technical') ? ' open' : ''}>
         <summary>專業資料</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
           <div class="tech-block"><b>星曜</b><p>${esc(stars)}</p></div>
@@ -752,7 +761,7 @@ function renderLuckBrowser() {
       <p class="palace-explain" style="margin:0 0 4px">${esc(adaptToLifeStage(bzCard.summary, lifeStage))}</p>
       ${themeList('有利方向', favorable)}
       ${themeList('需要留意', cautions)}
-      <details class="palace-technical">
+      <details class="palace-technical" data-dashboard-detail="annual-technical"${state.dashboardOpenDetails.has('annual-technical') ? ' open' : ''}>
         <summary>專業運勢依據</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
           <div class="tech-block"><b>紫微(大限重心：${esc(daxianPalace)}／流年命宮：${esc(liunianPalace)})</b><p>${esc(zwCard.technical.judgment)}</p></div>
@@ -811,7 +820,7 @@ function renderMonthlyBrowser(year) {
       ${list('這個月可以把握', favorable)}
       ${list('這個月需要留意', cautions)}
       <p class="monthly-action">先選一件與「${esc(domain)}」有關、能在本月完成的小事；遇到變化時先確認資訊，再調整步調。</p>
-      <details class="palace-technical">
+      <details class="palace-technical" data-dashboard-detail="monthly-technical"${state.dashboardOpenDetails.has('monthly-technical') ? ' open' : ''}>
         <summary>查看流月專業依據</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
           <div class="tech-block"><b>紫微流月命宮與四化</b><p>${esc(flat(zwMonthly.text))}</p></div>
@@ -829,7 +838,7 @@ function renderDashboard() {
   $('#view-dashboard').innerHTML = `<div class="stack">
     ${hourWarn}
     ${renderResultSummary()}
-    <details class="dashboard-details" id="dashboard-detail">
+    <details class="dashboard-details" id="dashboard-detail" data-dashboard-detail="dashboard-detail"${state.dashboardOpenDetails.has('dashboard-detail') ? ' open' : ''}>
       <summary><span><b>完整命盤資料</b><small>紫微十二宮、八字四柱、宮位與流年切換</small></span></summary>
       <div class="dashboard-details__body">
         <div class="chart-tabs">
@@ -849,6 +858,7 @@ function renderDashboard() {
     button.addEventListener('click', () => {
       if (button.dataset.resultGoto === 'dashboard-detail') {
         const details = $('#dashboard-detail');
+        state.dashboardOpenDetails.add('dashboard-detail');
         details.open = true;
         details.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else switchView(button.dataset.resultGoto);
@@ -1378,16 +1388,24 @@ function renderComprehensive() {
 }
 
 // ---------- 分頁:雙人合盤 ----------
-async function runSynastry() {
+async function runSynastry(selectedHourOverride = null) {
   const f = state.synastry.form;
   const parsed = synDateCtl?.read();
   if (!parsed) return; // 錯誤原因已就地顯示
   const { y, m, d } = parsed;
   const { convertToZiWei, convertToBaZi } = await loadEngines();
-  const input = { year: y, month: m, day: d, hour: Number(f.hour), gender: f.gender };
+  // 送出當下再從畫面讀一次，避免 select 的 change/input 事件在部分手機瀏覽器尚未同步到表單狀態。
+  const selectedHour = selectedHourOverride ?? $('#syn-hour')?.value ?? f.hour;
+  f.hour = selectedHour;
+  // renderSynastry() 會重建整張表單，先保存日期才能在產生結果後完整回填；
+  // 否則第二次調整時辰再合盤，日期會變回空白而被驗證擋下。
+  f.date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const hourUnknown = selectedHour === 'unknown';
+  const input = { year: y, month: m, day: d, hour: hourUnknown ? 11 : Number(selectedHour), gender: f.gender };
   state.synastry.b = {
     name: f.name.trim() || '乙方',
     input,
+    hourUnknown,
     baZi: convertToBaZi(input),
     ziWei: convertToZiWei(input),
   };
@@ -1406,7 +1424,11 @@ function renderSynastry() {
   let resultHtml = '';
   if (state.synastry.b) {
     const res = composeSynastry(a, state.synastry.b, { mode: state.readingMode, relation: f.rel });
+    const hourWarning = state.synastry.b.hourUnknown
+      ? '<div class="life-stage-note"><b>乙方時辰不確定</b><span>目前暫以午時排盤；涉及乙方紫微宮位與八字時柱的內容只作方向參考。</span></div>'
+      : '';
     resultHtml = `
+      ${hourWarning}
       <div class="card syn-score-card">
         <div class="syn-names">${esc(a.name)} × ${esc(state.synastry.b.name)}</div>
         <div class="syn-score">${res.score}<small>/100</small></div>
@@ -1432,7 +1454,7 @@ function renderSynastry() {
           <select id="syn-month" aria-label="乙方出生月"></select>
           <select id="syn-day" aria-label="乙方出生日"></select>
         </div>
-        <select id="syn-hour">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}</select>
+        <select id="syn-hour" aria-label="乙方時辰">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}<option value="unknown">不確定時辰（以午時暫排）</option></select>
         <select id="syn-gender"><option value="female">女</option><option value="male">男</option></select>
         <select id="syn-rel"><option>戀人</option><option>親子</option><option>朋友</option><option>同事</option></select>
         <button type="button" class="submit-btn syn-submit" id="syn-run">合盤</button>
@@ -1445,7 +1467,7 @@ function renderSynastry() {
   $('#syn-hour').value = f.hour;
   $('#syn-gender').value = f.gender;
   $('#syn-rel').value = f.rel;
-  synDateCtl = wireDateParts({ yearId: '#syn-year', monthId: '#syn-month', dayId: '#syn-day', errorId: '#syn-date-error' });
+  synDateCtl = wireDateParts({ yearId: '#syn-year', monthId: '#syn-month', dayId: '#syn-day', errorId: '#syn-date-error', nextId: '#syn-hour' });
   if (f.date) { const [fy, fm, fd] = f.date.split('-').map(Number); synDateCtl.set(fy, fm, fd); }
   for (const [id, key] of [['#syn-name', 'name'], ['#syn-hour', 'hour'], ['#syn-gender', 'gender']]) {
     $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
@@ -1462,9 +1484,16 @@ function renderSynastry() {
       Object.assign(f, { name: c.name, date: c.date, hour: String(c.hour), gender: c.gender });
       renderSynastry();
     }));
-  $('#syn-run').addEventListener('click', (e) => withLoading(e.currentTarget, '合盤中…', runSynastry));
+  $('#syn-run').addEventListener('click', (e) => {
+    // 在任何 await 之前先取得 select 當下值，避免 iOS/Safari 的原生選單關閉後 DOM 值同步時序不同。
+    const selectedHour = $('#syn-hour').value;
+    return withLoading(e.currentTarget, '合盤中…', () => runSynastry(selectedHour));
+  });
   $('#copy-syn-prompt')?.addEventListener('click', async () => {
-    const text = formatSynastryPromptForAI({ a, b: state.synastry.b });
+    const baseText = formatSynastryPromptForAI({ a, b: state.synastry.b });
+    const text = state.synastry.b.hourUnknown
+      ? `【重要】乙方出生時辰不確定，目前暫以午時排盤。請降低乙方紫微宮位與八字時柱相關結論的確定程度，不得把暫排結果寫成事實。\n\n${baseText}`
+      : baseText;
     try {
       await navigator.clipboard.writeText(text);
       toast('已複製合盤提示詞,可貼給AI');
@@ -2171,7 +2200,7 @@ function renderEmpty() {
 
 // ---------- 初始化 ----------
 function setupControls() {
-  birthDateCtl = wireDateParts({ yearId: '#birth-year', monthId: '#birth-month', dayId: '#birth-day', errorId: '#birth-date-error' });
+  birthDateCtl = wireDateParts({ yearId: '#birth-year', monthId: '#birth-month', dayId: '#birth-day', errorId: '#birth-date-error', nextId: '#birth-hour' });
 
   // 命盤上的符號(限/年/祿權科忌小標記、・身)原本只靠 title 屬性做 hover 提示,手機沒有 hover 等於看不到說明——
   // 綁一個委派點擊事件,點到這些符號時直接用 toast 顯示同樣的文字,桌面版 hover 仍然保留,手機版多了點擊也能看
@@ -2179,6 +2208,15 @@ function setupControls() {
     const marker = e.target.closest('.luck-tag, .flow-mut, .body-mark, sup[title]');
     if (marker?.title) toast(marker.title);
   });
+  // details 的 toggle 不會冒泡，但 capture 階段可統一監聽。每次使用者開關總覽中的折疊區，
+  // 都把狀態存進 state；後續 renderDashboard() 重建 DOM 時即可還原。
+  $('#view-dashboard').addEventListener('toggle', (e) => {
+    const details = e.target.closest?.('[data-dashboard-detail]');
+    if (!details) return;
+    const key = details.dataset.dashboardDetail;
+    if (details.open) state.dashboardOpenDetails.add(key);
+    else state.dashboardOpenDetails.delete(key);
+  }, true);
 
   // 時辰選單(預設子時,列表第一個選項,避免下拉選單一開始就停在中間某個時辰,
   // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選,這裡只是給一個不易混淆的起始值)

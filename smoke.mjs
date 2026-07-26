@@ -50,7 +50,7 @@ check('留空送出不會產生命盤', $$('.palace-cell').length === 0);
 // --- 填表排盤 ---
 $('#name-input').value = 'Shelly';
 setDateParts('birth', 2002, 9, 4);
-check('年份輸完後月份選定會自動跳到日期', doc.activeElement === $('#birth-day'));
+check('日期選完後會自動接到時辰', doc.activeElement === $('#birth-hour'));
 $('#birth-hour').value = '13';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
@@ -235,6 +235,7 @@ check('合盤表單存在', !!$('#syn-year') && !!$('#syn-run'));
 check('已存命盤可帶入乙方', $$('#view-synastry [data-syn-load]').length >= 1);
 $('#syn-name').value = '弟弟'; $('#syn-name').dispatchEvent(new w.Event('input'));
 setDateParts('syn', 2006, 7, 12);
+check('合盤日期選完後會自動接到乙方時辰', doc.activeElement === $('#syn-hour'));
 $('#syn-hour').value = '19'; $('#syn-hour').dispatchEvent(new w.Event('input'));
 $('#syn-gender').value = 'male'; $('#syn-gender').dispatchEvent(new w.Event('input'));
 $('#syn-run').click();
@@ -242,6 +243,11 @@ await settle();
 check('合盤結果含契合指數', $('#view-synastry').textContent.includes('契合指數'));
 check('合盤結果八段', $$('#view-synastry .acc-item').length === 8);
 check('合盤 AI 提示詞按鈕', !!$('#copy-syn-prompt'));
+check('合盤時辰提供「不確定」選項', $$('#syn-hour option').some((o) => o.value === 'unknown'));
+$('#syn-hour').value = 'unknown'; $('#syn-hour').dispatchEvent(new w.Event('input'));
+$('#syn-run').click();
+await settle();
+check('合盤未知時辰會顯示暫排警示', $('#view-synastry').textContent.includes('乙方時辰不確定') && $('#view-synastry').textContent.includes('暫以午時排盤'));
 
 // --- 命理小百科連結 ---
 check('側欄有小百科連結', !!$('.nav-external'));
@@ -251,16 +257,23 @@ check('時辰選單含「不確定」', $$('#birth-hour option').some((o) => o.v
 check('收藏匯出/匯入按鈕', !!$('#export-charts') && !!$('#import-charts'));
 check('合盤關係型態選單', !!$('#syn-rel') && $$('#syn-rel option').length === 4);
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+$('#dashboard-detail').open = true;
+$('#dashboard-detail').dispatchEvent(new w.Event('toggle'));
 $('#open-monthly')?.click();
+check('展開流月後完整命盤不會自動收合', $('#dashboard-detail').open);
 check('流月 chips 12 個', $$('[data-month]').length === 12);
+$('.monthly-plain .palace-technical').open = true;
+$('.monthly-plain .palace-technical').dispatchEvent(new w.Event('toggle'));
+$$('[data-month]')[1].click();
+check('切換流月後外層與流月專業依據都維持展開', $('#dashboard-detail').open && $('.monthly-plain .palace-technical').open);
 check('流月正文改為白話重點/把握/留意/行動', (() => {
   const text = $('.monthly-plain').textContent;
   return text.includes('月重點') && text.includes('這個月可以把握')
     && text.includes('這個月需要留意') && text.includes('先選一件');
 })());
-check('流月專業術語預設收合', (() => {
+check('流月專業依據切換月份後維持原本展開狀態', (() => {
   const details = $('.monthly-plain .palace-technical');
-  return details && !details.open && details.textContent.includes('紫微流月命宮與四化')
+  return details && details.open && details.textContent.includes('紫微流月命宮與四化')
     && details.textContent.includes('八字流月干支與引動');
 })());
 $$('.nav-item').find((n) => n.dataset.view === 'share').click();
