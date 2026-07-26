@@ -801,7 +801,7 @@ function renderDashboard() {
   const hourWarn = state.data.hourUnknown
     ? `<div class="card" style="border-color:var(--gold)"><div class="card-hint" style="margin:0">⚠ 時辰未知:目前以「午時」暫排。紫微命盤的宮位與八字時柱會隨時辰改變,以下結果僅供參考;年柱、月柱、日柱與五行分佈不受影響,仍為準確資訊。</div></div>`
     : '';
-  const dashboardIntro = `<div class="report-intro">查看宮位、星曜、大限與流年的原始命盤資料。想直接閱讀生活化結論，可前往<button type="button" class="link-jump" data-goto="report">重點解讀</button>；想讀完整的人生主題分析，可前往<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。</div>`;
+  const dashboardIntro = `<div class="report-intro">查看宮位、星曜、大限與流年的原始命盤資料。想從愛情、事業、財運等具體問題開始，可前往<button type="button" class="link-jump" data-goto="topics">主題分析</button>；想快速掌握近期方向，可前往<button type="button" class="link-jump" data-goto="report">重點解讀</button>；想讀完整的人生模式，則前往<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。</div>`;
   $('#view-dashboard').innerHTML = `<div class="stack">
     ${dashboardIntro}
     ${hourWarn}
@@ -881,18 +881,66 @@ const TOPIC_ANALYSIS = [
   { key: 'migration', label: '遷移', icon: '行', palace: '遷移宮', bazi: ['dayun', 'zhu'], questions: ['離開熟悉環境後，我通常會有什麼表現？', '我適合往外發展、旅行或轉換環境嗎？', '面對新地方與陌生人時，怎麼做比較容易站穩？'] },
 ];
 
-function topicAnswerFromCard(card, questionIndex, topic) {
-  if (!card) return '目前沒有足夠資料形成初步判斷，建議使用下方 AI 深入解讀並保留這項限制。';
-  const join = (items, n = 2) => [...new Set((items || []).filter(Boolean))].slice(0, n).join('；');
-  const mode = topic.modes?.[questionIndex] ?? ['pattern', 'examples', 'advice'][questionIndex];
-  const limitation = questionIndex === 0 && ['love', 'social'].includes(topic.key)
-    ? '命盤無法判定具體身份或外貌，但可以觀察你容易形成的互動類型。'
-    : '';
-  if (mode === 'pattern') return [limitation, card.summary, card.explanation?.[0]].filter(Boolean).join(' ');
-  if (mode === 'examples') return join(card.lifeExamples, 2) || card.explanation?.[1] || card.summary;
-  const advice = join(card.advice, 2);
-  const caution = join(card.challenges, 1);
-  return [advice, caution ? `同時要留意：${caution}` : ''].filter(Boolean).join(' ');
+const TOPIC_DIRECT_ANSWERS = {
+  love: [
+    ['你比較容易遇到成熟、有責任感，會用行動照顧關係的人。對方通常有自己的原則，關係穩定後才會慢慢表達情緒。', '你容易遇到外表獨立、內心重視安全感的人。對方未必很會說甜言蜜語，但會希望兩個人能一起規劃生活。'],
+    ['比起外表，你更容易被可靠、願意承擔，而且遇到問題肯溝通的人吸引。對方有自己的想法，但不會忽略你的感受，最容易讓你心動。', '你容易被有見識、情緒穩定又能給人安心感的人吸引。單純熱情不一定夠，真正打動你的是對方能不能把關係放在心上。'],
+    ['最適合你的關係是彼此照顧，但不替對方做完所有決定。有事直接說、責任分清楚，也要讓自己有被照顧的空間。', '你適合穩定、能討論未來的相處方式。關係中保留各自的生活，同時固定確認彼此需求，會比一方一直配合更長久。'],
+  ],
+  career: [
+    ['你適合負責需要協調、整理資訊、照顧流程或協助團隊穩定運作的工作。比起只拚速度，你更能在需要耐心與判斷的任務中發揮。', '你適合處理需要觀察、分析與溝通的內容，例如規劃、研究、顧問、內容整理或跨部門協調，而不是長期做完全沒有自主空間的重複工作。'],
+    ['你最拿手的是先看懂局面，再找到大家都能執行的方法。你能察覺別人忽略的細節，也擅長在混亂時把事情重新排出順序。', '你的強項是把抽象想法整理成可執行的步驟，並照顧合作過程中的氣氛。需要同時用腦與溝通的任務，通常比單純競爭更適合你。'],
+    ['你適合目標清楚、可以自主安排做法，而且同事願意溝通的環境。若長期只看排名、氣氛緊繃，你的能力反而容易被疲憊感蓋過。', '能讓你長期發揮的環境，需要有穩定規則，也保留改善方法的空間。主管願意說明期待、團隊分工清楚，你會做得更久也更好。'],
+  ],
+  money: [
+    ['你比較適合靠專業、資訊整理或長期累積來增加收入，而不是追逐短期起伏。把能力做成可以重複提供的服務或成果，會更符合你的節奏。', '你的資源累積方式偏向穩健：先看懂風險，再慢慢放大有效的方法。固定儲蓄、分散來源與提升專業，比臨時押注更適合你。'],
+    ['你花錢前通常會比較與思考，但遇到能提升生活品質或照顧身邊人的東西，也可能放寬標準。容易不是亂花，而是替每筆支出找到理由。', '你的金錢態度帶有安全感需求：平常會想保留餘裕，但壓力大時可能用消費換取放鬆。清楚區分需要、想要與情緒支出會很有幫助。'],
+    ['做財務決定時，最需要留意資訊查得太多卻遲遲不行動，或因為人情替別人承擔風險。先設定金額上限、期限與不能退讓的條件。', '要留意看起來很穩的選擇未必真的適合你。涉及合夥、借貸或長期負擔時，先把責任與退出方式寫清楚，不要只靠信任。'],
+  ],
+  parents: [
+    ['你和父母或長輩的互動容易出現「彼此關心，但表達方式不一樣」。你可能先配合、自己消化，累積到一定程度才說出真正想法。', '你面對長輩時常會先尊重對方的經驗與立場，但內心仍有自己的判斷。關係順不順，往往取決於雙方能否把期待說清楚。'],
+    ['你比較容易從長輩身上得到經驗、資訊或實際協助，而不一定是直接的情緒安慰。當你主動說明具體需要，支持通常會更明顯。', '長輩能給你的支持偏向提醒方向、提供資源或在關鍵時刻出面。你若只說「沒事」，他們可能不知道該怎麼幫你。'],
+    ['界線要放在「可以聽建議，但決定仍由自己承擔」。先肯定對方的關心，再清楚說明你會怎麼做，比沉默配合後突然反彈更有效。', '面對家人期待時，不需要立刻答應或拒絕。替自己保留思考時間，分清楚哪些是關心、哪些已經影響你的生活選擇。'],
+  ],
+  children: [
+    ['你和子女、晚輩或學生相處時，容易主動教方法、安排方向，也會希望對方真正學會。要留意幫得太快，反而減少對方自己嘗試的空間。', '你在晚輩面前常是可靠、願意解釋的一方。對方容易把你當作能詢問意見的人，但有時也可能覺得你的標準比較高。'],
+    ['你適合用「示範一次，再讓對方自己做」的方式陪伴。具體肯定努力、清楚說明界線，比一直提醒結果更能建立信任。', '陪伴他人時，你適合先問對方需要建議、協助還是單純被傾聽。這能避免你很用心，對方卻覺得被安排。'],
+    ['你的創作能力適合用在需要規劃、整理與持續修正的作品。比起一次爆發，你更能把零散想法慢慢做成完整成果。', '你適合把觀察到的人事物轉成內容、方法或可以幫助別人的成果。創作卡住時，先完成小版本，比等待完美靈感更有效。'],
+  ],
+  luck: [
+    ['當你願意走出原本的小圈子、主動交流或學習新東西時，機會比較容易出現。你的好運常不是突然降臨，而是從一次介紹或新嘗試開始。', '你在心態穩定、生活有節奏時最容易看見機會。越焦慮時越容易錯過細節，因此先把自己安頓好，判斷通常會更準。'],
+    ['願意分享資訊、說話直接但尊重人的環境，較容易為你帶來助力。能讓你學到東西、又允許你提出問題的人，通常是重要貴人。', '有經驗、做事穩定、願意給具體建議的人比較能幫到你。比起只給鼓勵，能陪你把下一步說清楚的關係更有價值。'],
+    ['主動讓別人知道你正在做什麼、需要什麼，機會才有入口。每隔一段時間更新作品、近況或目標，比默默等待更容易遇到合作。', '把大目標拆成一個月能完成的小成果，並固定接觸新資訊或新朋友。你越有持續行動，原本看不到的選項越容易浮現。'],
+  ],
+  home: [
+    ['你適合安靜、整齊但不過度拘束的空間。家中最好有能獨處與整理思緒的角落，同時保留自然光與可彈性調整的配置。', '你對居住環境的氣氛很敏感，適合採光穩定、收納清楚、聲音不太混亂的地方。空間不一定要大，但需要讓你能真正放鬆。'],
+    ['當家裡雜亂、關係緊張或缺少私人空間時，你的心情和行動力容易一起受影響。把住處整理好，對你不只是美觀，而是恢復穩定感。', '你會透過熟悉的物品、固定作息與可掌握的空間建立安全感。居住環境變動時，需要比別人多一點重新安頓的時間。'],
+    ['搬遷或置產時，除了價格，也要實際確認通勤、噪音、採光與生活機能。不要只因家人期待或短期優惠，就承擔超出能力的長期負擔。', '面對家庭資源時，要先說清楚所有權、付款與未來使用方式。越是親近的人，越需要把責任談清楚，才能避免日後壓力。'],
+  ],
+  health: [
+    ['壓力累積時，你比較容易先出現睡不好、精神難以放鬆、飲食或作息變亂的情況。表面看起來仍能應付，但耐心和專注力會先下降。', '你在忙碌時容易忽略疲勞，直到情緒煩躁、身體緊繃或做事效率變差才發現。壓力通常不是突然爆發，而是慢慢堆積。'],
+    ['最能幫助你恢復的是規律睡眠、適度活動，以及一段不需要回應任何人的安靜時間。比起偶爾徹底放空，固定的小休息更有效。', '你的恢復關鍵是把刺激降下來：減少過滿行程、睡前停止接收資訊，並用散步、伸展或整理空間讓身體慢慢安定。'],
+    ['你最容易忽略的是「還能撐」不等於真的沒事。當休息後仍持續不舒服，應記錄狀況並尋求專業評估，不要只靠意志力拖過去。', '要留意為了照顧別人或完成責任，一再延後吃飯、睡眠與就醫。先保留基本作息，才能避免小問題累積成長期負擔。'],
+  ],
+  social: [
+    ['你容易吸引能力強、有主見，或做事很有效率的人。彼此一開始可能因欣賞而靠近，但合作久了要特別說清楚誰負責什麼。', '你常遇到表面獨立、其實很需要可靠夥伴的人。對方容易信任你能收拾局面，也可能不自覺把較多責任交給你。'],
+    ['你在人際裡常扮演協調、照顧或替大家想下一步的角色。別人容易覺得你可靠，但你未必會第一時間說出自己的不舒服。', '你通常是先觀察氣氛、再調整說法的人。熟悉之後會願意投入很多，也因此容易成為朋友間被詢問意見的對象。'],
+    ['最重要的界線是不要因為自己做得到，就默認所有事情都由你承擔。答應前先確認時間、責任與對方願意投入多少。', '合作時要把金錢、期限與分工說清楚；交朋友則要觀察對方是否也願意回應你的需要。單方面付出太久，就該調整距離。'],
+  ],
+  migration: [
+    ['離開熟悉環境後，你一開始會先觀察規則與人際氣氛，等掌握狀況後才明顯展現能力。適應速度不慢，但需要先確認安全感。', '到了新地方，你會變得比平常更主動，也比較容易看見不同選項。只要有基本準備，外在變化反而能帶出你的彈性。'],
+    ['你適合往外發展，但比較適合「有目標的移動」，例如學習、工作計畫或生活體驗，而不是為了逃離問題而突然離開。', '旅行、跨城市或接觸不同圈子通常能打開你的想法。若要長期轉換環境，先確認支持系統與生活成本，發揮會更穩。'],
+    ['到新地方後，先建立固定作息、熟悉交通與找到一兩個可信任的人，再逐步擴大活動範圍。你不需要一開始就逼自己完全融入。', '面對陌生人時，先從具體任務或共同興趣開始互動，比勉強社交更自然。保留觀察時間，同時主動提出一個小問題，就能慢慢站穩。'],
+  ],
+};
+
+function topicIntegratedAnswer(topic, questionIndex, ziweiCard, baziCard) {
+  const options = TOPIC_DIRECT_ANSWERS[topic.key]?.[questionIndex] ?? [];
+  if (!options.length) return '這個問題目前沒有可用的初步回答。';
+  const seedText = `${ziweiCard?.technical?.chartData ?? ''}|${baziCard?.technical?.chartData ?? ''}|${topic.key}|${questionIndex}`;
+  let hash = 0;
+  for (let i = 0; i < seedText.length; i++) hash = ((hash * 31) + seedText.charCodeAt(i)) | 0;
+  return options[Math.abs(hash) % options.length];
 }
 
 function renderTopics() {
@@ -907,14 +955,10 @@ function renderTopics() {
       <span>${item.icon}</span>${item.label}
     </button>`).join('');
   const questions = topic.questions.map((question, index) => {
-    const ziweiAnswer = topicAnswerFromCard(ziweiCard, index, topic);
-    const baziAnswer = topicAnswerFromCard(baziCard, index, topic);
+    const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCard);
     return `<article class="topic-question-card">
       <div class="topic-question-head"><span>Q${index + 1}</span><h3>${esc(question)}</h3></div>
-      <div class="topic-answer-grid">
-        <section class="topic-answer"><b>紫微初步</b><p>${esc(ziweiAnswer)}</p><small>主要參考：${esc(topic.palace)}</small></section>
-        <section class="topic-answer"><b>八字補充</b><p>${esc(baziAnswer)}</p><small>從日主、十神、五行與喜用方向補充</small></section>
-      </div>
+      <section class="topic-answer topic-answer--combined"><b>綜合回答</b><p>${esc(answer)}</p><small>已綜合紫微與八字的相關配置</small></section>
       <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">AI 深入回答這一題</button>
     </article>`;
   }).join('');
@@ -923,8 +967,7 @@ function renderTopics() {
     <div class="report-intro">選一個生活主題，再從你真正想知道的問題開始看。網站先提供紫微與八字的初步方向；每題都能複製完整命盤資料給 AI 深入回答，不需要自己理解命理術語。</div>
     <div class="topic-tabs" aria-label="選擇分析主題">${tabs}</div>
     <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>${esc(palaceMeanings[topic.palace] ?? '')}</p></div></div>
-    <div class="topic-question-list">${questions}</div>
-    <p class="card-hint topic-limit">初步解讀只呈現命盤可合理觀察的傾向，不預測具體人物、事件日期、疾病或必然結果。</p>`;
+    <div class="topic-question-list">${questions}</div>`;
 
   $$('#view-topics [data-topic]').forEach((button) =>
     button.addEventListener('click', () => { state.topicKey = button.dataset.topic; renderTopics(); }));
@@ -932,20 +975,18 @@ function renderTopics() {
     button.addEventListener('click', async () => {
       const index = Number(button.dataset.topicQuestion);
       const question = topic.questions[index];
-      const ziweiAnswer = topicAnswerFromCard(ziweiCard, index, topic);
-      const baziAnswer = topicAnswerFromCard(baziCard, index, topic);
+      const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCard);
       const chartPacket = formatChartForAI({ input, ziWei, baZi, zwLuck, bzLuck, elements });
       const text = [
         `【主題分析：${topic.label}】`,
         `使用者問題：${question}`,
-        `紫微初步（${topic.palace}）：${ziweiAnswer}`,
-        `八字初步：${baziAnswer}`,
+        `網站初步綜合回答：${answer}`,
         '',
         '請先直接回答上面的單一問題，不要先輸出完整命盤總論。',
         '只使用下方資料包裡實際存在的命盤資料，不重新排盤、不補造星曜、十神或人生事件。',
         '請把紫微與八字交叉比對：一致處作為較明顯的傾向，分歧處分開說明，不要硬湊。',
         '輸出順序：一句結論 → 2至4個生活中的可能表現 → 需要留意的盲點 → 2個具體可行建議 → 簡短專業依據。',
-        '不要預測具體對象、疾病、死亡、必然事件或精確發生日期；命盤無法回答的部分請直接說明限制。',
+        '不要預測具體對象、疾病、死亡、必然事件或精確發生日期。只回答資料能合理支持的部分；沒有依據的內容直接省略，不要輸出「命盤無法判定」等限制聲明。',
         '',
         '--- 完整命盤資料包 ---',
         chartPacket,

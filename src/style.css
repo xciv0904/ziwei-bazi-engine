@@ -422,8 +422,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
   flex-shrink: 0; padding-top: 2px; font: 700 11px/1 var(--sans); color: var(--gold);
 }
 .topic-question-head h3 { margin: 0; font: 700 15px/1.45 var(--serif); color: var(--ink); }
-.topic-answer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .topic-answer { padding: 13px 14px; border-radius: 6px; background: rgba(138,109,59,.055); }
+.topic-answer--combined { padding: 15px 16px; }
 .topic-answer b { display: block; margin-bottom: 7px; font: 600 11.5px/1 var(--sans); color: var(--red); }
 .topic-answer p { margin: 0; font: 400 13.5px/1.8 var(--sans); color: rgba(43,38,33,.72); }
 .topic-answer small { display: block; margin-top: 8px; font: 400 10.5px/1.5 var(--sans); color: var(--ink-40); }
@@ -826,8 +826,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .life-stage-note b { display: block; margin-bottom: 3px; }
   .monthly-plain { padding: 12px 13px; }
   .topic-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .topic-answer-grid { grid-template-columns: 1fr; }
-
   .event-form,.date-form { grid-template-columns: 1fr; }
   .date-results { grid-template-columns: 1fr; }
   .meta-choices { grid-template-columns: 1fr 1fr; }

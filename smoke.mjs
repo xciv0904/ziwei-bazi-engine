@@ -132,10 +132,17 @@ $$('.nav-item').find((n) => n.dataset.view === 'topics').click();
 check('主題分析視圖顯示', !$('#view-topics').hidden);
 check('主題分析共 10 個主題', $$('#view-topics .topic-tab').length === 10);
 check('每個主題顯示 3 個具體問題', $$('#view-topics .topic-question-card').length === 3);
-check('每題同時包含紫微初步與八字補充', (() => {
+check('每題顯示一個紫微八字綜合回答', (() => {
   const text = $('#view-topics').textContent;
-  return text.includes('紫微初步') && text.includes('八字補充');
+  return $$('#view-topics .topic-answer--combined').length === 3
+    && text.includes('綜合回答') && !text.includes('八字補充')
+    && !text.includes('命盤無法判定') && !text.includes('水多')
+    && !text.includes('五行') && !text.includes('日主') && !text.includes('十神');
 })());
+$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+check('命盤總覽提供主題分析導引',
+  !!$('#view-dashboard .report-intro [data-goto="topics"]'));
+$$('.nav-item').find((n) => n.dataset.view === 'topics').click();
 $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'career').click();
 check('可切換到事業問題', $('#view-topics').textContent.includes('我適合負責哪些工作內容'));
 let copiedTopicPrompt = '';
@@ -145,8 +152,8 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
 });
 $('#view-topics .topic-ai-btn').click();
 await new Promise((r) => setTimeout(r, 0));
-check('逐題 AI 提示包含問題、紫微、八字與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
-  && copiedTopicPrompt.includes('紫微初步') && copiedTopicPrompt.includes('八字初步')
+check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
+  && copiedTopicPrompt.includes('網站初步綜合回答')
   && copiedTopicPrompt.includes('完整命盤資料包'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
