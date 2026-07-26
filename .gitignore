@@ -11,7 +11,12 @@ node_modules
 dist
 dist-ssr
 dist-single
-docs
+# Keep durable project memory and architecture guidance under version control.
+docs/*
+!docs/project-memory.md
+!docs/architecture.md
+!docs/coding-style.md
+!docs/development-rules.md
 actual-chart-data.json
 *.local
 

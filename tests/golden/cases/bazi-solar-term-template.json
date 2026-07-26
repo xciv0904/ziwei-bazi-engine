@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "id": "bazi.synthetic.solar-term-boundary-001",
+  "status": "draft",
+  "description": "Synthetic case immediately around an exact solar-term boundary.",
+  "provenance": {
+    "inputType": "synthetic",
+    "source": null,
+    "verifiedBy": null,
+    "verifiedAt": null
+  },
+  "dependencies": {
+    "lunar-javascript": "1.7.7"
+  },
+  "conventions": {
+    "solarTermBoundary": "TBD",
+    "dayBoundaryRule": "TBD",
+    "trueSolarTime": "TBD",
+    "timezonePolicy": "TBD"
+  },
+  "input": {
+    "year": 2000,
+    "month": 2,
+    "day": 4,
+    "hour": 0,
+    "minute": 0,
+    "gender": "male",
+    "refDate": "2026-01-01T00:00:00+08:00"
+  },
+  "expectedAssertions": []
+}
