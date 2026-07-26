@@ -37,9 +37,9 @@ const setDateParts = (prefix, y, m, d) => {
 };
 
 // --- 進站空白狀態(未排盤) ---
-check('進站顯示歡迎畫面', $('#view-dashboard').textContent.includes('開始排盤'));
+check('進站顯示歡迎畫面', $('#view-dashboard').textContent.includes('免費排盤，開始看重點'));
 check('進站不顯示任何命盤', $$('.palace-cell').length === 0);
-check('側邊導覽分成核心排盤／延伸工具兩組', $$('.side-nav .section-label').length === 2);
+check('側邊導覽保留核心功能並將延伸功能收進更多工具', $$('.side-nav .section-label').length === 1 && !!$('.more-tools'));
 
 // --- 表單驗證:年份留空送出,要就地顯示錯誤而不是靜默無反應 ---
 $('#birth-form').dispatchEvent(new w.Event('submit'));
@@ -148,7 +148,7 @@ check('每題顯示一個紫微八字綜合回答', (() => {
 })());
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
 check('命盤總覽提供主題分析導引',
-  !!$('#view-dashboard .report-intro [data-goto="topics"]'));
+  !!$('#view-dashboard [data-result-goto="topics"]'));
 $$('.nav-item').find((n) => n.dataset.view === 'topics').click();
 $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'career').click();
 check('可切換到事業問題', $('#view-topics').textContent.includes('我適合負責哪些工作內容'));
@@ -411,7 +411,10 @@ check('大限流年同宮的邊界案例仍能正常顯示 12 宮位', $$('.pala
 check('導覽列已改名為「重點解讀」「深度解析」', $$('.nav-item').some((n) => n.textContent === '重點解讀') && $$('.nav-item').some((n) => n.textContent === '深度解析'));
 check('導覽列不再出現舊名稱「解讀報告」「命盤解析」', !$$('.nav-item').some((n) => n.textContent === '解讀報告' || n.textContent === '命盤解析'));
 $$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
-check('命盤總覽有跳轉到重點解讀/深度解析的導引連結', !!$('#view-dashboard [data-goto="report"]') && !!$('#view-dashboard [data-goto="comprehensive"]'));
+check('命盤總覽提供重點解讀／主題分析／完整命盤三條新手路徑',
+  !!$('#view-dashboard [data-result-goto="report"]')
+  && !!$('#view-dashboard [data-result-goto="topics"]')
+  && !!$('#view-dashboard [data-result-goto="dashboard-detail"]'));
 $$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
 check('深度解析有跳轉到重點解讀/命盤總覽的導引連結', !!$('#view-comprehensive [data-goto="report"]') && !!$('#view-comprehensive [data-goto="dashboard"]'));
 $$('.nav-item').find((n) => n.dataset.view === 'report').click();

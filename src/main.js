@@ -180,6 +180,7 @@ const state = {
   // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
   topicKey: 'love',
+  topicQuestion: 0,
   // 雙人合盤:乙方表單值、關係型態與已排好的乙方命盤
   synastry: { form: { name: '', date: '', hour: '0', gender: 'female', rel: '戀人' }, b: null },
   monthIdx: null, // 流月瀏覽(null = 未展開)
@@ -287,6 +288,7 @@ function setReadingMode(mode) {
 /** 依目前頁面/分頁決定的模式,同步「白話摘要／專業依據」按鈕的 active 樣式與無障礙屬性 */
 function syncModeToggleUI() {
   const mode = currentReadingMode();
+  $('#reading-mode-toggle').hidden = state.view !== 'report';
   $$('#reading-mode-toggle .mode-pill').forEach((p) => {
     const active = p.dataset.mode === mode;
     p.classList.toggle('active', active);
@@ -421,6 +423,22 @@ function renderHead() {
     `${baZi.fourPillars.yearPillar.stem}${baZi.fourPillars.yearPillar.branch}年` +
     `${lunarDateStr}　${shichenLabel}　` +
     `${input.gender === 'female' ? '女' : '男'}　${ziWei.fiveElementBureau}`;
+  $('#chart-profile').hidden = false;
+  $('#chart-profile-text').textContent =
+    `${name}｜${input.year}/${input.month}/${input.day}｜${shichenLabel}｜${input.gender === 'female' ? '女' : '男'}`;
+}
+
+function elementPlainSummary(elements) {
+  const dominant = elements.dominant ?? [];
+  if (!dominant.length) return '整體節奏較均衡';
+  const meanings = {
+    木: '重視成長與向前推進',
+    火: '行動與表達較直接',
+    土: '重視穩定與可預期感',
+    金: '判斷與界線感較清楚',
+    水: '感受與資訊接收較敏銳',
+  };
+  return dominant.slice(0, 2).map((el) => meanings[el] ?? `${el}的傾向較明顯`).join('，');
 }
 
 function renderResultSummary() {
@@ -431,14 +449,21 @@ function renderResultSummary() {
   const dayMaster = `${fp.dayPillar.stem}${STEM_EL[fp.dayPillar.stem]}`;
   const { limit, year } = currentLuckSelection();
   const focus = state.data.byBranch[limit.ganZhi[1]]?.name ?? '—';
-  return `<section class="card" aria-labelledby="summary-title">
-    <div class="card-label" id="summary-title">先看懂你的命盤</div>
+  const focusPlain = palaceMeanings[focus] ?? focus;
+  return `<section class="card result-home" aria-labelledby="summary-title">
+    <div class="result-home-kicker">你的個人重點首頁</div>
+    <h2 id="summary-title">先從看得懂、用得上的內容開始</h2>
+    <p class="result-home-lead">不需要先研究宮位或五行。你可以看近期重點、選一個生活問題，或再進入完整命盤。</p>
     <div class="result-summary">
       <div class="summary-item"><div class="summary-label">命宮主星</div><div class="summary-value">${esc(mainStars)}</div></div>
       <div class="summary-item"><div class="summary-label">八字日主</div><div class="summary-value">${esc(dayMaster)}</div></div>
-      <div class="summary-item"><div class="summary-label">五行重點</div><div class="summary-value">${esc(elements.dominant.join('、') || '平衡')}偏旺</div></div>
-      <div class="summary-item"><div class="summary-label">目前運勢焦點</div><div class="summary-value">${esc(year)}・${esc(focus)}</div></div>
-      <div class="summary-action"><span>第一次看命盤？先閱讀白話報告，再回來點選十二宮深入探索。</span><button type="button" id="summary-report-btn">閱讀白話報告 →</button></div>
+      <div class="summary-item summary-item--plain"><div class="summary-label">你較明顯的節奏</div><div class="summary-value">${esc(elementPlainSummary(elements))}</div><small>專業資料可在完整命盤查看</small></div>
+      <div class="summary-item summary-item--plain"><div class="summary-label">${esc(year)} 年重點</div><div class="summary-value">${esc(focusPlain)}</div><small>目前落在${esc(focus)}</small></div>
+    </div>
+    <div class="result-paths" aria-label="選擇下一步">
+      <button type="button" class="result-path result-path--primary" data-result-goto="report"><span>01・先看現在</span><b>目前最值得注意什麼？</b><small>近期重點、可能挑戰與行動建議</small></button>
+      <button type="button" class="result-path" data-result-goto="topics"><span>02・問生活問題</span><b>從愛情、工作或財運開始</b><small>選一題，直接閱讀紫微與八字的綜合回答</small></button>
+      <button type="button" class="result-path result-path--quiet" data-result-goto="dashboard-detail"><span>03・研究資料</span><b>查看完整紫微與八字命盤</b><small>適合想研究宮位、星曜、四柱與流年的使用者</small></button>
     </div>
   </section>`;
 }
@@ -801,23 +826,33 @@ function renderDashboard() {
   const hourWarn = state.data.hourUnknown
     ? `<div class="card" style="border-color:var(--gold)"><div class="card-hint" style="margin:0">⚠ 時辰未知:目前以「午時」暫排。紫微命盤的宮位與八字時柱會隨時辰改變,以下結果僅供參考;年柱、月柱、日柱與五行分佈不受影響,仍為準確資訊。</div></div>`
     : '';
-  const dashboardIntro = `<div class="report-intro">查看宮位、星曜、大限與流年的原始命盤資料。想從愛情、事業、財運等具體問題開始，可前往<button type="button" class="link-jump" data-goto="topics">主題分析</button>；想快速掌握近期方向，可前往<button type="button" class="link-jump" data-goto="report">重點解讀</button>；想讀完整的人生模式，則前往<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。</div>`;
   $('#view-dashboard').innerHTML = `<div class="stack">
-    ${dashboardIntro}
     ${hourWarn}
     ${renderResultSummary()}
-    <div class="chart-tabs">
-      <button type="button" class="chart-tab${isZw ? ' active' : ''}" data-chart="ziwei">紫微命盤</button>
-      <button type="button" class="chart-tab${isZw ? '' : ' active'}" data-chart="bazi">八字四柱</button>
-    </div>
-    <div class="row chart-area ${isZw ? 'show-ziwei' : 'show-bazi'}">${renderZiWeiCard()}${renderBaZiCard()}</div>
-    ${renderClassroom()}
-    ${renderLuckBrowser()}
+    <details class="dashboard-details" id="dashboard-detail">
+      <summary><span><b>完整命盤資料</b><small>紫微十二宮、八字四柱、宮位與流年切換</small></span></summary>
+      <div class="dashboard-details__body">
+        <div class="chart-tabs">
+          <button type="button" class="chart-tab${isZw ? ' active' : ''}" data-chart="ziwei">紫微命盤</button>
+          <button type="button" class="chart-tab${isZw ? '' : ' active'}" data-chart="bazi">八字四柱</button>
+        </div>
+        <div class="row chart-area ${isZw ? 'show-ziwei' : 'show-bazi'}">${renderZiWeiCard()}${renderBaZiCard()}</div>
+        ${renderClassroom()}
+        ${renderLuckBrowser()}
+      </div>
+    </details>
   </div>`;
 
   $$('#view-dashboard .chart-tab').forEach((tab) =>
     tab.addEventListener('click', () => { state.chartTab = tab.dataset.chart; renderDashboard(); }));
-  $('#summary-report-btn')?.addEventListener('click', () => switchView('report'));
+  $$('#view-dashboard [data-result-goto]').forEach((button) =>
+    button.addEventListener('click', () => {
+      if (button.dataset.resultGoto === 'dashboard-detail') {
+        const details = $('#dashboard-detail');
+        details.open = true;
+        details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else switchView(button.dataset.resultGoto);
+    }));
   $$('#view-dashboard .palace-cell').forEach((cell) =>
     cell.addEventListener('click', () => {
       state.selectedPalace = cell.dataset.palace;
@@ -986,21 +1021,33 @@ function renderTopics() {
     </button>`).join('');
   const questions = topic.questions.map((question, index) => {
     const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCard);
-    return `<article class="topic-question-card">
-      <div class="topic-question-head"><span>Q${index + 1}</span><h3>${esc(question)}</h3></div>
-      <section class="topic-answer topic-answer--combined"><b>綜合回答</b><p>${esc(answer)}</p><small>已綜合紫微與八字的相關配置</small></section>
-      <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">AI 深入回答這一題</button>
+    const open = state.topicQuestion === index;
+    return `<article class="topic-question-card${open ? ' open' : ''}">
+      <button type="button" class="topic-question-head" data-open-topic-question="${index}" aria-expanded="${open}" aria-controls="topic-answer-${index}">
+        <span>Q${index + 1}</span><h3>${esc(question)}</h3><i aria-hidden="true">›</i>
+      </button>
+      <div class="topic-question-body" id="topic-answer-${index}"${open ? '' : ' hidden'}>
+        <section class="topic-answer topic-answer--combined"><b>初步綜合回答</b><p>${esc(answer)}</p><small>已綜合紫微與八字中和這題最相關的配置</small></section>
+        <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">複製這題給 AI 深入問</button>
+        <p class="topic-ai-note">只會複製題目與相關命盤資料到剪貼簿，不會自動上傳。</p>
+      </div>
     </article>`;
   }).join('');
 
   $('#view-topics').innerHTML = `
-    <div class="report-intro">選一個生活主題，再從你真正想知道的問題開始看。網站先提供紫微與八字的初步方向；每題都能複製完整命盤資料給 AI 深入回答，不需要自己理解命理術語。</div>
+    <div class="report-intro"><b>先選主題，再點開一個你真正想知道的問題。</b>每題提供紫微與八字的初步綜合方向，也可以把該題與命盤資料複製給 AI 繼續追問。</div>
     <div class="topic-tabs" aria-label="選擇分析主題">${tabs}</div>
     <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>${esc(palaceMeanings[topic.palace] ?? '')}</p></div></div>
     <div class="topic-question-list">${questions}</div>`;
 
   $$('#view-topics [data-topic]').forEach((button) =>
-    button.addEventListener('click', () => { state.topicKey = button.dataset.topic; renderTopics(); }));
+    button.addEventListener('click', () => { state.topicKey = button.dataset.topic; state.topicQuestion = 0; renderTopics(); }));
+  $$('#view-topics [data-open-topic-question]').forEach((button) =>
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.openTopicQuestion);
+      state.topicQuestion = state.topicQuestion === index ? null : index;
+      renderTopics();
+    }));
   $$('#view-topics [data-topic-question]').forEach((button) =>
     button.addEventListener('click', async () => {
       const index = Number(button.dataset.topicQuestion);
@@ -1582,6 +1629,7 @@ function switchView(view) {
   // 「白話摘要／專業依據」按鈕在重點解讀頁對應的是分頁各自的 reportViewMode,離開/進入這個頁面時
   // 按鈕要立刻反映正確頁面的模式,不然切頁面回來後按鈕看起來像是「壞掉」(顯示上一頁的狀態)
   if (state.data) syncModeToggleUI();
+  if (state.data) $('#copy-ai-btn').hidden = view === 'topics';
   if (matchMedia('(max-width: 900px)').matches) {
     $('.sidebar').classList.remove('open');
     $('#sidebar-toggle').setAttribute('aria-expanded', 'false');
@@ -2050,6 +2098,7 @@ function renderAll() {
     renderNaming();
     renderMetaphysics();
     document.body.classList.add('has-chart');
+    document.body.classList.remove('editing-chart');
     $$('.side-nav [data-view]').forEach((n) => { n.disabled = false; n.removeAttribute('aria-disabled'); });
   } catch (err) {
     console.error('renderAll 失敗:', err);
@@ -2083,14 +2132,19 @@ function renderEmpty() {
   $('#page-title').textContent = '線上排盤';
   $('#birth-summary').textContent = '';
   const reminder = renderAnnualReminderCard();
-  const welcome = `<div class="stack">${reminder}<div class="card welcome-card">
-    <div class="card-label">開始排盤</div>
-    <h2>三步驟看懂你的紫微與八字</h2>
-    <p class="welcome-text">輸入基本生辰後，即可取得十二宮命盤、八字四柱與分層白話解讀。</p>
+  const welcome = `<div class="stack"><div class="card welcome-card">
+    <div class="welcome-eyebrow">免費線上排盤・資料只在你的瀏覽器處理</div>
+    <h2>用紫微與八字，看懂你現在最值得注意的方向</h2>
+    <p class="welcome-text">不需要命理基礎。從愛情、工作、財運與近期運勢開始，再依需要查看完整命盤。</p>
+    <div class="welcome-preview">
+      <div><span>現在</span><b>今年最值得注意的事</b><small>近期重點與具體建議</small></div>
+      <div><span>關係</span><b>感情中的互動模式</b><small>從問題開始，不必讀懂術語</small></div>
+      <div><span>發展</span><b>適合發揮的工作方式</b><small>紫微與八字交叉整理</small></div>
+    </div>
     <div class="welcome-steps"><div class="welcome-step"><b>1</b>輸入出生日期與時辰</div><div class="welcome-step"><b>2</b>產生命盤與重點摘要</div><div class="welcome-step"><b>3</b>閱讀報告、流年與宮位解析</div></div>
-    <button type="button" class="welcome-cta" id="welcome-start">開始輸入生辰</button>
-    <p class="welcome-text muted">所有計算皆在你的瀏覽器內完成,生辰資料不會上傳到任何伺服器。</p>
-  </div></div>`;
+    <button type="button" class="welcome-cta" id="welcome-start">免費排盤，開始看重點</button>
+    <p class="welcome-text muted">生辰資料不會上傳。內容供文化研究與自我探索參考。</p>
+  </div>${reminder}</div>`;
   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
   $$('[data-remind]').forEach((btn) =>
     btn.addEventListener('click', async () => {
@@ -2100,6 +2154,7 @@ function renderEmpty() {
   $('#copy-ai-btn').hidden = true;
   $('#reading-mode-toggle').hidden = true;
   $('#save-chart-btn').hidden = true;
+  $('#chart-profile').hidden = true;
   document.body.classList.remove('has-chart');
   $$('.side-nav [data-view]').forEach((n) => { n.disabled = true; n.setAttribute('aria-disabled', 'true'); });
   $('#welcome-start')?.addEventListener('click', () => {
@@ -2148,6 +2203,10 @@ function setupControls() {
   $$('.nav-item[data-view]').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
 
   $('#save-chart-btn').addEventListener('click', saveCurrentChart);
+  $('#edit-chart-btn').addEventListener('click', () => {
+    document.body.classList.add('editing-chart');
+    $('#name-input').focus();
+  });
   $('#export-charts').addEventListener('click', exportSavedCharts);
   $('#import-charts').addEventListener('click', () => $('#import-file').click());
   $('#import-file').addEventListener('change', (e) => {
