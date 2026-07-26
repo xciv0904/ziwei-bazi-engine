@@ -394,6 +394,42 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 }
 .link-jump:hover { color: var(--gold); }
 
+/* ---------- 主題分析 ---------- */
+.topic-tabs {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
+  margin: 14px 0 18px;
+}
+.topic-tab {
+  display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px;
+  padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--card-bg); color: var(--ink-60); font: 600 12.5px/1 var(--sans);
+}
+.topic-tab span {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--card-em); color: var(--red); font: 700 10px/1 var(--serif);
+}
+.topic-tab.active { border-color: var(--red); background: var(--red); color: var(--cream); }
+.topic-tab.active span { background: rgba(255,255,255,.2); color: var(--cream); }
+.topic-heading { display: flex; align-items: center; gap: 11px; margin: 0 0 12px; }
+.topic-heading h2 { margin: 0 0 4px; font: 700 18px/1.2 var(--serif); color: var(--ink); }
+.topic-heading p { margin: 0; font: 400 12.5px/1.5 var(--sans); color: var(--ink-45); }
+.topic-question-list { display: flex; flex-direction: column; gap: 12px; }
+.topic-question-card {
+  padding: 17px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg);
+}
+.topic-question-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 13px; }
+.topic-question-head > span {
+  flex-shrink: 0; padding-top: 2px; font: 700 11px/1 var(--sans); color: var(--gold);
+}
+.topic-question-head h3 { margin: 0; font: 700 15px/1.45 var(--serif); color: var(--ink); }
+.topic-answer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.topic-answer { padding: 13px 14px; border-radius: 6px; background: rgba(138,109,59,.055); }
+.topic-answer b { display: block; margin-bottom: 7px; font: 600 11.5px/1 var(--sans); color: var(--red); }
+.topic-answer p { margin: 0; font: 400 13.5px/1.8 var(--sans); color: rgba(43,38,33,.72); }
+.topic-answer small { display: block; margin-top: 8px; font: 400 10.5px/1.5 var(--sans); color: var(--ink-40); }
+.topic-ai-btn { margin: 13px 0 0; color: var(--red); border-color: rgba(180,60,46,.35); }
+.topic-limit { margin: 14px 2px 0; }
+
 
 /* ---------- 分享命卡 ---------- */
 .share-wrap { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
@@ -789,6 +825,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .life-stage-note { display: block; }
   .life-stage-note b { display: block; margin-bottom: 3px; }
   .monthly-plain { padding: 12px 13px; }
+  .topic-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topic-answer-grid { grid-template-columns: 1fr; }
 
   .event-form,.date-form { grid-template-columns: 1fr; }
   .date-results { grid-template-columns: 1fr; }
@@ -811,8 +849,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 @media (max-width: 430px) {
   .main { padding: 18px 12px; }
   .card { padding: 13px; }
-  .chart-grid { min-width: 350px; }
-  .chart-frame { overflow-x: auto; }
+  .ziwei-card { padding: 10px; }
+  .chart-grid { min-width: 0; width: 100%; grid-template-rows: repeat(4, minmax(62px, auto)); }
+  .chart-frame { width: 100%; overflow: hidden; }
+  .palace-cell { padding: 5px 5px; gap: 2px; }
+  .palace-cell .p-name, .palace-cell .p-stars { font-size: 10px; line-height: 1.35; }
+  .chart-center { padding: 6px; gap: 3px; }
+  .chart-center .c-name { font-size: 13px; }
+  .chart-center .c-meta { font-size: 8.5px; line-height: 1.45; }
   .result-summary { grid-template-columns: 1fr 1fr; }
   .summary-action { align-items: flex-start; flex-direction: column; }
   .report-tabs { gap: 6px; }

@@ -50,6 +50,7 @@ check('留空送出不會產生命盤', $$('.palace-cell').length === 0);
 // --- 填表排盤 ---
 $('#name-input').value = 'Shelly';
 setDateParts('birth', 2002, 9, 4);
+check('年份輸完後月份選定會自動跳到日期', doc.activeElement === $('#birth-day'));
 $('#birth-hour').value = '13';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
@@ -125,6 +126,28 @@ check('流年 AI 提示詞含年齡階段與禁止錯置情境', copiedAnnualPro
 $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
 check('切大限後年度重點仍在', !!$('.luck-detail .palace-takeaway')?.textContent.length);
+
+// --- 主題分析（問題導向＋紫微八字初解＋逐題 AI） ---
+$$('.nav-item').find((n) => n.dataset.view === 'topics').click();
+check('主題分析視圖顯示', !$('#view-topics').hidden);
+check('主題分析共 10 個主題', $$('#view-topics .topic-tab').length === 10);
+check('每個主題顯示 3 個具體問題', $$('#view-topics .topic-question-card').length === 3);
+check('每題同時包含紫微初步與八字補充', (() => {
+  const text = $('#view-topics').textContent;
+  return text.includes('紫微初步') && text.includes('八字補充');
+})());
+$$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'career').click();
+check('可切換到事業問題', $('#view-topics').textContent.includes('我適合負責哪些工作內容'));
+let copiedTopicPrompt = '';
+Object.defineProperty(globalThis.navigator, 'clipboard', {
+  configurable: true,
+  value: { writeText: async (text) => { copiedTopicPrompt = text; } },
+});
+$('#view-topics .topic-ai-btn').click();
+await new Promise((r) => setTimeout(r, 0));
+check('逐題 AI 提示包含問題、紫微、八字與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
+  && copiedTopicPrompt.includes('紫微初步') && copiedTopicPrompt.includes('八字初步')
+  && copiedTopicPrompt.includes('完整命盤資料包'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
 $$('.nav-item').find((n) => n.dataset.view === 'report').click();

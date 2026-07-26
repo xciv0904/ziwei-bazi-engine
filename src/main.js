@@ -70,8 +70,10 @@ function wireDateParts({ yearId, monthId, dayId, errorId }) {
     yearEl.value = yearEl.value.replace(/[^0-9]/g, '').slice(0, 4);
     clearError();
     syncDays();
+    const y = Number(yearEl.value);
+    if (yearEl.value.length === 4 && y >= 1900 && y <= 2100) monthEl.focus();
   });
-  monthEl.addEventListener('change', () => { clearError(); syncDays(); });
+  monthEl.addEventListener('change', () => { clearError(); syncDays(); dayEl.focus(); });
   dayEl.addEventListener('change', clearError);
   return {
     read() {
@@ -177,6 +179,7 @@ const state = {
   // 深度解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
   // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
+  topicKey: 'love',
   // 雙人合盤:乙方表單值、關係型態與已排好的乙方命盤
   synastry: { form: { name: '', date: '', hour: '0', gender: 'female', rel: '戀人' }, b: null },
   monthIdx: null, // 流月瀏覽(null = 未展開)
@@ -864,6 +867,96 @@ function renderDashboard() {
   });
 }
 
+// ---------- 主題分析：從使用者真正想問的問題開始 ----------
+const TOPIC_ANALYSIS = [
+  { key: 'love', label: '愛情', icon: '愛', palace: '夫妻宮', bazi: ['shishen', 'zhu'], modes: ['pattern', 'examples', 'advice'], questions: ['我常遇到什麼類型的對象？', '什麼特質最容易讓我心動？', '什麼樣的相處方式最適合我？'] },
+  { key: 'career', label: '事業', icon: '業', palace: '官祿宮', bazi: ['yongshen', 'xiji'], modes: ['examples', 'pattern', 'advice'], questions: ['我適合負責哪些工作內容？', '我在工作或團體中最拿手的是什麼？', '什麼樣的環境比較能讓我長期發揮？'] },
+  { key: 'money', label: '財運', icon: '財', palace: '財帛宮', bazi: ['xiji', 'yongshen'], modes: ['advice', 'pattern', 'advice'], questions: ['我比較適合怎麼累積收入與資源？', '我的金錢使用習慣有什麼特色？', '做財務決定時最需要留意什麼？'] },
+  { key: 'parents', label: '父母', icon: '親', palace: '父母宮', bazi: ['shishen', 'zhu'], questions: ['我和父母或長輩常見的互動模式是什麼？', '我容易從長輩身上得到哪種支持？', '面對權威或家人期待時，界線要放在哪裡？'] },
+  { key: 'children', label: '子女', icon: '育', palace: '子女宮', bazi: ['shishen', 'zhu'], questions: ['我和子女、晚輩或學生的互動方式是什麼？', '我適合用什麼方式陪伴與培育他人？', '這個宮位也反映哪些創作與產出能力？'] },
+  { key: 'luck', label: '幸運', icon: '運', palace: '福德宮', bazi: ['yongshen', 'xiji'], questions: ['我在什麼狀態下比較容易遇到機會？', '哪些人或環境比較能為我帶來助力？', '我可以主動做什麼，讓有利條件更容易發生？'] },
+  { key: 'home', label: '住宅', icon: '宅', palace: '田宅宮', bazi: ['xiji', 'zhu'], questions: ['什麼樣的居住環境比較適合我？', '家與空間會怎麼影響我的安全感？', '面對搬遷、置產或家庭資源時要留意什麼？'] },
+  { key: 'health', label: '健康', icon: '健', palace: '疾厄宮', bazi: ['zhu', 'xiji'], questions: ['壓力累積時，我比較容易出現什麼反應？', '哪些生活習慣最能幫助我恢復？', '我在身心照顧上最容易忽略什麼？'] },
+  { key: 'social', label: '人際', icon: '友', palace: '僕役宮', bazi: ['shishen', 'zhu'], questions: ['我容易吸引什麼類型的朋友或合作對象？', '我在人際關係裡通常扮演什麼角色？', '合作與交朋友時，最需要設下什麼界線？'] },
+  { key: 'migration', label: '遷移', icon: '行', palace: '遷移宮', bazi: ['dayun', 'zhu'], questions: ['離開熟悉環境後，我通常會有什麼表現？', '我適合往外發展、旅行或轉換環境嗎？', '面對新地方與陌生人時，怎麼做比較容易站穩？'] },
+];
+
+function topicAnswerFromCard(card, questionIndex, topic) {
+  if (!card) return '目前沒有足夠資料形成初步判斷，建議使用下方 AI 深入解讀並保留這項限制。';
+  const join = (items, n = 2) => [...new Set((items || []).filter(Boolean))].slice(0, n).join('；');
+  const mode = topic.modes?.[questionIndex] ?? ['pattern', 'examples', 'advice'][questionIndex];
+  const limitation = questionIndex === 0 && ['love', 'social'].includes(topic.key)
+    ? '命盤無法判定具體身份或外貌，但可以觀察你容易形成的互動類型。'
+    : '';
+  if (mode === 'pattern') return [limitation, card.summary, card.explanation?.[0]].filter(Boolean).join(' ');
+  if (mode === 'examples') return join(card.lifeExamples, 2) || card.explanation?.[1] || card.summary;
+  const advice = join(card.advice, 2);
+  const caution = join(card.challenges, 1);
+  return [advice, caution ? `同時要留意：${caution}` : ''].filter(Boolean).join(' ');
+}
+
+function renderTopics() {
+  const { input, ziWei, baZi, zwLuck, bzLuck, elements } = state.data;
+  const topic = TOPIC_ANALYSIS.find((item) => item.key === state.topicKey) ?? TOPIC_ANALYSIS[0];
+  const ziweiCard = generatePlainPalaceCard(ziWei, topic.palace);
+  const baziCards = generatePlainBaziTopics(baZi, bzLuck, elements);
+  const baziCard = topic.bazi.map((key) => baziCards.find((card) => card.key === key)).find(Boolean);
+
+  const tabs = TOPIC_ANALYSIS.map((item) => `
+    <button type="button" class="topic-tab${item.key === topic.key ? ' active' : ''}" data-topic="${item.key}" aria-pressed="${item.key === topic.key}">
+      <span>${item.icon}</span>${item.label}
+    </button>`).join('');
+  const questions = topic.questions.map((question, index) => {
+    const ziweiAnswer = topicAnswerFromCard(ziweiCard, index, topic);
+    const baziAnswer = topicAnswerFromCard(baziCard, index, topic);
+    return `<article class="topic-question-card">
+      <div class="topic-question-head"><span>Q${index + 1}</span><h3>${esc(question)}</h3></div>
+      <div class="topic-answer-grid">
+        <section class="topic-answer"><b>紫微初步</b><p>${esc(ziweiAnswer)}</p><small>主要參考：${esc(topic.palace)}</small></section>
+        <section class="topic-answer"><b>八字補充</b><p>${esc(baziAnswer)}</p><small>從日主、十神、五行與喜用方向補充</small></section>
+      </div>
+      <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">AI 深入回答這一題</button>
+    </article>`;
+  }).join('');
+
+  $('#view-topics').innerHTML = `
+    <div class="report-intro">選一個生活主題，再從你真正想知道的問題開始看。網站先提供紫微與八字的初步方向；每題都能複製完整命盤資料給 AI 深入回答，不需要自己理解命理術語。</div>
+    <div class="topic-tabs" aria-label="選擇分析主題">${tabs}</div>
+    <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>${esc(palaceMeanings[topic.palace] ?? '')}</p></div></div>
+    <div class="topic-question-list">${questions}</div>
+    <p class="card-hint topic-limit">初步解讀只呈現命盤可合理觀察的傾向，不預測具體人物、事件日期、疾病或必然結果。</p>`;
+
+  $$('#view-topics [data-topic]').forEach((button) =>
+    button.addEventListener('click', () => { state.topicKey = button.dataset.topic; renderTopics(); }));
+  $$('#view-topics [data-topic-question]').forEach((button) =>
+    button.addEventListener('click', async () => {
+      const index = Number(button.dataset.topicQuestion);
+      const question = topic.questions[index];
+      const ziweiAnswer = topicAnswerFromCard(ziweiCard, index, topic);
+      const baziAnswer = topicAnswerFromCard(baziCard, index, topic);
+      const chartPacket = formatChartForAI({ input, ziWei, baZi, zwLuck, bzLuck, elements });
+      const text = [
+        `【主題分析：${topic.label}】`,
+        `使用者問題：${question}`,
+        `紫微初步（${topic.palace}）：${ziweiAnswer}`,
+        `八字初步：${baziAnswer}`,
+        '',
+        '請先直接回答上面的單一問題，不要先輸出完整命盤總論。',
+        '只使用下方資料包裡實際存在的命盤資料，不重新排盤、不補造星曜、十神或人生事件。',
+        '請把紫微與八字交叉比對：一致處作為較明顯的傾向，分歧處分開說明，不要硬湊。',
+        '輸出順序：一句結論 → 2至4個生活中的可能表現 → 需要留意的盲點 → 2個具體可行建議 → 簡短專業依據。',
+        '不要預測具體對象、疾病、死亡、必然事件或精確發生日期；命盤無法回答的部分請直接說明限制。',
+        '',
+        '--- 完整命盤資料包 ---',
+        chartPacket,
+      ].join('\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        toast(`已複製「${question}」AI 解讀提示`);
+      } catch { toast('複製失敗，請確認瀏覽器剪貼簿權限'); }
+    }));
+}
+
 // ---------- 分頁二:重點解讀 ----------
 function reportItems() {
   // 白話摘要卡片(7 段式結構)全部交給 compose-plain.js 組裝,這裡只負責取用已經算好的
@@ -1409,7 +1502,7 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
 }
 
-const VIEWS = ['dashboard', 'report', 'comprehensive', 'synastry', 'share', 'compare', 'naming', 'metaphysics'];
+const VIEWS = ['dashboard', 'topics', 'report', 'comprehensive', 'synastry', 'share', 'compare', 'naming', 'metaphysics'];
 
 function switchView(view) {
   state.view = view;
@@ -1421,6 +1514,7 @@ function switchView(view) {
   if (matchMedia('(max-width: 900px)').matches) {
     $('.sidebar').classList.remove('open');
     $('#sidebar-toggle').setAttribute('aria-expanded', 'false');
+    $('#main-content').scrollIntoView({ block: 'start' });
     $('#main-content').focus();
   }
 }
@@ -1876,6 +1970,7 @@ function renderAll() {
   try {
     renderHead();
     renderDashboard();
+    renderTopics();
     renderReport();
     renderComprehensive();
     renderSynastry();
