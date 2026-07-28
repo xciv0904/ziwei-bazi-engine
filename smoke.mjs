@@ -139,10 +139,16 @@ check('每個主題至少顯示 6 個具體問題', (() => {
   });
 })());
 $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'love').click();
-check('每題顯示一個紫微八字綜合回答', (() => {
+// 主題分析每題要有兩段:主題通用方向 + 依命盤實際排出的依據。
+// 兩段必須分開標示——通用方向全站只有兩種寫法,不能講得像是替這個人算出來的。
+// 同時維持「主題分析頁零術語」的規則(五行/日主/十神等字樣不得外洩到這一頁)。
+check('每題顯示主題一般方向,並與命盤依據分開標示', (() => {
   const text = $('#view-topics').textContent;
   return $$('#view-topics .topic-answer--combined').length === 6
-    && text.includes('綜合回答') && !text.includes('八字補充')
+    && $$('#view-topics .topic-answer--basis').length === 6
+    && text.includes('這一題的一般方向') && text.includes('你的命盤依據')
+    && text.includes('不是逐字依你的命盤生成')
+    && !text.includes('八字補充')
     && !text.includes('命盤無法判定') && !text.includes('水多')
     && !text.includes('五行') && !text.includes('日主') && !text.includes('十神');
 })());
@@ -160,7 +166,7 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
 $('#view-topics .topic-ai-btn').click();
 await new Promise((r) => setTimeout(r, 0));
 check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
-  && copiedTopicPrompt.includes('網站初步綜合回答')
+  && copiedTopicPrompt.includes('網站提供的主題一般方向')
   && copiedTopicPrompt.includes('完整命盤資料包'));
 
 // --- 解讀報告(白話摘要分析卡片) ---

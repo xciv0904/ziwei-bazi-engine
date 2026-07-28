@@ -37,6 +37,10 @@ function loadEngines() {
   return enginesPromise;
 }
 
+// index.html 把 Google Fonts 的 <link> 以 media="print" 掛載,讓它不擋首次繪製;
+// 這支模組是 type=module(自帶 defer),執行時 HTML 已解析完、首屏已可繪製,這時再切回 all。
+document.getElementById('font-css')?.setAttribute('media', 'all');
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -161,6 +165,10 @@ const SHICHEN = [
   { name: '申時', hour: 15, label: '申時（15–17）' }, { name: '酉時', hour: 17, label: '酉時（17–19）' },
   { name: '戌時', hour: 19, label: '戌時（19–21）' }, { name: '亥時', hour: 21, label: '亥時（21–23）' },
 ];
+// 時辰欄位的合法值白名單:12 個時辰的起始小時 + 「不確定時辰」。
+// 分享連結與匯入檔都是外部輸入,一律拿這份白名單比對,避免不合法的值靜默變成子時。
+const VALID_HOURS = new Set([...SHICHEN.map((x) => String(x.hour)), 'unknown']);
+
 const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const yearGanZhi = (y) => STEMS[(y - 4) % 10] + BRANCHES[(y - 4) % 12];
@@ -341,7 +349,8 @@ function renderSavedList() {
   const list = loadSavedCharts();
   $('#saved-section').hidden = list.length === 0;
   // 合盤頁的「從已存命盤帶入」列表、命盤比對頁的勾選清單與側欄收藏同步
-  if (state.data) { renderSynastry(); renderCompare(); }
+  // (延遲渲染:只有正在看的那一頁需要立刻重畫,另一頁等切過去時再補)
+  invalidateViews('synastry', 'compare');
   $('#saved-list').innerHTML = list.map((c, i) => `
     <div class="saved-chip" data-load="${i}">
       <span class="saved-name">${esc(c.name)}</span>
@@ -377,24 +386,50 @@ function exportSavedCharts() {
   toast(`已匯出 ${list.length} 筆命盤`);
 }
 
+/**
+ * 匯入檔是使用者可以任意編輯的外部輸入,先前只檢查欄位「有沒有值」,
+ * 因此像 date: "去年" 或 hour: 99 這種值會被原封不動存進收藏,
+ * 等到之後點開那筆命盤才在排盤階段炸開(而且錯誤訊息完全對不上原因)。
+ * 現在改成逐筆嚴格驗證,壞掉的資料在匯入當下就被擋下並告知筆數。
+ */
+const MAX_IMPORT_BYTES = 1 * 1024 * 1024; // 20 筆命盤約數 KB,1MB 已極度寬鬆;更大者視為非本站檔案
+
+function isValidChartEntry(c) {
+  if (!c || typeof c !== 'object') return false;
+  if (typeof c.name !== 'string' || !c.name.trim()) return false;
+  if (typeof c.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(c.date)) return false;
+  const [y, m, d] = c.date.split('-').map(Number);
+  if (y < 1900 || y > 2100) return false;
+  const probe = new Date(y, m - 1, d);
+  if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) return false; // 例如 1949-02-29
+  if (!VALID_HOURS.has(String(c.hour))) return false;
+  if (c.gender !== 'male' && c.gender !== 'female') return false;
+  return true;
+}
+
 function importSavedCharts(file) {
+  if (file.size > MAX_IMPORT_BYTES) return toast('匯入失敗:檔案過大,請確認是本站匯出的命盤收藏');
   const reader = new FileReader();
+  reader.onerror = () => toast('匯入失敗:無法讀取這個檔案');
   reader.onload = () => {
     try {
       const incoming = JSON.parse(reader.result);
       if (!Array.isArray(incoming)) throw new Error('格式錯誤');
-      const valid = incoming.filter((c) => c && c.name && c.date && c.gender && c.hour !== undefined);
+      const valid = incoming.filter(isValidChartEntry);
+      const skipped = incoming.length - valid.length;
       const list = loadSavedCharts();
       let added = 0;
       for (const c of valid) {
-        if (!list.some((x) => x.date === c.date && x.hour === c.hour && x.gender === c.gender)) {
-          list.push({ name: String(c.name), date: c.date, hour: c.hour, gender: c.gender, cal: 'solar' });
+        const entry = { name: String(c.name).trim().slice(0, 20), date: c.date, hour: String(c.hour), gender: c.gender, cal: 'solar' };
+        if (!list.some((x) => x.date === entry.date && String(x.hour) === entry.hour && x.gender === entry.gender)) {
+          list.push(entry);
           added++;
         }
       }
       persistSavedCharts(list);
       renderSavedList();
-      toast(added ? `已匯入 ${added} 筆命盤` : '沒有新的命盤(皆已存在)');
+      const tail = skipped ? `(略過 ${skipped} 筆格式不正確的資料)` : '';
+      toast((added ? `已匯入 ${added} 筆命盤` : '沒有新的命盤(皆已存在或格式不正確)') + tail);
     } catch { toast('匯入失敗:檔案格式不正確'); }
   };
   reader.readAsText(file);
@@ -1009,6 +1044,18 @@ const TOPIC_DIRECT_ANSWERS = {
   ],
 };
 
+/**
+ * 主題六十題的「一般方向」。
+ *
+ * 重要:這裡的 TOPIC_DIRECT_ANSWERS 每題只有兩種寫法,是為整個主題寫的通用敘述,
+ * 並不是依個人命盤逐字組裝出來的。原本的實作用命盤資料做雜湊後對 2 取餘數挑一則,
+ * 畫面上卻寫「已綜合紫微與八字中和這題最相關的配置」——那句話會讓使用者以為
+ * 這兩段字是替他一個人算出來的,實際上全站只有兩種答案。這是可信度風險,不是小文案問題。
+ *
+ * 現在的處理:選法維持穩定(同一張命盤永遠看到同一則,不會每次重整就變),
+ * 但畫面上明確標示這是通用方向,真正依命盤排出的內容改放在下方「你的命盤依據」,
+ * 由 generatePlainPalaceCard / generatePlainBaziTopics 實際輸出。
+ */
 function topicIntegratedAnswer(topic, questionIndex, ziweiCard, baziCard) {
   const options = TOPIC_DIRECT_ANSWERS[topic.key]?.[questionIndex] ?? [];
   if (!options.length) return '這個問題目前沒有可用的初步回答。';
@@ -1016,6 +1063,23 @@ function topicIntegratedAnswer(topic, questionIndex, ziweiCard, baziCard) {
   let hash = 0;
   for (let i = 0; i < seedText.length; i++) hash = ((hash * 31) + seedText.charCodeAt(i)) | 0;
   return options[Math.abs(hash) % options.length];
+}
+
+/** 這一題底下真正依使用者命盤排出的依據(紫微對應宮位 + 八字對應面向);沒有資料就不硬湊 */
+function topicChartBasisHtml(topic, ziweiCard, baziCard) {
+  const rows = [];
+  if (ziweiCard?.summary) {
+    rows.push(`<li><b>紫微斗數看到的</b><span>${esc(flat(ziweiCard.summary))}</span></li>`);
+  }
+  if (baziCard?.summary) {
+    rows.push(`<li><b>八字看到的</b><span>${esc(flat(baziCard.summary))}</span></li>`);
+  }
+  if (!rows.length) return '';
+  return `<section class="topic-answer topic-answer--basis">
+    <b>你的命盤依據</b>
+    <ul class="topic-basis-list">${rows.join('')}</ul>
+    <small>這兩行是依你的生辰實際排出的宮位與八字重點,可在「重點解讀」看到完整版本。</small>
+  </section>`;
 }
 
 function renderTopics() {
@@ -1037,7 +1101,8 @@ function renderTopics() {
         <span>Q${index + 1}</span><h3>${esc(question)}</h3><i aria-hidden="true">›</i>
       </button>
       <div class="topic-question-body" id="topic-answer-${index}"${open ? '' : ' hidden'}>
-        <section class="topic-answer topic-answer--combined"><b>初步綜合回答</b><p>${esc(answer)}</p><small>已綜合紫微與八字中和這題最相關的配置</small></section>
+        <section class="topic-answer topic-answer--combined"><b>這一題的一般方向</b><p>${esc(answer)}</p><small>此段是為「${esc(topic.label)}」主題撰寫的通用方向,不是逐字依你的命盤生成;依你命盤排出的內容在下方。</small></section>
+        ${topicChartBasisHtml(topic, ziweiCard, baziCard)}
         <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">複製這題給 AI 深入問</button>
         <p class="topic-ai-note">只會複製題目與相關命盤資料到剪貼簿，不會自動上傳。</p>
       </div>
@@ -1067,7 +1132,7 @@ function renderTopics() {
       const text = [
         `【主題分析：${topic.label}】`,
         `使用者問題：${question}`,
-        `網站初步綜合回答：${answer}`,
+        `網站提供的主題一般方向（非逐字依命盤生成）：${answer}`,
         '',
         '請先直接回答上面的單一問題，不要先輸出完整命盤總論。',
         '只使用下方資料包裡實際存在的命盤資料，不重新排盤、不補造星曜、十神或人生事件。',
@@ -1653,6 +1718,8 @@ const VIEWS = ['dashboard', 'topics', 'report', 'comprehensive', 'synastry', 'sh
 
 function switchView(view) {
   state.view = view;
+  // 延遲渲染:這一頁若還沒畫過(或資料換過之後還沒補畫),在顯示之前先補上
+  if (state.data && dirtyViews.has(view)) renderView(view);
   $$('.nav-item[data-view]').forEach((n) => n.classList.toggle('active', n.dataset.view === view));
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
   // 「白話摘要／專業依據」按鈕在重點解讀頁對應的是分頁各自的 reportViewMode,離開/進入這個頁面時
@@ -2112,20 +2179,52 @@ function renderMetaphysics() {
   return renderers[state.metaphysicsTab]?.();
 }
 
+// ---------- 分頁延遲渲染 ----------
+// 原本每次排盤都會把九個分頁的 DOM 一次全部組出來,但使用者當下只看得到一頁;
+// 其餘八頁(含深度解析、姓名學、進階玄學等重運算頁)的成本完全是白花的,
+// 在手機上會讓「排盤」按下去到畫面出現之間多等好幾百毫秒。
+// 改成:排盤後只畫目前這一頁,其餘標記為 dirty,切過去時才即時補畫(且只畫一次)。
+const VIEW_RENDERERS = {
+  dashboard: renderDashboard,
+  topics: renderTopics,
+  report: renderReport,
+  comprehensive: renderComprehensive,
+  synastry: renderSynastry,
+  share: renderShare,
+  compare: renderCompare,
+  naming: renderNaming,
+  metaphysics: renderMetaphysics,
+};
+const dirtyViews = new Set();
+
+/** 把某幾頁標記為需要重畫;若其中包含目前這一頁,立刻補畫(其餘等切過去再說) */
+function invalidateViews(...views) {
+  if (!state.data) return;
+  for (const v of views) dirtyViews.add(v);
+  if (dirtyViews.has(state.view)) renderView(state.view);
+}
+
+/** 畫出單一分頁,並沿用原本的防護網:單頁組裝失敗不會讓整個介面卡死 */
+function renderView(view) {
+  const fn = VIEW_RENDERERS[view];
+  if (!fn) return;
+  dirtyViews.delete(view);
+  try {
+    fn();
+  } catch (err) {
+    console.error(`render ${view} 失敗:`, err);
+    toast('顯示命盤時發生錯誤，請重新整理頁面再試一次；若重複發生請回報這組生辰資料。');
+  }
+}
+
 function renderAll() {
   // 防護網:任何一段畫面組裝在排盤資料的邊界情況下出錯,都要讓使用者看得到、
   // 而不是靜默失敗、側邊欄卡死在 disabled 狀態(曾發生過大限與流年同宮時的 null 例外)。
   try {
     renderHead();
-    renderDashboard();
-    renderTopics();
-    renderReport();
-    renderComprehensive();
-    renderSynastry();
-    renderShare();
-    renderCompare();
-    renderNaming();
-    renderMetaphysics();
+    // 資料換了 → 所有分頁的內容都過期;目前這頁馬上重畫,其餘等切過去再補。
+    for (const v of VIEWS) dirtyViews.add(v);
+    renderView(state.view);
     document.body.classList.add('has-chart');
     document.body.classList.remove('editing-chart');
     $$('.side-nav [data-view]').forEach((n) => { n.disabled = false; n.removeAttribute('aria-disabled'); });
@@ -2175,6 +2274,7 @@ function renderEmpty() {
     <p class="welcome-text muted">生辰資料不會上傳。內容供文化研究與自我探索參考。</p>
   </div>${reminder}</div>`;
   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
+  dirtyViews.clear(); // 歡迎畫面已把每一頁都填成同一份內容,沒有待補畫的分頁
   $$('[data-remind]').forEach((btn) =>
     btn.addEventListener('click', async () => {
       const c = loadSavedCharts()[Number(btn.dataset.remind)];
@@ -2313,14 +2413,21 @@ function setupControls() {
   });
 
   // 分享連結參數回填(有參數才直接排盤)
+  // 網址列是完全由外部控制的輸入,任何人都能手改後傳給別人,所以每個參數都要先驗證再落地:
+  // 之前 hour 只要塞一個不存在的值,<select> 會靜默變成空字串 → Number('') === 0 → 悄悄排成子時;
+  // gender 也可能被塞入任意字串,一路帶進排盤引擎。現在一律白名單比對,不合法就忽略、沿用預設值。
   const params = new URLSearchParams(location.search);
-  if (params.get('date')) {
-    const [py, pm, pd] = params.get('date').split('-').map(Number);
-    birthDateCtl.set(py, pm, pd);
-    if (params.get('name')) $('#name-input').value = params.get('name');
-    if (params.get('hour')) $('#birth-hour').value = params.get('hour');
-    if (params.get('gender')) {
-      state.gender = params.get('gender');
+  const rawDate = params.get('date');
+  if (rawDate && /^\d{4}-\d{1,2}-\d{1,2}$/.test(rawDate)) {
+    const [py, pm, pd] = rawDate.split('-').map(Number);
+    birthDateCtl.set(py, pm, pd); // 年份範圍與「日期是否真的存在」仍由 read()/computeAllInner 再驗一次
+    const rawName = params.get('name');
+    if (rawName) $('#name-input').value = rawName.slice(0, 20);
+    const rawHour = params.get('hour');
+    if (rawHour && VALID_HOURS.has(rawHour)) $('#birth-hour').value = rawHour;
+    const rawGender = params.get('gender');
+    if (rawGender === 'male' || rawGender === 'female') {
+      state.gender = rawGender;
       $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === state.gender));
     }
     return true;

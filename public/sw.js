@@ -1,6 +1,7 @@
 // Service Worker — 離線支援
 // 策略:hashed assets(內容雜湊檔名,永不變)快取優先;其餘(index.html 等)網路優先、離線退回快取。
-const CACHE = 'zwbz-v1';
+// 版本號:改動這支檔案或想強制淘汰舊快取時要一起改(activate 會刪掉所有非本版本的快取)
+const CACHE = 'zwbz-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -17,15 +18,20 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== location.origin) return;
+  // 帶查詢字串的網址(分享連結 ?date=...&name=...)不要進快取:
+  // 每組生辰都會產生一支不同的 URL,照單全收會讓快取無限膨脹,而且回應內容其實是同一份 index.html。
+  // 導覽請求一律以「不含查詢字串的頁面」作為快取鍵,離線時才有東西可退回。
+  const isNavigate = event.request.mode === 'navigate';
+  const cacheKey = isNavigate ? new Request(url.origin + url.pathname) : event.request;
 
   if (url.pathname.includes('/assets/')) {
     // 快取優先(檔名含 hash,內容不會變)
     event.respondWith(
       caches.open(CACHE).then(async (cache) => {
-        const hit = await cache.match(event.request);
+        const hit = await cache.match(cacheKey);
         if (hit) return hit;
         const res = await fetch(event.request);
-        if (res.ok) cache.put(event.request, res.clone());
+        if (res.ok) cache.put(cacheKey, res.clone());
         return res;
       }),
     );
@@ -36,11 +42,11 @@ self.addEventListener('fetch', (event) => {
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+            caches.open(CACHE).then((cache) => cache.put(cacheKey, copy));
           }
           return res;
         })
-        .catch(() => caches.match(event.request)),
+        .catch(async () => (await caches.match(cacheKey)) ?? (await caches.match('./index.html'))),
     );
   }
 });
