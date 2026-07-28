@@ -3,7 +3,10 @@ import { Window } from 'happy-dom';
 import { readFileSync } from 'node:fs';
 
 const w = new Window({ url: 'http://localhost/' });
-for (const k of ['document', 'Event', 'HTMLElement', 'Node', 'location', 'navigator', 'localStorage']) {
+// matchMedia 一定要掛上去:switchView 尾端用它判斷是否為手機版寬度。
+// 少了它,switchView 會在最後一行丟 TypeError——瀏覽器裡不會發生,但在這個測試環境中
+// 會讓整段導覽邏輯默默中斷(過去這個錯誤被 happy-dom 吞掉,測試看起來還是綠的)。
+for (const k of ['document', 'Event', 'HTMLElement', 'Node', 'location', 'navigator', 'localStorage', 'matchMedia', 'requestIdleCallback']) {
   try { globalThis[k] = w[k]; } catch { /* 某些屬性唯讀 */ }
 }
 globalThis.window = w;
@@ -26,6 +29,14 @@ let failed = 0;
 const check = (label, ok) => { console.log(`${ok ? '✅' : '❌'} ${label}`); if (!ok) failed++; };
 // 排盤引擎改為動態載入(submit 後非同步),送出表單後需等引擎載入+渲染完成
 const settle = () => new Promise((r) => setTimeout(r, 300));
+// 深度解析／合盤／姓名學／進階玄學的引擎改為動態載入後,switchView 變成非同步:
+// 點完側欄導覽要讓事件迴圈跑完 import 才能斷言畫面內容,否則會抓到還沒渲染的舊 DOM。
+const nav = async (view) => {
+  $$('.nav-item').find((n) => n.dataset.view === view).click();
+  await settle();
+};
+/** 任何會觸發 switchView 的按鈕(頁間導引連結、分享邀請等)都要用這個點 */
+const clickNav = async (el) => { el.click(); await settle(); };
 // 出生日期改成年/月/日三欄後,填值要各別觸發對應事件,模擬使用者實際輸入
 const setDateParts = (prefix, y, m, d) => {
   $(`#${prefix}-year`).value = String(y);
@@ -128,7 +139,7 @@ check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('act
 check('切大限後年度重點仍在', !!$('.luck-detail .palace-takeaway')?.textContent.length);
 
 // --- 主題分析（問題導向＋紫微八字初解＋逐題 AI） ---
-$$('.nav-item').find((n) => n.dataset.view === 'topics').click();
+await nav('topics');
 check('主題分析視圖顯示', !$('#view-topics').hidden);
 check('主題分析共 10 個主題', $$('#view-topics .topic-tab').length === 10);
 check('每個主題至少顯示 6 個具體問題', (() => {
@@ -142,20 +153,25 @@ $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'love').click();
 // 主題分析每題要有兩段:主題通用方向 + 依命盤實際排出的依據。
 // 兩段必須分開標示——通用方向全站只有兩種寫法,不能講得像是替這個人算出來的。
 // 同時維持「主題分析頁零術語」的規則(五行/日主/十神等字樣不得外洩到這一頁)。
-check('每題顯示主題一般方向,並與命盤依據分開標示', (() => {
+// 主題分析每題要有「通用方向」,而「你的命盤依據」與免責說明整個主題只出現一次
+// ——這兩段對六題來說內容完全相同,每題各印一次等於同一頁重複 30 行,是很明顯的閱讀負擔。
+// 同時維持「主題分析頁零術語」的規則(五行/日主/十神等字樣不得外洩到這一頁)。
+check('每題有一般方向,命盤依據與免責說明整頁只出現一次', (() => {
   const text = $('#view-topics').textContent;
   return $$('#view-topics .topic-answer--combined').length === 6
-    && $$('#view-topics .topic-answer--basis').length === 6
-    && text.includes('這一題的一般方向') && text.includes('你的命盤依據')
-    && text.includes('不是逐字依你的命盤生成')
+    && $$('#view-topics .topic-answer--basis').length === 1
+    && $$('#view-topics .topic-basis-list li').length >= 1
+    && text.includes('這一題的一般方向')
+    && (text.match(/不是逐字依你的命盤生成/g) ?? []).length === 1
+    && (text.match(/不會自動上傳/g) ?? []).length === 1
     && !text.includes('八字補充')
     && !text.includes('命盤無法判定') && !text.includes('水多')
     && !text.includes('五行') && !text.includes('日主') && !text.includes('十神');
 })());
-$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+await nav('dashboard');
 check('命盤總覽提供主題分析導引',
   !!$('#view-dashboard [data-result-goto="topics"]'));
-$$('.nav-item').find((n) => n.dataset.view === 'topics').click();
+await nav('topics');
 $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'career').click();
 check('可切換到事業問題', $('#view-topics').textContent.includes('我適合負責哪些工作內容'));
 let copiedTopicPrompt = '';
@@ -170,7 +186,7 @@ check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTop
   && copiedTopicPrompt.includes('完整命盤資料包'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
-$$('.nav-item').find((n) => n.dataset.view === 'report').click();
+await nav('report');
 check('報告視圖顯示', !$('#view-report').hidden);
 check('紫微白話摘要卡片 6 項', $$('#view-report .analysis-card').length === 6);
 check('預設展開命宮總論', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('命宮總論'));
@@ -189,27 +205,34 @@ $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('�
 check('重點解讀同時間只展開一張卡片', $$('#view-report .analysis-card.open').length === 1);
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('大限・流年重點')).click();
 check('大限流年重點區塊有跳轉命盤總覽按鈕', !!$('#view-report [data-jump-dashboard]'));
-$('#view-report [data-jump-dashboard]').click();
+await clickNav($('#view-report [data-jump-dashboard]'));
 check('點擊跳轉按鈕會切到命盤總覽', !$('#view-dashboard').hidden);
-$$('.nav-item').find((n) => n.dataset.view === 'report').click();
+await nav('report');
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
 check('八字白話摘要卡片 5 項(含喜用神)', $$('#view-report .analysis-card').length === 5);
-check('預設展開日主分析', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('日主分析'));
-check('含喜用神與忌神項', $$('#view-report .analysis-card__title').some((t) => t.textContent.includes('喜用神與忌神')));
+// 卡片標題已改成白話(內部 key 仍是 zhu/xiji/yongshen/shishen/dayun),術語只留在專業依據面板
+check('預設展開第一張八字卡(你的先天底色)', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('你的先天底色'));
+check('含喜用神卡,且標題已白話化', $$('#view-report .analysis-card__title').some((t) => t.textContent.includes('對你有幫助與要避開的方向')));
 check('解讀報告讀完後才出現分享命卡邀請', !!$('#report-share-btn'));
-$('#report-share-btn').click();
+await clickNav($('#report-share-btn'));
 check('點擊報告頁分享邀請會切到分享命卡視圖', !$('#view-share').hidden);
-$$('.nav-item').find((n) => n.dataset.view === 'report').click();
+await nav('report');
 
 // --- 命盤解析(綜合報告) ---
-$$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
+await nav('comprehensive');
 check('解析視圖顯示', !$('#view-comprehensive').hidden);
 check('紫微6段+八字6段(含全盤概覽/地支關係/神煞)', $$('#view-comprehensive .acc-item').length === 12);
 check('含當前焦點段', $('#view-comprehensive').textContent.includes('當前焦點'));
-check('含八字財官流向段', $('#view-comprehensive').textContent.includes('財官流向'));
+// 大眾版標題要看得懂:畫面上顯示白話標題,「財官流向」「地支關係」「神煞」等術語標題
+// 只在專業命盤模式出現(內部識別字仍維持原名,收合設定與導語都靠它)
+check('八字財官段改用白話標題',
+  $('#view-comprehensive').textContent.includes('金錢與事業的流向')
+  && !$('#view-comprehensive').textContent.includes('財官流向'));
 check('含全盤概覽段', $('#view-comprehensive').textContent.includes('全盤概覽'));
 check('含地支關係段', $('#view-comprehensive').textContent.includes('地支關係'));
-check('含神煞段', $('#view-comprehensive').textContent.includes('神煞'));
+check('神煞段改用白話標題',
+  $('#view-comprehensive').textContent.includes('加分與要留意的地方')
+  && !$('#view-comprehensive').textContent.includes('五、神煞'));
 check('深度解析具備完整內容層級', (() => {
   const text = $('#view-comprehensive').textContent;
   return text.includes('你可以發揮的地方')
@@ -220,7 +243,8 @@ check('深度解析具備完整內容層級', (() => {
 })());
 
 // 地支關係/神煞屬於補充細節,預設收合(acc-item 沒有 open class,內文不渲染),點開才展開
-const findDetailItem = (title) => $$('#view-comprehensive .acc-item').find((it) => it.querySelector('.acc-title')?.textContent.includes(title));
+// 用 data-detail(內部識別字)定位,不用畫面上的標題——顯示標題在大眾版已改成白話
+const findDetailItem = (title) => $$('#view-comprehensive .acc-item').find((it) => it.querySelector('.acc-row[data-detail]')?.dataset.detail.includes(title));
 const branchRelItem = findDetailItem('地支關係');
 const shenshaItem = findDetailItem('神煞');
 check('地支關係預設收合', branchRelItem && !branchRelItem.classList.contains('open') && !branchRelItem.querySelector('.acc-body'));
@@ -235,7 +259,7 @@ check('再點一次收合回去', !branchRelItemCollapsed.classList.contains('op
 check('全盤概覽等主要段落預設仍展開', $$('#view-comprehensive .acc-item.open').length === 12 - 2);
 
 // --- 雙人合盤 ---
-$$('.nav-item').find((n) => n.dataset.view === 'synastry').click();
+await nav('synastry');
 check('合盤視圖顯示', !$('#view-synastry').hidden);
 check('合盤表單存在', !!$('#syn-year') && !!$('#syn-run'));
 check('已存命盤可帶入乙方', $$('#view-synastry [data-syn-load]').length >= 1);
@@ -262,7 +286,7 @@ check('側欄有小百科連結', !!$('.nav-external'));
 check('時辰選單含「不確定」', $$('#birth-hour option').some((o) => o.value === 'unknown'));
 check('收藏匯出/匯入按鈕', !!$('#export-charts') && !!$('#import-charts'));
 check('合盤關係型態選單', !!$('#syn-rel') && $$('#syn-rel option').length === 4);
-$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+await nav('dashboard');
 $('#dashboard-detail').open = true;
 $('#dashboard-detail').dispatchEvent(new w.Event('toggle'));
 $('#open-monthly')?.click();
@@ -282,13 +306,13 @@ check('流月專業依據切換月份後維持原本展開狀態', (() => {
   return details && details.open && details.textContent.includes('紫微流月命宮與四化')
     && details.textContent.includes('八字流月干支與引動');
 })());
-$$('.nav-item').find((n) => n.dataset.view === 'share').click();
+await nav('share');
 $$('#view-share [data-card]').find((t) => t.dataset.card === 'annual')?.click();
 check('流年命卡切換', $('#view-share').textContent.includes('流年卡') && $('.fate-birth').textContent.includes('運勢重點'));
 $$('#view-share [data-card]').find((t) => t.dataset.card === 'life')?.click();
 
 // --- 時辰未知流程 ---
-$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+await nav('dashboard');
 $('#birth-hour').value = 'unknown';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
@@ -299,7 +323,7 @@ $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 
 // --- 分享命卡 ---
-$$('.nav-item').find((n) => n.dataset.view === 'share').click();
+await nav('share');
 check('命卡姓名', $('.fate-name').textContent === 'Shelly');
 check('命卡有五行色徽章', !!$('.fate-el-chip')?.textContent.trim());
 check('命宮主星標籤(空宮借星)', $('.fate-tags').textContent.includes('借'));
@@ -308,12 +332,12 @@ check('日主標籤 乙木', $('.fate-tags').textContent.includes('乙木'));
 // --- 大眾版/學習版切換(命盤總覽/深度解析用共用的 state.readingMode;重點解讀另外用分頁各自的
 //     state.reportViewMode,見下面單獨的區塊——命盤小教室與深度解析的「專業資料/專業命理依據」
 //     現在永遠是完整內容,收合、不受開關影響,開關只影響上面白話段落的引用詳略程度) ---
-$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+await nav('dashboard');
 check('預設大眾版,小教室白話段落不含依據句', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
 check('小教室的專業資料永遠是完整內容,不受開關影響', $('.palace-technical').textContent.includes('亮度') || $('.palace-technical').textContent.includes('借對宮'));
 $('.mode-pill[data-mode="study"]').click();
 check('切學習版,小教室白話段落仍維持白話(不因開關混入依據句)', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
-$$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
+await nav('comprehensive');
 check('學習版命盤解析:白話段落含十神依據(細節上)', $$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
 check('深度解析的專業命理依據永遠是完整內容,不受開關影響', $$('#view-comprehensive .palace-technical').length > 0);
 $('.mode-pill[data-mode="public"]').click();
@@ -321,7 +345,7 @@ check('切回大眾版,白話段落不再含十神依據', !$$('#view-comprehens
 
 // 重點解讀的「白話摘要／專業依據」是分頁各自獨立的狀態(state.reportViewMode),要先切到這個頁面,
 // 開關才會改到它、而不是改到命盤總覽/深度解析共用的 state.readingMode(見 currentReadingMode())
-$$('.nav-item').find((n) => n.dataset.view === 'report').click();
+await nav('report');
 $('.mode-pill[data-mode="study"]').click();
 check('專業命盤模式:解讀報告已展開卡片直接顯示專業依據面板', $$('#view-report [data-report-panel="technical"]').length > 0 && $$('#view-report [data-report-panel="technical"]').every((p) => !p.hidden));
 check('專業命盤模式:白話面板改為隱藏', $$('#view-report [data-report-panel="plain"]').every((p) => p.hidden));
@@ -329,7 +353,7 @@ $('.mode-pill[data-mode="public"]').click();
 check('切回白話摘要模式:解讀報告的專業依據面板恢復預設收合', $$('#view-report [data-report-panel="technical"]').every((p) => p.hidden));
 
 // --- 重新排盤(換男生日期) ---
-$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+await nav('dashboard');
 setDateParts('birth', 1998, 3, 15);
 $('#birth-hour').value = '11';
 $$('#gender-toggle .pill').find((p) => p.dataset.value === 'male').click();
@@ -343,7 +367,7 @@ $('#name-input').value = '張萱利';
 $('#birth-hour').value = '13';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
-$$('.nav-item').find((n) => n.dataset.view === 'naming').click();
+await nav('naming');
 check('姓名學分頁顯示', !$('#view-naming').hidden);
 check('自動帶入排盤姓名(姓)', $('#naming-surname').value === '張');
 check('自動帶入排盤姓名(名)', $('#naming-given').value === '萱利');
@@ -362,13 +386,13 @@ check('未收錄字誠實提示,不做臆測', $('#view-naming').textContent.inc
 $('#name-input').value = '歐陽小明';
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
-$$('.nav-item').find((n) => n.dataset.view === 'naming').click();
+await nav('naming');
 check('複姓「歐陽」自動判斷正確', $('#naming-surname').value === '歐陽');
 check('複姓命盤:名自動帶入', $('#naming-given').value === '小明');
 check('複姓三字姓名五格剖象法可完整計算', $('#view-naming').textContent.includes('天格'));
 
 // --- 進階玄學工具 ---
-$$('.nav-item').find((n) => n.dataset.view === 'metaphysics').click();
+await nav('metaphysics');
 await settle();
 check('進階玄學分頁顯示', !$('#view-metaphysics').hidden);
 check('進階玄學導覽預設只顯示 3 個今日建議', $$('#view-metaphysics [data-meta-jump]').length === 3);
@@ -429,14 +453,14 @@ check('大限流年同宮的邊界案例仍能正常顯示 12 宮位', $$('.pala
 // --- 資訊架構改版:導覽名稱統一、三頁互相導引、按鈕鍵盤可操作、無 console.error ---
 check('導覽列已改名為「重點解讀」「深度解析」', $$('.nav-item').some((n) => n.textContent === '重點解讀') && $$('.nav-item').some((n) => n.textContent === '深度解析'));
 check('導覽列不再出現舊名稱「解讀報告」「命盤解析」', !$$('.nav-item').some((n) => n.textContent === '解讀報告' || n.textContent === '命盤解析'));
-$$('.nav-item').find((n) => n.dataset.view === 'dashboard').click();
+await nav('dashboard');
 check('命盤總覽提供重點解讀／主題分析／完整命盤三條新手路徑',
   !!$('#view-dashboard [data-result-goto="report"]')
   && !!$('#view-dashboard [data-result-goto="topics"]')
   && !!$('#view-dashboard [data-result-goto="dashboard-detail"]'));
-$$('.nav-item').find((n) => n.dataset.view === 'comprehensive').click();
+await nav('comprehensive');
 check('深度解析有跳轉到重點解讀/命盤總覽的導引連結', !!$('#view-comprehensive [data-goto="report"]') && !!$('#view-comprehensive [data-goto="dashboard"]'));
-$$('.nav-item').find((n) => n.dataset.view === 'report').click();
+await nav('report');
 check('重點解讀有跳轉到命盤總覽/深度解析的導引連結', !!$('#view-report [data-goto="dashboard"]') && !!$('#view-report [data-goto="comprehensive"]'));
 
 // 「白話摘要／專業依據」按鈕是原生 <button>,鍵盤 Enter/Space 本來就能觸發 click,這裡直接驗證
@@ -459,6 +483,78 @@ check('紫微分頁不受剛剛八字分頁切換專業依據影響,仍是白話
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi')?.click();
 check('切回八字分頁,記得剛剛切的專業依據', $('.mode-pill[data-mode="study"]').classList.contains('active'));
 $('.mode-pill[data-mode="public"]').click();
+
+// --- 白話模式的可讀性防迴歸檢查 ---
+// 這三件事會直接決定一般使用者要不要繼續看下去,而且很容易在改文案時悄悄壞掉:
+//   1) 白話面板不該出現只有學過命理的人才懂的術語(專業依據面板不在此限);
+//   2) 同一頁不該出現一字不差的重複句(過去主題分析每題都印一次相同的命盤依據,一頁重複 30 行);
+//   3) 不該出現「是這段時間可以著力的方向」這種沒有資訊量、放到任何人身上都成立的空話。
+const PLAIN_BANNED_JARGON = [
+  '化祿', '化權', '化科', '化忌', '喜用神', '忌神', '食傷', '比劫', '正官', '七殺', '偏財',
+  '正印', '偏印', '傷官', '食神', '劫財', '比肩', '廟旺', '落陷', '借星', '來因宮', '自化',
+  '納音', '藏干', '會照', '宮干', '命局', '本氣', '當令', '入柱', '日支', '年干',
+];
+const VAGUE_FILLER = ['實際狀況仍會', '可以著力的方向', '會比單看', '要更務實地經營', '因人而異'];
+/** 只取白話面板:專業依據面板本來就該有術語,先移除再檢查 */
+const plainTextOf = (view) => {
+  const root = $(`#view-${view}`).cloneNode(true);
+  for (const el of [...root.querySelectorAll('.analysis-card__panel--technical, .palace-technical, .tech-block, [data-report-panel="technical"]')]) el.remove();
+  return root.textContent.replace(/\s+/g, ' ');
+};
+// 前面的測試切過專業命盤模式,而重點解讀的紫微/八字分頁各自記住自己的模式。
+// 這裡把每一個會影響白話輸出的開關都明確切回白話,再開始檢查——
+// 否則量到的其實是專業面板的內容,失敗訊息會指向錯的地方。
+const forcePublicMode = async () => {
+  await nav('report');
+  for (const tab of ['ziwei', 'bazi']) {
+    $$('#view-report .report-tab').find((t) => t.dataset.tab === tab)?.click();
+    await settle();
+    if (!$('.mode-pill[data-mode="public"]').classList.contains('active')) {
+      $('.mode-pill[data-mode="public"]').click();
+      await settle();
+    }
+  }
+  await nav('dashboard');
+  if (!$('.mode-pill[data-mode="public"]').classList.contains('active')) {
+    $('.mode-pill[data-mode="public"]').click();
+    await settle();
+  }
+};
+await forcePublicMode();
+
+for (const view of ['topics', 'report', 'comprehensive']) {
+  await nav(view);
+  const text = plainTextOf(view);
+  // 深度解析的「身宮」保留,但必須就地附上白話註解,不能光丟術語
+  const banned = PLAIN_BANNED_JARGON.filter((j) => text.includes(j));
+  check(`${view}:白話面板無術語${banned.length ? ':' + banned.join('、') : ''}`, banned.length === 0);
+  const filler = VAGUE_FILLER.filter((j) => text.includes(j));
+  check(`${view}:白話面板無空話${filler.length ? ':' + filler.join('、') : ''}`, filler.length === 0);
+  const sents = text.split(/[。;；]/).map((t) => t.trim()).filter((t) => t.length >= 14);
+  const counts = new Map();
+  sents.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1));
+  const dup = [...counts.entries()].filter(([, n]) => n > 1);
+  check(`${view}:同一頁沒有一字不差的重複句${dup.length ? ':' + dup[0][0].slice(0, 30) : ''}`, dup.length === 0);
+}
+check('深度解析出現「身宮」時必須附白話說明',
+  plainTextOf('comprehensive').includes('命理上稱為身宮'));
+
+// --- 打包切分的防迴歸檢查(靜態掃 main.js 原始碼,不需要跑 build) ---
+// 這幾支模組連同資料庫超過 100KB,全部都是排盤後才用得到。
+// 只要有人不小心在 main.js 頂端補回一行 static import,入口 bundle 就會胖回去,
+// 而且畫面完全正常、沒有任何測試會失敗——所以在這裡明確守住。
+const mainSrc = readFileSync('./src/main.js', 'utf-8');
+const staticImports = [...mainSrc.matchAll(/^import\s[^;]*?from\s+'([^']+)';/gm)].map((m) => m[1]);
+const MUST_BE_LAZY = [
+  './engines/compose.js', './engines/compose-bazi.js', './engines/compose-elements.js',
+  './engines/compose-luck.js', './engines/compose-plain.js', './engines/compose-annual.js',
+  './engines/compose-yongshen.js', './engines/comprehensive.js', './engines/format-ai.js',
+  './engines/naming.js', './engines/compose-synastry.js', './engines/divination.js',
+];
+const leaked = MUST_BE_LAZY.filter((m) => staticImports.includes(m));
+check(`重型解讀模組維持動態載入(不得靜態 import)${leaked.length ? ':' + leaked.join(', ') : ''}`, leaked.length === 0);
+check('姓名字庫沒有被 format-ai 靜態帶進來',
+  !readFileSync('./src/engines/format-ai.js', 'utf-8').includes("from './naming.js'"));
 
 check('整輪互動下來沒有任何 console.error', consoleErrors.length === 0);
 if (consoleErrors.length) consoleErrors.forEach((e) => console.log('  console.error:', e.slice(0, 200)));

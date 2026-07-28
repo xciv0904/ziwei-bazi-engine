@@ -713,7 +713,8 @@ a.nav-item { display: block; text-decoration: none; }
   background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
 }
 .syn-names { font: 600 13px/1 var(--serif); color: var(--ink-60); margin-bottom: 10px; }
-.syn-score { font: 900 44px/1 var(--serif); color: var(--red); }
+/* 全站唯一用到 900 的地方;為了它多載一整份 CJK 字檔不划算,改用 700(視覺差異在 44px 下極小) */
+.syn-score { font: 700 44px/1 var(--serif); color: var(--red); }
 .syn-score small { font-size: 16px; color: var(--ink-40); font-weight: 400; }
 .syn-tier { font: 700 15px/1 var(--serif); color: var(--gold); margin: 10px 0 12px; }
 .syn-score-card .mini-btn { margin-left: 0; }

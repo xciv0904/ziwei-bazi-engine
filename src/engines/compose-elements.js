@@ -45,7 +45,7 @@ export function composeElementAnalysis(distribution) {
 
   // 開頭總結句(短句,不再塞入通用的「特質關鍵字/相關領域」清單,避免跟下面的專屬描述重複)
   const opener =
-    `從五行分佈來看,命局中${dominant.join('、')}偏多,` +
+    `從五行分佈來看,你的八字裡${dominant.join('、')}偏多,` +
     `${weak.join('、')}相對偏少。`;
 
   // 過旺/偏弱的五行各自接一句專屬描述;適中的不展開,避免報告冗長重複。

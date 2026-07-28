@@ -5,7 +5,9 @@
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
 import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './compose-annual.js';
-import { computeWuGe, analyzeNameElements, analyzeZiweiOverlap, zodiacOf } from './naming.js';
+// naming.js 會一併帶進 44KB 的 name-characters.json 字庫,但整支 format-ai 只有
+// formatNamingPromptForAI 一個函式用得到。改成在那個函式內部動態 import,
+// 其餘所有 AI 提示詞(命盤、宮位、流年、合盤、每日、時間軸)就不必為此背上字庫的重量。
 import { generatePlainZiweiTopics, generatePlainBaziTopics } from './compose-plain.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
@@ -591,9 +593,11 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
  * @param {string} data.given   名
  * @param {object} data.baZi    convertToBaZi() 輸出(取喜用神/日主用)
  * @param {object} data.ziWei   convertToZiWei() 輸出(取命宮主星用)
- * @returns {string|null} 純文字提示詞;姓名用字不在字典或姓名結構不支援時回傳 null
+ * @returns {Promise<string|null>} 純文字提示詞;姓名用字不在字典或姓名結構不支援時回傳 null
+ *   (姓名字庫是動態載入的,所以這支是唯一一個非同步的 format*PromptForAI)
  */
-export function formatNamingPromptForAI({ input, surname, given, baZi, ziWei }) {
+export async function formatNamingPromptForAI({ input, surname, given, baZi, ziWei }) {
+  const { computeWuGe, analyzeNameElements, analyzeZiweiOverlap, zodiacOf } = await import('./naming.js');
   const fullName = `${surname}${given}`;
   const wuGe = computeWuGe(surname, given);
   const ys = computeYongShen(baZi);

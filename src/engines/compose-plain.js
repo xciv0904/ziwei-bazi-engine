@@ -20,7 +20,7 @@ import overlaysDb from '../data/luck-cycle-overlays.json' with { type: 'json' };
 import { composePalaceReading } from './compose.js';
 import { composeBaZiReading } from './compose-bazi.js';
 import { computeYongShen, FAVOR_IMPACT, AVOID_IMPACT } from './compose-yongshen.js';
-import { composeZiWeiLuck, composeBaZiLuck } from './compose-luck.js';
+import { composeZiWeiLuck, composeBaZiLuck, categoryLabel } from './compose-luck.js';
 import { palaceMeanings } from '../data/palace-meanings.js';
 
 const STAR_PROFILES = starDb['主星白話性格'];
@@ -288,7 +288,7 @@ function baziZhuTopic(baZi) {
   const explanation = [...profile.explanation, `整體來看,目前的狀態比較偏向「${ys.strength}」:${STRENGTH_PLAIN[ys.strength]}。`];
 
   return {
-    key: 'zhu', title: '日主分析', letter: '主', color: 'var(--gold)',
+    key: 'zhu', title: '你的先天底色', letter: '主', color: 'var(--gold)',
     summary: profile.summary,
     explanation,
     lifeExamples: cap(profile.lifeExamples, 3),
@@ -321,7 +321,7 @@ function baziXijiTopic(baZi, elements) {
     .map(([el, c]) => `${el}:${c.count}顆(${c.level})`).join('、');
 
   return {
-    key: 'xiji', title: '五行喜忌', letter: '喜', color: 'var(--red)',
+    key: 'xiji', title: '你身上偏多與偏少的特質', letter: '喜', color: 'var(--red)',
     summary: domProfile?.summary ?? explanation[0],
     explanation,
     lifeExamples: cap([...(domProfile?.lifeExamples ?? []), ...(weakProfile?.lifeExamples ?? [])], 4),
@@ -337,7 +337,8 @@ function baziXijiTopic(baZi, elements) {
   };
 }
 
-// ---------- 八字:喜用神與忌神 ----------
+// ---------- 八字:喜用神與忌神(卡片標題對外顯示為「對你有幫助與要避開的方向」——
+//            『喜用神/忌神』這兩個詞只留在專業命理依據面板) ----------
 
 function baziYongshenTopic(baZi) {
   const ys = computeYongShen(baZi);
@@ -363,7 +364,7 @@ function baziYongshenTopic(baZi) {
   const chartData = `喜用神:${fav.map((f) => `${f.element}(${f.role})`).join('、') || '無'};忌神:${avoid.map((a) => `${a.element}(${a.role})`).join('、') || '無'}。`;
 
   return {
-    key: 'yongshen', title: '喜用神與忌神', letter: '用', color: 'var(--gold)',
+    key: 'yongshen', title: '對你有幫助與要避開的方向', letter: '用', color: 'var(--gold)',
     summary, explanation, lifeExamples, challenges, advice,
     reflection: '你有沒有發現,自己在某些特定的人事物出現時,會特別順或特別卡?',
     technical: technicalBlock({
@@ -387,7 +388,7 @@ function baziShishenTopic(baZi) {
 
   if (!primary) {
     return {
-      key: 'shishen', title: '十神配置', letter: '神', color: 'var(--gold)',
+      key: 'shishen', title: '你做事與待人的方式', letter: '神', color: 'var(--gold)',
       summary: '目前命盤的十神配置資料不足,無法對應白話描述。',
       explanation: ['請直接參考下方專業命理依據中的完整資料。'],
       lifeExamples: [], challenges: [], advice: [],
@@ -401,7 +402,7 @@ function baziShishenTopic(baZi) {
   const explanation = [...profile.explanation, `這個特質在你的${pillars.join('、')}都有出現,是命盤中比較鮮明的一組配置。`];
 
   return {
-    key: 'shishen', title: '十神配置', letter: '神', color: 'var(--gold)',
+    key: 'shishen', title: '你做事與待人的方式', letter: '神', color: 'var(--gold)',
     summary: profile.summary,
     explanation,
     lifeExamples: cap(profile.lifeExamples, 3),
@@ -429,11 +430,12 @@ function baziTimeTopic(baZi, bzLuck) {
   const studyLuck = composeBaZiLuck(baZi, { mode: 'study', year: info.year ?? new Date().getFullYear() });
   const studyText = studyLuck.decadal?.text ?? studyLuck.annual?.text ?? '';
 
-  const summary = `${scope}走「${info.category}」,你身上「${info.god}」的特質會被放大。`;
+  // 這張是大眾版白話卡,用白話運別名;「食傷運/食神」這種術語留給專業依據面板。
+  const summary = `${scope}走「${categoryLabel(info.category)}」,這段期間這方面的特質會比平常更明顯。`;
   const explanation = [categoryText, profile?.summary ?? ''].filter(Boolean);
 
   return {
-    key: 'dayun', title: '大運概況', letter: '運', color: 'var(--red)',
+    key: 'dayun', title: '目前這十年的走向', letter: '運', color: 'var(--red)',
     summary,
     explanation,
     lifeExamples: cap(profile?.lifeExamples ?? [], 3),

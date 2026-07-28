@@ -19,7 +19,10 @@
     <meta property="og:description" content="輸入生辰即得紫微命盤、八字四柱與白話重點解讀,並可產生專屬命卡分享。" />
     <meta property="og:locale" content="zh_TW" />
     <meta property="og:url" content="https://xciv0904.github.io/ziwei-bazi-engine/" />
-    <meta property="og:image" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v2.png" />
+    <!-- 分享預覽圖改用 JPEG:同一張 1200×630 的圖,PNG 要 1.0MB、JPEG(q88)只要 93KB。
+         它不影響首屏(只有社群平台的爬蟲會抓),但每次建置與部署都要搬 1MB,repo 也一直背著。 -->
+    <meta property="og:image" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v2.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="紫微斗數與八字排盤的現代東方星盤視覺" />
@@ -31,7 +34,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- 中文字型是首屏最大的一筆下載。兩項調整:
-         (1) 只留 style.css 實際用到的字重(serif 只用 600/700/900、sans 只用 400/500/600/700)——
+         (1) 只留 style.css 實際用到的字重(serif 600/700、sans 400/500/600/700)——
              CJK 字檔很大,少一個字重就少下載一整份檔案。
          (2) 先以 media="print" 掛載:瀏覽器照樣下載,但不會擋住首次繪製;main.js 啟動後改回 all。
              搭配 display=swap,字型未到之前先用系統字顯示,不會出現整頁空白。 -->
@@ -39,10 +42,10 @@
       id="font-css"
       rel="stylesheet"
       media="print"
-      href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap"
     />
     <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" />
     </noscript>
     <title>紫微斗數・八字排盤</title>
     <script type="application/ld+json">

@@ -1,10 +1,22 @@
 // Service Worker — 離線支援
 // 策略:hashed assets(內容雜湊檔名,永不變)快取優先;其餘(index.html 等)網路優先、離線退回快取。
 // 版本號:改動這支檔案或想強制淘汰舊快取時要一起改(activate 會刪掉所有非本版本的快取)
-const CACHE = 'zwbz-v2';
+const CACHE = 'zwbz-v3';
 
-self.addEventListener('install', () => {
-  self.skipWaiting();
+// install 階段先把 app shell 抓進快取。
+// 之前完全不預快取,「離線可用」實際上是「你剛好造訪過的那幾頁才可用」——
+// 第一次進站就沒網路的人會看到白畫面,加入主畫面後首次開啟也一樣。
+// 這裡只列不含 hash 的固定路徑;帶 hash 的 assets 仍交給 fetch 事件在首次載入時順手快取
+// (檔名每次建置都會變,寫死在這裡反而會在部署後立刻失效)。
+const SHELL = ['./', './index.html', './manifest.webmanifest', './favicon.svg', './icons.svg'];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE)
+      // 個別 add,任何一支 404 都不該讓整個 SW 安裝失敗(例如日後刪掉某個圖示卻忘了改這份清單)
+      .then((cache) => Promise.all(SHELL.map((u) => cache.add(u).catch(() => {}))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {

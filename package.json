@@ -8,8 +8,9 @@
     "build": "node scripts/build-wiki.mjs && vite build",
     "preview": "vite preview",
     "test": "node test.js && node test-divination.mjs",
-    "smoke": "node --import ./css-hook.mjs smoke.mjs",
-    "wiki": "node scripts/build-wiki.mjs"
+    "smoke": "node --import ./css-hook.mjs smoke.mjs && npm run readability",
+    "wiki": "node scripts/build-wiki.mjs",
+    "readability": "node --import ./css-hook.mjs readability.mjs"
   },
   "devDependencies": {
     "happy-dom": "^20.10.6",

@@ -11,7 +11,7 @@ import baziReading from '../data/bazi-comprehensive-reading.json' with { type: '
 import elementDb from '../data/five-element-analysis.json' with { type: 'json' };
 import tenGodsDb from '../data/ten-gods-meanings.json' with { type: 'json' };
 import { BRIGHTNESS_ALIAS } from './compose.js';
-import { tenGodOf, composeBaZiCycleOverlay, categoryOf } from './compose-luck.js';
+import { tenGodOf, composeBaZiCycleOverlay, categoryOf, categoryLabel } from './compose-luck.js';
 import { composeElementAnalysis } from './compose-elements.js';
 import { composeShenShaReading } from './compose-shensha.js';
 import { composeBranchRelationsReading, relationDisplayName } from './compose-branch-relations.js';
@@ -131,11 +131,13 @@ const PALACE_DOMAIN = {
   田宅宮: '家庭與不動產', 福德宮: '心境與精神生活', 父母宮: '與長輩的互動',
 };
 
+// 大眾版(mode:'public')不掛「僕役宮化忌,」這種前綴——那是判斷依據,不是給一般人看的內容。
+// 一般人只需要知道「哪一塊、會怎樣、可以怎麼做」;要看依據的人本來就會切到專業命盤模式。
 const ADVICE_FALLBACK = {
-  祿: (p) => `${p}化祿,${PALACE_DOMAIN[p]}方面有順遂加分的跡象,適合主動經營、把握機會。`,
-  權: (p) => `${p}化權,${PALACE_DOMAIN[p]}方面的主導性與企圖心增強,可以多承擔一些,但留意姿態別過於強勢。`,
-  科: (p) => `${p}化科,${PALACE_DOMAIN[p]}方面容易獲得肯定與貴人助力,適合累積口碑與形象。`,
-  忌: (p) => `${p}化忌,${PALACE_DOMAIN[p]}方面容易出現糾結或阻礙,建議放慢腳步、謹慎應對。`,
+  祿: (p, cite) => `${cite(`${p}化祿,`)}${PALACE_DOMAIN[p]}方面有順遂加分的跡象,適合主動經營、把握機會。`,
+  權: (p, cite) => `${cite(`${p}化權,`)}${PALACE_DOMAIN[p]}方面的主導性與企圖心增強,可以多承擔一些,但留意姿態別過於強勢。`,
+  科: (p, cite) => `${cite(`${p}化科,`)}${PALACE_DOMAIN[p]}方面容易獲得肯定與貴人助力,適合累積口碑與形象。`,
+  忌: (p, cite) => `${cite(`${p}化忌,`)}${PALACE_DOMAIN[p]}方面容易出現糾結或阻礙,建議放慢腳步、謹慎應對。`,
 };
 
 // ---------- 特質標籤呼應判斷(star-trait-tags.json) ----------
@@ -164,6 +166,12 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
 
   // 段落內去重:空宮借對宮時,若被借的對宮在同一段落已經完整講過,
   // 不再貼一次一模一樣的整段文字,改用短句指回(例:福德宮借財帛宮,而財帛宮上一句才剛講完)
+  //
+  // 另外還有一種跨段落的重複:同一個宮位本來就會在兩段裡各出現一次
+  // (例如田宅宮同時屬於「事業與金錢」的資源面與「健康、家庭與人際」的居家面),
+  // 舊版兩段都完整貼一次,使用者會在同一份報告裡讀到一字不差的整段文字。
+  // reportSeen 記錄整份報告已經完整描述過的宮位,第二次出現時改成一句話指回去。
+  const reportSeen = new Map(); // 宮位名稱 → 該宮位第一次出現時所在的段落標題
   const readingDeduped = (name, seen, opt) => {
     const r = reading(name, opt);
     if (r.borrowed && seen.has(r.ctx)) {
@@ -171,7 +179,14 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
       return { ...r, text: `本宮無主星,借對宮${r.ctx}的${r.stars.join('、')}參看,方向與前述${r.ctx}的特質一致。` };
     }
     seen.add(name);
+    if (reportSeen.has(name)) {
+      return { ...r, text: `這一塊在「${reportSeen.get(name)}」已經談過,方向一致,這裡不再重複。` };
+    }
     return r;
+  };
+  /** 段落組完後呼叫:把這一段完整描述過的宮位登記起來,之後其他段落再遇到就只做指回 */
+  const markDescribed = (sectionTitle, ...names) => {
+    for (const n of names) if (!reportSeen.has(n)) reportSeen.set(n, sectionTitle);
   };
 
   // 第1段:性格才華(命宮 + 身宮)
@@ -204,6 +219,8 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
     fill(s2p['連接句模板'][4], { 是否呼應判斷句: resonanceSentence(career.stars, wealth.stars) }),
   ];
   sections.push({ title: '二、事業與金錢', text: s2lines.join('') });
+  // 這一段已完整描述過的宮位:第4段再遇到田宅宮時只做指回,不再貼一次同樣的整段文字
+  markDescribed('二、事業與金錢', '官祿宮', '財帛宮', '福德宮', '田宅宮');
 
   // 第3段:戀愛婚姻(夫妻宮 + 四化)
   const s3p = assembly['第3段_戀愛婚姻'];
@@ -238,18 +255,25 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
   // 第5段:行動建議(掃描 12 宮四化 → 條件式建議句庫;句庫沒有的宮位組合退回通用模板,
   // 避免像舊版一樣紫微化權(子女宮)、武曲化忌(僕役宮)因缺 key 被整條跳過)
   const s5p = assembly['第5段_行動建議'];
+  const cite = (text) => (mode === 'study' ? text : ''); // 判斷依據只在專業命盤模式出現
   const hits = [];
   for (const p of ziWei.palaces) {
     for (const s of p.majorStars) {
       if (!s.transformation) continue;
-      const sentence = ADVICE[`化${s.transformation}_${p.name}`]
-        ?? ADVICE_FALLBACK[s.transformation]?.(p.name);
+      // 句庫裡的句子是以「官祿宮化權,事業上…」這種格式寫死的。
+      // 大眾版把開頭的依據剝掉,只留後面看得懂的部分;句庫本身不動,專業命盤模式照舊完整顯示。
+      const fromDb = ADVICE[`化${s.transformation}_${p.name}`];
+      const sentence = fromDb
+        ? (mode === 'study' ? fromDb : fromDb.replace(/^[一-龥]{1,4}宮化[祿權科忌][,，]\s*/, ''))
+        : ADVICE_FALLBACK[s.transformation]?.(p.name, cite);
       if (sentence && !hits.includes(sentence)) hits.push(sentence);
     }
   }
+  // 結尾句原本是「掌握有利的流向、留意需要調整的模式,是這段時間可以著力的方向。」——
+  // 它沒有傳達任何新資訊,只是把上面講過的話換句話說,直接拿掉比留著更好讀。
   sections.push({
     title: '五、行動建議',
-    text: [s5p['開頭句'], ...hits, s5p['結尾句']].join(''),
+    text: [s5p['開頭句'], ...hits].join(''),
   });
 
   // 第6段:當前焦點(大限 + 流年,current-focus-section.json)
@@ -295,7 +319,10 @@ export function generateZiweiComprehensiveReading(ziWei, { year = new Date().get
       流年宮位星曜解釋: annualReading.text,
     }));
   }
-  s6lines.push(FOCUS['結尾句']);
+  // 結尾句原本是「掌握這段期間的重點,會比單看命盤整體更貼近你現在實際會遇到的際遇。」——
+  // 純粹在誇這個段落本身,沒有給使用者任何新東西,現在留空;若日後想放回有內容的收尾,
+  // 改 current-focus-section.json 的「結尾句」即可,這裡會自動略過空字串。
+  if (FOCUS['結尾句']) s6lines.push(FOCUS['結尾句']);
   sections.push({ title: '六、當前焦點', text: s6lines.join('') });
 
   return { sections, text: sections.map((s) => `【${s.title}】\n${s.text}`).join('\n\n') };
@@ -356,12 +383,39 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
 
   // 第1段:個性本質
   const bs1seed = seedFrom(dayStem, baZi.tenGods.yearStem, baZi.tenGods.monthStem);
+  // 年干/月干/日支三者可能落在同一個十神(相當常見)。
+  // 舊版是三句各自展開,結果同一段裡會出現兩三次一字不差的解釋
+  // (例如「代表壓力、挑戰與行動力,個性剛強果斷…」連著出現兩次),讀起來像壞掉的複製貼上。
+  // 現在同一個十神只解釋一次,重複的柱位改成只點出它在哪些面向同時出現。
+  const PILLAR_MEANING = {
+    年干: '早年的家庭背景與根基',
+    月干: '成長過程中的處世態度',
+    日支: '你自己的核心性格與親密關係',
+  };
+  const pillarGods = [
+    ['年干', baZi.tenGods.yearStem],
+    ['月干', baZi.tenGods.monthStem],
+    ['日支', baZi.tenGods.dayBranch],
+  ];
+  const seenGods = new Map(); // 十神 → 已出現過的柱位
+  for (const [pos, god] of pillarGods) {
+    if (!god) continue;
+    if (!seenGods.has(god)) seenGods.set(god, []);
+    seenGods.get(god).push(pos);
+  }
   const s1lines = [
     fill(pick(t1[0], bs1seed), { 日主: `${dayStem}(${dayEl})`, 日主基本特質: elementDb['五行基本特質'][dayEl] }),
-    fill(t1[1], { 年干十神: baZi.tenGods.yearStem, '年干十神核心解釋': core(baZi.tenGods.yearStem) }),
-    fill(t1[2], { 月干十神: baZi.tenGods.monthStem, '月干十神核心解釋': core(baZi.tenGods.monthStem) }),
-    fill(t1[3], { 日支十神: baZi.tenGods.dayBranch, '日支十神核心解釋': core(baZi.tenGods.dayBranch) }),
   ];
+  const emitted = new Set();
+  for (const [pos, god] of pillarGods) {
+    if (!god || emitted.has(god)) continue;
+    emitted.add(god);
+    const positions = seenGods.get(god);
+    const domains = positions.map((x) => PILLAR_MEANING[x]).join('、');
+    s1lines.push(positions.length > 1
+      ? `同一種特質在${positions.length}個地方同時出現:${core(god)}這一點會同時影響${domains},是你身上特別穩定、反覆出現的傾向。`
+      : `${core(god)}這一面主要反映在${PILLAR_MEANING[pos]}。`);
+  }
   sections.push({ title: '一、個性本質', text: s1lines.join('') });
 
   // 第2段:財官流向
@@ -369,13 +423,20 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
   const wealthHit = findGod(baZi.tenGods, ['正財', '偏財']);
   const officerHit = findGod(baZi.tenGods, ['正官', '七殺']);
   const elementAnalysis = composeElementAnalysis(baZi.fiveElementDistribution);
+  // 大眾版:只講結論,不掛「月柱顯示正財」「年柱天干顯示正官」這類依據——
+  // 這些位置術語對沒學過的人是雜訊,而且會把真正的白話結論擠到句子後半。
+  const plainCite = mode === 'study';
   const s2lines = [
     wealthHit
-      ? fill(t2['連接句模板'][0], { 財星出現位置: wealthHit.label, 財星十神: wealthHit.god, 財星核心解釋: core(wealthHit.god) })
-      : t2['無財星時'],
+      ? (plainCite
+        ? fill(t2['連接句模板'][0], { 財星出現位置: wealthHit.label, 財星十神: wealthHit.god, 財星核心解釋: core(wealthHit.god) })
+        : `錢的部分,${core(wealthHit.god)}`)
+      : (plainCite ? t2['無財星時'] : '錢的部分,本命沒有特別突出的財星,收入高低比較受後天的大運與流年帶動,靠持續累積會比等一次到位實在。'),
     officerHit
-      ? fill(t2['連接句模板'][1], { 官殺出現位置: officerHit.label, 官殺十神: officerHit.god, 官殺核心解釋: core(officerHit.god) })
-      : t2['無官殺時'],
+      ? (plainCite
+        ? fill(t2['連接句模板'][1], { 官殺出現位置: officerHit.label, 官殺十神: officerHit.god, 官殺核心解釋: core(officerHit.god) })
+        : `事業與名譽的部分,${core(officerHit.god)}`)
+      : (plainCite ? t2['無官殺時'] : '事業與名譽的部分,你比較不受外在框架約束,適合走自主性高、自己定規則的路線。'),
     fill(t2['連接句模板'][2], { '五行分析總結句(來自five-element-analysis.json的整體平衡建議模板)': elementSummaryForAnalysis(elementAnalysis, mode) }),
   ];
   sections.push({ title: '二、財官流向', text: s2lines.join('') });
@@ -408,15 +469,19 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
     const category = categoryOf(god);
     if (category) annualInfo = { ganZhi: gz, year, god, category };
   }
-  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo);
+  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo, { mode });
   const favorableCategory = decadalInfo?.category ?? annualInfo?.category;
   const cautiousCategory = annualInfo?.category ?? decadalInfo?.category;
 
   // 大運類別與流年類別相同時,結尾建議句也不該再講「把握A、同時對A謹慎」這種同一個類別講兩次的怪句子,
   // 改用「這段期間A格外集中,把握機會但留意過猶不及」的收斂版本。
+  // 運別名稱在大眾版換成白話別名(食傷運 → 表達與才華運),術語版留給專業命盤模式
   const closingLine = overlay?.merged
-    ? fill(t3['結尾行動建議句_大運流年類別相同時'], { 有利類別: favorableCategory })
-    : fill(t3['結尾行動建議句'], { 有利類別: favorableCategory, 需留意類別: cautiousCategory });
+    ? fill(t3['結尾行動建議句_大運流年類別相同時'], { 有利類別: categoryLabel(favorableCategory, mode) })
+    : fill(t3['結尾行動建議句'], {
+      有利類別: categoryLabel(favorableCategory, mode),
+      需留意類別: categoryLabel(cautiousCategory, mode),
+    });
 
   const citeGod = (god) => `細節上,${god}——${tenGodsDb['十神核心意義'][god].core}`;
   const godCitations = [];
@@ -427,8 +492,11 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
     }
   }
 
+  // 大眾版不該出現「年支與月支半會(巳午)」這種干支列表。
+  // 而且下面第四段本來就已經用白話完整講過同一組地支關係了——
+  // 在這裡再講一次(而且是術語版)既看不懂又重複,所以大眾版直接略過這一句。
   const s3lines = [
-    fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary }),
+    mode === 'study' ? fill(t3['連接句模板'][0], { 地支關係列表摘要: relSummary }) : '',
     overlay?.text ?? '',
     ...godCitations,
     closingLine,
@@ -447,23 +515,32 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
 
   // ---- 全盤概覽:純粹排版/組裝順序調整,不做新的資料運算,完全取材自上面已算好的內容 ----
   const PHRASE = tenGodsDb['十神短語'];
-  const coreLine = `日主${dayStem}(${dayEl}日生),${firstSentence(elementAnalysis.summary)}`;
+  // 全盤概覽是使用者打開「深度解析」看到的第一段。
+  // 舊版每一行都以判斷依據開頭(「正官當令,」「日支見七殺,」「年干見正官,」),
+  // 對沒學過命理的人來說,這些前綴不但看不懂,還把真正有意義的白話結論擠到後面。
+  // 依據本身有價值,但屬於專業命盤模式;大眾版只留結論。
+  const cite = (text) => (mode === 'study' ? text : '');
+  const coreLine = mode === 'study'
+    ? `日主${dayStem}(${dayEl}日生),${firstSentence(elementAnalysis.summary)}`
+    : `你的先天底色偏${dayEl},${firstSentence(elementAnalysis.summary)}`;
 
   const careerLine = officerHit
-    ? `事業:${officerHit.god}當令,${PHRASE[officerHit.god] ?? firstClause(core(officerHit.god))}。`
-    : `事業:命局中官殺不顯,${firstClause(t2['無官殺時'])}。`;
+    ? `事業:${cite(`${officerHit.god}當令,`)}${PHRASE[officerHit.god] ?? firstClause(core(officerHit.god))}。`
+    : `事業:${cite('命局中官殺不顯,')}${mode === 'study' ? firstClause(t2['無官殺時']) : '沒有明顯的外在框架約束你,適合走自主性高、自己定規則的路線'}。`;
 
   const wealthLine = wealthHit
-    ? `財運:${wealthHit.god}入柱,${PHRASE[wealthHit.god] ?? firstClause(core(wealthHit.god))}。`
-    : `財運:命局中財星不顯,${firstClause(t2['無財星時'])}。`;
+    ? `財運:${cite(`${wealthHit.god}入柱,`)}${PHRASE[wealthHit.god] ?? firstClause(core(wealthHit.god))}。`
+    // 舊版這行是「財運:命局中財星不顯,命局中財星未在四柱天干或地支主氣中顯現。」——
+    // 同一件事講了兩次,而且兩次都是術語。
+    : `財運:${mode === 'study' ? firstClause(t2['無財星時']) : '本命沒有特別突出的財星,收入高低比較受後天的大運與流年帶動,靠累積而不是靠一次到位'}。`;
 
   // 感情:優先看日柱/時柱是否有桃花類神煞(紅艷煞),沒有就退回日柱地支十神(配偶宮本氣)
   const loveShenshaHit = ['紅艷煞'].find(
     (n) => (baZi.shenshaList?.dayPillar ?? []).includes(n) || (baZi.shenshaList?.hourPillar ?? []).includes(n),
   );
   const loveLine = loveShenshaHit
-    ? `感情:帶${loveShenshaHit},${firstClause(SHENSHA_CORE[loveShenshaHit])}。`
-    : `感情:日支見${baZi.tenGods.dayBranch},${PHRASE[baZi.tenGods.dayBranch] ?? firstClause(core(baZi.tenGods.dayBranch))}。`;
+    ? `感情:${cite(`帶${loveShenshaHit},`)}${firstClause(SHENSHA_CORE[loveShenshaHit])}。`
+    : `感情:${cite(`日支見${baZi.tenGods.dayBranch},`)}${PHRASE[baZi.tenGods.dayBranch] ?? firstClause(core(baZi.tenGods.dayBranch))}。`;
 
   // 健康:改用五行 → 臟腑保養重點(舊版誤放性格描述,標籤與內容對不上)
   // 取最鮮明的一項講保養重點,若有偏弱五行再點出第一個偏弱項的照顧面向
@@ -477,17 +554,17 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
     (n) => (baZi.shenshaList?.yearPillar ?? []).includes(n) || (baZi.shenshaList?.monthPillar ?? []).includes(n),
   );
   const familyLine = familyShenshaHit
-    ? `家庭:年月柱帶${familyShenshaHit},${firstClause(SHENSHA_CORE[familyShenshaHit])}。`
-    : `家庭:年干見${baZi.tenGods.yearStem},${PHRASE[baZi.tenGods.yearStem] ?? firstClause(core(baZi.tenGods.yearStem))}。`;
+    ? `家庭:${cite(`年月柱帶${familyShenshaHit},`)}${firstClause(SHENSHA_CORE[familyShenshaHit])}。`
+    : `家庭:${cite(`年干見${baZi.tenGods.yearStem},`)}${PHRASE[baZi.tenGods.yearStem] ?? firstClause(core(baZi.tenGods.yearStem))}。`;
 
   // 當前大運與今年流年重點:重用第三段已算好的 decadalInfo/annualInfo/overlay,不重新運算
   let luckLine;
   if (decadalInfo && annualInfo && overlay?.merged) {
-    luckLine = `大運流年:兩者同屬${favorableCategory},${firstClause(LUCK_CATEGORY_DESC[favorableCategory] ?? '')},際遇格外集中的一年。`;
+    luckLine = `大運流年:${cite(`兩者同屬${favorableCategory},`)}${firstClause(LUCK_CATEGORY_DESC[favorableCategory] ?? '')},際遇格外集中的一年。`;
   } else if (decadalInfo && annualInfo) {
-    luckLine = `大運流年:大運屬${decadalInfo.category},今年流年轉向${annualInfo.category},建議兼顧長期方向與這一年的短期焦點。`;
+    luckLine = `大運流年:這十年偏向${categoryLabel(decadalInfo.category, mode)},今年轉向${categoryLabel(annualInfo.category, mode)},建議兼顧長期方向與這一年的短期焦點。`;
   } else if (decadalInfo) {
-    luckLine = `大運:目前屬${decadalInfo.category},${firstClause(LUCK_CATEGORY_DESC[decadalInfo.category] ?? '')}。`;
+    luckLine = `大運:這十年偏向${categoryLabel(decadalInfo.category, mode)},${firstClause(LUCK_CATEGORY_DESC[decadalInfo.category] ?? '')}。`;
   } else {
     luckLine = '大運流年:資料不足,暫無法概覽。';
   }

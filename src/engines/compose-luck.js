@@ -38,6 +38,23 @@ export function tenGodOf(dayStem, otherStem) {
   return same ? '偏印' : '正印'; // 生我
 }
 
+/**
+ * 五大運別的白話別名。
+ * 「食傷運」「比劫運」「印運」這些名字對沒學過八字的人完全無法解讀,
+ * 但它們在畫面上出現得非常頻繁(命盤總覽、深度解析、每日運勢都會用到)。
+ * 大眾版一律顯示白話名,專業命盤模式才顯示原本的術語名。
+ */
+export const CATEGORY_PLAIN = {
+  比劫運: '同儕與競爭運',
+  食傷運: '表達與才華運',
+  財運: '財運',
+  官殺運: '責任與壓力運',
+  印運: '學習與貴人運',
+};
+/** @param {string} category @param {'public'|'study'} mode */
+export const categoryLabel = (category, mode = 'public') =>
+  (mode === 'study' ? category : (CATEGORY_PLAIN[category] ?? category));
+
 export const categoryOf = (god) =>
   Object.entries(BZ['類別對應']).find(([, gods]) => gods.includes(god))?.[0] ?? null;
 
@@ -131,8 +148,10 @@ export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().get
  * @param {{ganZhi, year, category, god}|null} annualInfo
  * @returns {{ text: string, merged: boolean }|null}
  */
-export function composeBaZiCycleOverlay(decadalInfo, annualInfo) {
+export function composeBaZiCycleOverlay(decadalInfo, annualInfo, { mode = 'public' } = {}) {
   if (!decadalInfo && !annualInfo) return null;
+  // 類別名稱在大眾版一律換成白話別名(食傷運→表達與才華運…),術語版留給專業命盤模式
+  const cat = (c) => categoryLabel(c, mode);
 
   if (decadalInfo && annualInfo) {
     const [startAge, endAge] = decadalInfo.ageRange.split('~');
@@ -142,7 +161,7 @@ export function composeBaZiCycleOverlay(decadalInfo, annualInfo) {
         text: fill(BZ_LOGIC['類別相同時']['模板'], {
           大運干支: decadalInfo.ganZhi, 起始歲: startAge, 結束歲: endAge,
           西元年: annualInfo.year, 流年干支: annualInfo.ganZhi,
-          類別名稱: decadalInfo.category, 類別解讀: BZ['類別解讀'][decadalInfo.category],
+          類別名稱: cat(decadalInfo.category), 類別解讀: BZ['類別解讀'][decadalInfo.category],
         }),
       };
     }
@@ -150,9 +169,9 @@ export function composeBaZiCycleOverlay(decadalInfo, annualInfo) {
       merged: false,
       text: fill(BZ_LOGIC['類別不同時']['模板'], {
         大運干支: decadalInfo.ganZhi, 起始歲: startAge, 結束歲: endAge,
-        大運類別: decadalInfo.category, 大運類別解讀: BZ['類別解讀'][decadalInfo.category],
+        大運類別: cat(decadalInfo.category), 大運類別解讀: BZ['類別解讀'][decadalInfo.category],
         西元年: annualInfo.year, 流年干支: annualInfo.ganZhi,
-        流年類別: annualInfo.category, 流年類別解讀: BZ['類別解讀'][annualInfo.category],
+        流年類別: cat(annualInfo.category), 流年類別解讀: BZ['類別解讀'][annualInfo.category],
       }),
     };
   }
@@ -162,7 +181,7 @@ export function composeBaZiCycleOverlay(decadalInfo, annualInfo) {
       merged: false,
       text: fill(BZ_LOGIC['僅有流年無大運時']['模板'], {
         西元年: annualInfo.year, 流年干支: annualInfo.ganZhi,
-        類別名稱: annualInfo.category, 類別解讀: BZ['類別解讀'][annualInfo.category],
+        類別名稱: cat(annualInfo.category), 類別解讀: BZ['類別解讀'][annualInfo.category],
       }),
     };
   }
@@ -171,7 +190,7 @@ export function composeBaZiCycleOverlay(decadalInfo, annualInfo) {
   const [startAge, endAge] = decadalInfo.ageRange.split('~');
   return {
     merged: false,
-    text: `這十年大運走${decadalInfo.ganZhi}(${startAge}歲至${endAge}歲),屬於${decadalInfo.category},${BZ['類別解讀'][decadalInfo.category]}`,
+    text: `這十年大運走${decadalInfo.ganZhi}(${startAge}歲至${endAge}歲),屬於${cat(decadalInfo.category)},${BZ['類別解讀'][decadalInfo.category]}`,
   };
 }
 
@@ -204,7 +223,7 @@ export function composeBaZiLuck(baZi, { year = new Date().getFullYear(), mode = 
     if (category) annualInfo = { ganZhi: gz, year, god, category };
   }
 
-  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo);
+  const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo, { mode });
   if (!overlay) return { decadal: null, annual: null };
 
   const detailLine = (info) => `細節上,${info.god}——${tenGodsDb['十神核心意義'][info.god].core}`;

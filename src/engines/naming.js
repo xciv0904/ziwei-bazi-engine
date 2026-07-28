@@ -11,6 +11,10 @@
 //    僅供參考;字典未收錄的字會誠實告知,不會用猜測的筆畫數蒙混。
 import nameChars from '../data/name-characters.json' with { type: 'json' };
 
+// splitSurnameGiven 已搬到零相依的 name-split.js(排盤流程要用,但不該為此載入整份字庫);
+// 這裡 re-export 保持既有 import 路徑相容。
+export { splitSurnameGiven, COMPOUND_SURNAMES } from './name-split.js';
+
 const SHENG = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' }; // 我生
 const KE = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' };   // 我剋
 
@@ -57,26 +61,6 @@ export function analyzeZiweiOverlap(known, starNames) {
 }
 
 /** 查單一字的筆畫與五行(未收錄回傳 null) */
-// 常見複姓(涵蓋大部分現實會遇到的複姓;沒列到的一律當單姓處理,即取第一字為姓)
-const COMPOUND_SURNAMES = [
-  '歐陽', '司馬', '諸葛', '上官', '皇甫', '公孫', '尉遲', '令狐', '長孫', '東方',
-  '西門', '南宮', '司徒', '夏侯', '獨孤', '慕容', '軒轅', '端木', '宇文', '鍾離',
-];
-
-/**
- * 把完整姓名拆成姓/名(用於「帶入排盤姓名」這類自動判斷,不要求百分之百正確——
- * 複姓只認上面列出的常見清單,沒列到的複姓仍會被拆成單姓+較長的名,使用者可自行在姓名學頁調整)
- * @param {string} fullName
- * @returns {{ surname: string, given: string }}
- */
-export function splitSurnameGiven(fullName) {
-  const name = String(fullName ?? '').trim();
-  if (!name) return { surname: '', given: '' };
-  const compound = COMPOUND_SURNAMES.find((s) => name.startsWith(s));
-  if (compound) return { surname: compound, given: name.slice(compound.length) };
-  return { surname: name[0], given: name.slice(1) };
-}
-
 export function charInfo(ch) {
   return nameChars[ch] ?? null;
 }
