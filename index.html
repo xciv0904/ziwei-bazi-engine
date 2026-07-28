@@ -19,13 +19,19 @@
     <meta property="og:description" content="輸入生辰即得紫微命盤、八字四柱與白話重點解讀,並可產生專屬命卡分享。" />
     <meta property="og:locale" content="zh_TW" />
     <meta property="og:url" content="https://xciv0904.github.io/ziwei-bazi-engine/" />
-    <!-- 分享預覽圖改用 JPEG:同一張 1200×630 的圖,PNG 要 1.0MB、JPEG(q88)只要 93KB。
-         它不影響首屏(只有社群平台的爬蟲會抓),但每次建置與部署都要搬 1MB,repo 也一直背著。 -->
-    <meta property="og:image" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v2.jpg" />
+    <!-- 分享預覽圖(1200×630)。三個重點:
+         1) 舊版是 1,062,567 bytes 的 PNG——剛好超過 1MB,LINE 等平台的爬蟲會直接放棄抓取
+            並改顯示自己的預設佔位圖(那個看起來莫名其妙的灰紫色方塊就是這樣來的)。
+            現在是 75KB 的 JPEG,遠低於各家上限。
+         2) 舊圖是一張沒有任何文字的裝飾性星盤,縮成 LINE 對話框裡的小圖之後幾乎是一片空白,
+            看不出這是什麼服務。新圖直接把服務名稱、能得到什麼、以及「免費、資料不上傳」寫在圖上。
+         3) 檔名改成 v3:各平台都會用 URL 當快取鍵,沿用舊檔名的話它們會繼續拿快取裡的舊圖。
+            日後再換圖時,記得同樣遞增版號,不要覆蓋同一個檔名。 -->
+    <meta property="og:image" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v3.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="紫微斗數與八字排盤的現代東方星盤視覺" />
+    <meta property="og:image:alt" content="紫微斗數・八字排盤:十二宮位、四柱八字與白話解讀,免費線上排盤" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="canonical" href="https://xciv0904.github.io/ziwei-bazi-engine/" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
