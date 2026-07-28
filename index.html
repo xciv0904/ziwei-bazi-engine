@@ -25,10 +25,16 @@
             現在是 75KB 的 JPEG,遠低於各家上限。
          2) 舊圖是一張沒有任何文字的裝飾性星盤,縮成 LINE 對話框裡的小圖之後幾乎是一片空白,
             看不出這是什麼服務。新圖直接把服務名稱、能得到什麼、以及「免費、資料不上傳」寫在圖上。
-         3) 檔名改成 v3:各平台都會用 URL 當快取鍵,沿用舊檔名的話它們會繼續拿快取裡的舊圖。
-            日後再換圖時,記得同樣遞增版號,不要覆蓋同一個檔名。 -->
-    <meta property="og:image" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v3.jpg" />
-    <meta property="og:image:type" content="image/jpeg" />
+         3) 格式用 PNG,不用漸進式(progressive)JPEG。v3 是 progressive JPEG(SOF2),
+            線上驗證過檔案本身 200 OK、格式正確、只有 77KB,LINE 卻仍抓不到——
+            漸進式 JPEG 在部分平台的縮圖處理會失敗。這張圖是純色塊加文字,
+            調色盤 PNG 只要 79KB,且沒有漸進式解碼與色度次取樣的相容性風險。
+         4) 檔名帶版號:各平台都用 URL 當快取鍵,沿用舊檔名它們會繼續拿快取裡的舊圖。
+            日後換圖請一併遞增版號,不要覆蓋同一個檔名。 -->
+    <meta property="og:image" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v4.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:secure_url" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v4.png" />
+    <meta name="twitter:image" content="https://xciv0904.github.io/ziwei-bazi-engine/og-image-v4.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="紫微斗數・八字排盤:十二宮位、四柱八字與白話解讀,免費線上排盤" />

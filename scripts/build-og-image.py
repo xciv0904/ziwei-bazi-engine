@@ -8,6 +8,9 @@
 #   2) 主要文字必須落在「中央正方形」範圍內(x 介於 285~915)。
 #      部分平台會把 1200×630 置中裁成正方形縮圖,靠左或靠右的標題會被切掉;
 #      兩側的宮位格只是裝飾,被切掉不影響理解。
+#   3) 一律輸出 PNG,不要用漸進式(progressive)JPEG。
+#      v3 曾用 progressive JPEG(SOF2),LINE 的縮圖處理仍抓不到圖;
+#      這張圖是純色塊+文字,調色盤 PNG 只要 79KB,而且沒有漸進式解碼與色度次取樣的相容性風險。
 #   換圖時記得同步遞增 index.html 的 og:image 檔名版號(各平台用 URL 當快取鍵)。
 
 from PIL import Image, ImageDraw, ImageFont
@@ -64,5 +67,6 @@ d.text((CX,528),'免費・免註冊・所有計算都在你的瀏覽器完成',f
 d.text((CX,566),'生辰資料不會上傳到任何伺服器',font=f_small,fill=INK+(150,),anchor='mm')
 d.rectangle([0,0,W-1,H-1],outline=GOLD+(80,),width=1)
 
-im.save('public/og-image-v3.jpg','JPEG',quality=90,optimize=True,progressive=True)
-print('已產生 public/og-image-v3.jpg,大小', round(os.path.getsize('public/og-image-v3.jpg')/1024,1), 'KB')
+# 調色盤 PNG:相容性最高(無漸進式/次取樣問題),這種扁平配色的圖 64 色已足夠
+im.quantize(colors=64, method=Image.MEDIANCUT).save('public/og-image-v4.png', optimize=True)
+print('已產生 public/og-image-v4.png,大小', round(os.path.getsize('public/og-image-v4.png')/1024,1), 'KB')
