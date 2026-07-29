@@ -310,6 +310,65 @@ export function findFlyingConvergence(flying) {
     .sort((a, b) => b.from.length - a.from.length);
 }
 
+/** 查詢年 ±radius 的流年命宮與四化快照。 */
+export function computeAnnualSnapshots(ziWei, baseYear, radius = 3) {
+  const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+  const snapshots = [];
+  for (let year = baseYear - radius; year <= baseYear + radius; year++) {
+    const ganZhi = yearGanZhi(year);
+    const palace = byBranch[ganZhi[1]];
+    snapshots.push({
+      year,
+      ganZhi,
+      palaceName: palace?.name ?? null,
+      position: palace?.position ?? null,
+      flights: flyingOfStem(ziWei, ganZhi[0]),
+    });
+  }
+  return snapshots;
+}
+
+/**
+ * 機械比對七年快照：找出同一四化反覆落宮，以及反覆被點到的對宮軸線。
+ * 只回傳至少跨兩年的結果，避免把一次性訊號誤當趨勢。
+ */
+export function findAnnualRepeatedFocus(ziWei, snapshots) {
+  const branches = Object.fromEntries(ziWei.palaces.map((p) => [p.name, p.position[1]]));
+  const palaceByBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p.name]));
+  const axisOf = (palaceName) => {
+    const branch = branches[palaceName];
+    if (!branch) return palaceName;
+    const index = BRANCHES.indexOf(branch);
+    const opposite = palaceByBranch[BRANCHES[(index + 6) % 12]];
+    return [palaceName, opposite].sort().join('／');
+  };
+  const transformationBuckets = new Map();
+  const axisBuckets = new Map();
+  const addYear = (map, key, year) => {
+    if (!map.has(key)) map.set(key, new Set());
+    map.get(key).add(year);
+  };
+  for (const snapshot of snapshots) {
+    if (snapshot.palaceName) addYear(axisBuckets, axisOf(snapshot.palaceName), snapshot.year);
+    for (const flight of snapshot.flights) {
+      addYear(transformationBuckets, `${flight.palaceName}|${flight.mutagen}`, snapshot.year);
+      addYear(axisBuckets, axisOf(flight.palaceName), snapshot.year);
+    }
+  }
+  const transformations = [...transformationBuckets.entries()]
+    .map(([key, years]) => {
+      const [palaceName, mutagen] = key.split('|');
+      return { palaceName, mutagen, years: [...years] };
+    })
+    .filter((item) => item.years.length >= 2)
+    .sort((a, b) => b.years.length - a.years.length || a.years[0] - b.years[0]);
+  const axes = [...axisBuckets.entries()]
+    .map(([axis, years]) => ({ axis, years: [...years] }))
+    .filter((item) => item.years.length >= 2)
+    .sort((a, b) => b.years.length - a.years.length || a.years[0] - b.years[0]);
+  return { transformations, axes };
+}
+
 /**
  * 來因宮(飛星派):宮干與生年天干相同的宮位;十二宮中有兩個候選時,
  * 依五虎遁排宮順序(寅起)取先出現者。已以文墨天機命盤驗證(壬年→壬寅父母宮)。

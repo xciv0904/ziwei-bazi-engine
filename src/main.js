@@ -3,6 +3,7 @@ import { splitSurnameGiven } from './engines/name-split.js';
 import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 import { lookupTransformation } from './data/transformation-meanings.js';
+import { toTrueSolarTime } from './engines/true-solar-time.js';
 
 // 排盤引擎(iztro、lunar-javascript 合計約 700KB)改為動態載入:
 // 訪客進站先看到歡迎頁,不需要馬上載排盤庫;第一次按「排盤」時才抓,之後快取重用。
@@ -274,12 +275,30 @@ async function computeAllInner(parsed) {
     toast('這個日期不存在,請重新選擇');
     return false;
   }
-  const hour = hourUnknown ? 11 : Number(hourRaw);
+  let hour = hourUnknown ? 11 : Number(hourRaw);
   if (state.cal === 'lunar') {
     const solar = Lunar.fromYmd(y, m, d).getSolar();
     [y, m, d] = [solar.getYear(), solar.getMonth(), solar.getDay()];
   }
-  const input = { year: y, month: m, day: d, hour, gender: state.gender };
+  let solarTime = null;
+  if ($('#solar-time-enabled').checked) {
+    if (hourUnknown) {
+      toast('真太陽時校正需要精確出生時間，不能搭配「不確定時辰」');
+      return false;
+    }
+    const [clockHour, clockMinute] = $('#birth-clock-time').value.split(':').map(Number);
+    const longitude = Number($('#birth-longitude').value);
+    const utcOffset = Number($('#birth-utc-offset').value);
+    if (!Number.isFinite(clockHour) || !Number.isFinite(clockMinute) || $('#birth-longitude').value === '') {
+      toast('請完整填寫出生地鐘錶時間、經度與 UTC 時差');
+      return false;
+    }
+    const civil = { year: y, month: m, day: d, hour: clockHour, minute: clockMinute, longitude, utcOffset };
+    const corrected = toTrueSolarTime(civil);
+    solarTime = { civil, corrected, selectedHour: Number(hourRaw) };
+    ({ year: y, month: m, day: d, hour } = corrected);
+  }
+  const input = { year: y, month: m, day: d, hour, gender: state.gender, solarTime };
 
   const ziWei = convertToZiWei(input);
   const baZi = convertToBaZi(input);
@@ -377,6 +396,13 @@ async function loadSavedEntry(c) {
   const [cy, cm, cd] = c.date.split('-').map(Number);
   birthDateCtl.set(cy, cm, cd);
   $('#birth-hour').value = String(c.hour); // 'unknown' 也直接對應到「不確定時辰」選項
+  $('#solar-time-enabled').checked = Boolean(c.solarTime);
+  $('#solar-time-fields').hidden = !c.solarTime;
+  if (c.solarTime) {
+    $('#birth-clock-time').value = c.solarTime.clockTime;
+    $('#birth-longitude').value = c.solarTime.longitude;
+    $('#birth-utc-offset').value = c.solarTime.utcOffset;
+  }
   state.gender = c.gender;
   $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === c.gender));
   state.cal = c.cal ?? 'solar';
@@ -443,6 +469,11 @@ function isValidChartEntry(c) {
   if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) return false; // 例如 1949-02-29
   if (!VALID_HOURS.has(String(c.hour))) return false;
   if (c.gender !== 'male' && c.gender !== 'female') return false;
+  if (c.solarTime) {
+    if (!/^\d{2}:\d{2}$/.test(c.solarTime.clockTime ?? '')) return false;
+    if (!Number.isFinite(Number(c.solarTime.longitude)) || Math.abs(Number(c.solarTime.longitude)) > 180) return false;
+    if (!Number.isFinite(Number(c.solarTime.utcOffset)) || Number(c.solarTime.utcOffset) < -12 || Number(c.solarTime.utcOffset) > 14) return false;
+  }
   return true;
 }
 
@@ -460,6 +491,7 @@ function importSavedCharts(file) {
       let added = 0;
       for (const c of valid) {
         const entry = { name: String(c.name).trim().slice(0, 20), date: c.date, hour: String(c.hour), gender: c.gender, cal: 'solar' };
+        if (c.solarTime) entry.solarTime = { ...c.solarTime };
         if (!list.some((x) => x.date === entry.date && String(x.hour) === entry.hour && x.gender === entry.gender)) {
           list.push(entry);
           added++;
@@ -484,6 +516,16 @@ function saveCurrentChart() {
     gender: input.gender,
     cal: 'solar', // computeAll 已把農曆轉成陽曆,存陽曆版本最不易混淆
   };
+  if (input.solarTime) {
+    const { civil } = input.solarTime;
+    entry.date = `${civil.year}-${String(civil.month).padStart(2, '0')}-${String(civil.day).padStart(2, '0')}`;
+    entry.hour = input.solarTime.selectedHour;
+    entry.solarTime = {
+      clockTime: `${String(civil.hour).padStart(2, '0')}:${String(civil.minute).padStart(2, '0')}`,
+      longitude: civil.longitude,
+      utcOffset: civil.utcOffset,
+    };
+  }
   const list = loadSavedCharts().filter((c) =>
     !(c.date === entry.date && c.hour === entry.hour && c.gender === entry.gender));
   list.unshift(entry);
@@ -500,8 +542,12 @@ function renderHead() {
   $('#reading-mode-toggle').hidden = false;
   syncModeToggleUI();
   $('#save-chart-btn').hidden = false;
-  const shichen = SHICHEN.find((s) => s.hour === input.hour);
-  const shichenLabel = state.data.hourUnknown ? '時辰未知(暫以午時排)' : shichen.name;
+  const shichenIndex = input.hour >= 23 ? 0 : Math.floor((input.hour + 1) / 2) % 12;
+  const shichen = SHICHEN[shichenIndex];
+  const solarMark = input.solarTime
+    ? `真太陽時${String(input.hour).padStart(2, '0')}:${String(input.solarTime.corrected.minute).padStart(2, '0')}・`
+    : '';
+  const shichenLabel = state.data.hourUnknown ? '時辰未知(暫以午時排)' : `${solarMark}${shichen.name}`;
   $('#birth-summary').textContent =
     `${baZi.fourPillars.yearPillar.stem}${baZi.fourPillars.yearPillar.branch}年` +
     `${lunarDateStr}　${shichenLabel}　` +
@@ -2404,6 +2450,9 @@ function setupControls() {
     .map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')
     + '<option value="unknown">不確定時辰(以午時暫排)</option>';
   $('#birth-hour').value = '0';
+  $('#solar-time-enabled').addEventListener('change', (event) => {
+    $('#solar-time-fields').hidden = !event.target.checked;
+  });
 
   // 藥丸切換
   for (const [id, key] of [['#cal-toggle', 'cal'], ['#gender-toggle', 'gender']]) {

@@ -4,7 +4,7 @@
 
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
-import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange, computeFlyingTransformations, findFlyingConvergence, flyingOfStem } from './compose-annual.js';
+import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange, computeFlyingTransformations, findFlyingConvergence, flyingOfStem, computeAnnualSnapshots, findAnnualRepeatedFocus } from './compose-annual.js';
 // naming.js 會一併帶進 44KB 的 name-characters.json 字庫,但整支 format-ai 只有
 // formatNamingPromptForAI 一個函式用得到。改成在那個函式內部動態 import,
 // 其餘所有 AI 提示詞(命盤、宮位、流年、合盤、每日、時間軸)就不必為此背上字庫的重量。
@@ -56,6 +56,16 @@ function formatZiWeiSection(ziWei, input, year = new Date().getFullYear()) {
   lines.push('◆ 基本資訊');
   lines.push(line('性別', input.gender === 'female' ? '女' : '男'));
   lines.push(line('生日', `${input.year}年${input.month}月${input.day}日 ${input.hour}時(陽曆,24小時制)`));
+  if (input.solarTime) {
+    const { civil, corrected } = input.solarTime;
+    const sign = corrected.correctionMinutes >= 0 ? '+' : '';
+    lines.push(line(
+      '真太陽時校正',
+      `鐘錶時間${civil.year}/${civil.month}/${civil.day} ${String(civil.hour).padStart(2, '0')}:${String(civil.minute).padStart(2, '0')}，`
+      + `經度${civil.longitude}°、UTC${civil.utcOffset >= 0 ? '+' : ''}${civil.utcOffset}，`
+      + `校正${sign}${corrected.correctionMinutes.toFixed(1)}分鐘`,
+    ));
+  }
   lines.push(line('五行局', ziWei.fiveElementBureau));
   lines.push(line('命宮地支', ziWei.lifePalace));
   lines.push(line('身宮地支', ziWei.bodyPalace));
@@ -154,6 +164,24 @@ function formatZiWeiSection(ziWei, input, year = new Date().getFullYear()) {
     lines.push('◆ 大限／流年飛化(規則與宮干飛化相同,落入的是本命宮位)');
     if (curLimit) flyLine(`大限(${curLimit.ageRange}歲)`, curLimit.ganZhi);
     if (annualGanZhi) flyLine(`${year}年流年`, annualGanZhi);
+  }
+
+  const snapshots = computeAnnualSnapshots(ziWei, year);
+  const repeated = findAnnualRepeatedFocus(ziWei, snapshots);
+  lines.push('');
+  lines.push(`◆ ${year - 3}–${year + 3}流年快照(命宮疊本命宮；四化為流年干飛入本命宮)`);
+  for (const snapshot of snapshots) {
+    const flights = snapshot.flights.map((f) => `${f.mutagen}→${f.palaceName}`).join('、');
+    lines.push(`${snapshot.year}${snapshot.ganZhi}:命宮→${snapshot.palaceName}；${flights}`);
+  }
+  if (repeated.transformations.length || repeated.axes.length) {
+    lines.push('跨年重複焦點(程式比對):');
+    for (const item of repeated.transformations) {
+      lines.push(`${item.years.join('/')} 化${item.mutagen}→${item.palaceName}`);
+    }
+    for (const item of repeated.axes.slice(0, 4)) {
+      lines.push(`${item.years.join('/')} 反覆觸及${item.axis}軸`);
+    }
   }
 
   return lines.join('\n');
@@ -276,56 +304,26 @@ function formatBaZiSection(baZi, baseYear = null) {
 // 這段是使用者按「複製給AI」時附在資料後面的解讀指令。
 // 寫法刻意用自己的措辭與組織方式:功能上要求的東西(以資料為準、成對看宮位、
 // 分開三層時間、控制術語比例)是紫微斗數本來就有的判讀原則,但文字表述必須是自己的。
-const AI_INSTRUCTION = `以下資料由排盤引擎產生並經交叉驗證,請當成既定事實直接引用。
+const AI_INSTRUCTION = `請把這份資料視為已完成計算的觀察紀錄。引用其中的宮位、星曜、四化與年份即可；
+不要另排一張盤，也不要用記憶補齊未提供的項目。
 
-星曜、亮度、四化、飛化落宮、大限與流年,一律以資料所列為準,不要憑記憶重算。
-四化表與飛化落宮是最容易記錯的部分,一旦自行推導,結論就會和資料本身互相矛盾。
-資料裡沒有列出的東西,就是這張盤沒有,不要補上。
+回答前先做一件事：找出全盤最有解釋力的一至三個「重複訊號」，再用其他資料交叉驗證。
+重複訊號包括同一宮位多次受飛化、同一對宮兩端一起被牽動，或本命、大限、流年接連落在相近主題。
+資料已列出的「飛化疊加點」與「跨年重複焦點」是程式比對結果，直接採用。
 
-若我問的是具體的事(某段關係、某個工作決定、某一年會怎樣),請直接回答那件事,
-不必先鋪陳整張命盤;只有在我沒有指定問題時,才做整體解讀。
+驗證時把命宮、身宮、福德宮當作個人底色，把命宮三方四正當作行動與外部條件；
+其餘宮位若涉及取捨，連同其對宮一起核對。單顆星或單一落點只能當線索，不能獨立下結論。
 
-── 判讀順序(這是你思考的先後,不是回覆的章節標題,請勿照著分段輸出)──
+時間資訊用來回答不同問題：本命說明容易反覆出現的模式，大限界定目前階段，
+流年與七年快照則用來辨認何時特別明顯。不得把長期傾向寫成某年必然發生的事件。
 
-一、先看結構,再看單點
-單獨一顆星說明不了什麼。先掌握命宮、身宮、福德宮組成的底盤,
-再把命宮的三方四正(命宮、財帛宮、官祿宮、遷移宮)合起來看,
-判斷這個人做事的方式、資源從哪裡來、與外界如何相處。
-
-二、宮位要成對看
-十二宮不是十二個獨立抽屜,相對的兩宮永遠一起運作:
-　命宮／遷移宮——自己想怎麼走,對上環境實際允許怎麼走
-　財帛宮／福德宮——實際拿到多少,對上心裡覺得夠不夠
-　夫妻宮／官祿宮——最親近的關係,對上對外承擔的責任
-　兄弟宮／交友宮——少數幾個真正熟的人,對上廣泛的人脈圈
-　子女宮／田宅宮——往外投入與產出,對上往內累積與安放
-　父母宮／疾厄宮——外在的身分與規範,對上身體實際承受的重量
-只講單宮而不看對宮,結論多半會偏。
-
-三、用飛化找出重複出現的主題(這一步最影響準確度)
-資料提供三層飛化:十二宮宮干飛化、當前大限飛化、當前流年飛化。
-祿看資源與機會從哪裡進來,權看哪裡最有推力也最需要扛責任,
-科看哪裡容易被看見或取得緩衝,忌看哪裡反覆卡住、需要一再處理。
-
-「飛化疊加點」那一段是已經整理好的結果,列出哪些宮位被多個宮位同時飛入同一種四化。
-被反覆指向的宮位,比只出現一次的重要得多,請優先談。
-若本命、大限、流年三層同時指向同一宮位或同一組對宮,那就是現階段真正的主線。
-
-四、三種時間尺度不要混談
-本命講長期性格與會反覆回來的課題;大限講這十年的重心與環境變化;
-流年講今年被推到台面上的事。特別注意:不要把本命的長期傾向,說成今年會發生的事件。
-
-── 回覆方式 ──
-
-主要篇幅請放在我實際用得到的內容:這個配置在生活裡會怎麼出現、容易卡在哪、可以怎麼調整。
-命理依據只在關鍵結論後補一句,交代這個判斷從哪裡看出來
-(例如「因為命宮與福德宮同時把忌飛進疾厄宮」),不必逐星逐宮解釋一輪,
-也不要把整套推理攤開。我要的是能拿去用的判斷,不是一篇論文。`;
+若我已有明確問題，回覆就從那個問題開始；沒有明確問題時，才整理全盤重點。
+每個主要判斷請寫成「生活中可能怎麼出現、需要留意什麼、可以採取什麼做法」，
+並在句末用一小段括號標出關鍵依據。省略逐星教學、完整推演和固定格式的宮位巡禮。`;
 
 // ---------- 白話摘要區塊(compose-plain.js 產出的 7 段式卡片,壓縮成給AI參考的精簡文字) ----------
-// 「複製給AI解讀」的資料包除了完整命盤資料(上面兩個 section)之外,也要附上網站上
-// 已經生成好的白話摘要,讓AI知道網站對這張命盤已經給出的白話結論是什麼,
-// 避免AI自己重新用生硬的術語從頭解釋一次,或跟網站上顯示的白話說法兜不起來。
+// 白話摘要僅供明確要求的相容情境選用；完整命盤提示預設不附，
+// 避免現成結論錨定模型，使它只做換句話說。
 function formatPlainCard(card) {
   const lines = [`【${card.title}】${card.summary}`];
   if (card.explanation?.length) lines.push(card.explanation.join(' '));
@@ -358,10 +356,14 @@ function formatPlainSummarySection(ziWei, baZi, zwLuck, bzLuck, elements) {
  * @param {object} [chartData.elements] composeElementAnalysis() 的輸出
  * @returns {string} 純文字字串,可直接複製貼給AI
  */
-export function formatChartForAI({ input, ziWei, baZi, zwLuck = null, bzLuck = null, elements = null, year = null }) {
-  const hasPlainData = zwLuck && bzLuck && elements;
+export function formatChartForAI({
+  input, ziWei, baZi, zwLuck = null, bzLuck = null, elements = null, year = null,
+  includePlainSummary = false,
+}) {
+  const baseYear = year ?? new Date().getFullYear();
+  const hasPlainData = includePlainSummary && zwLuck && bzLuck && elements;
   return [
-    formatZiWeiSection(ziWei, input),
+    formatZiWeiSection(ziWei, input, baseYear),
     '',
     formatBaZiSection(baZi, year),
     '',

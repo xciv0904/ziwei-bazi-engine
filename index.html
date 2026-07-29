@@ -110,6 +110,18 @@
             <select id="birth-hour"></select>
           </div>
           <div class="field">
+            <label class="optional-check"><input id="solar-time-enabled" type="checkbox" /> 使用真太陽時校正（選用）</label>
+            <div id="solar-time-fields" hidden>
+              <label for="birth-clock-time">出生地鐘錶時間（精確到分鐘）</label>
+              <input id="birth-clock-time" type="time" value="12:00" />
+              <label for="birth-longitude">出生地經度（東經為正）</label>
+              <input id="birth-longitude" type="number" min="-180" max="180" step="0.0001" placeholder="例：121.5654" />
+              <label for="birth-utc-offset">出生地當時 UTC 時差</label>
+              <input id="birth-utc-offset" type="number" min="-12" max="14" step="0.5" value="8" />
+              <small>校正完全在瀏覽器內計算。若不知道精確時間、經度或當時時區，請勿啟用。</small>
+            </div>
+          </div>
+          <div class="field">
             <label>性別</label>
             <div class="pill-group" id="gender-toggle">
               <button type="button" class="pill" data-value="male" aria-pressed="false">男</button>
@@ -178,7 +190,7 @@
           本站內容由傳統命理規則自動組裝生成,僅供娛樂與文化參考,不構成醫療、財務或任何人生決策建議。
           所有排盤計算皆在你的瀏覽器內完成,生辰資料只儲存在本機,不會上傳到任何伺服器。
           <a href="https://github.com/xciv0904/ziwei-bazi-engine" target="_blank" rel="noopener">原始碼(GitHub)</a>
-          <details class="method-note"><summary>排盤規則與精確度說明</summary><p>目前採用瀏覽器本機時間與傳統時辰排盤，支援 1900–2100 年。未校正出生地、時區與真太陽時；子時以午夜附近的傳統時辰規則處理。不同流派、換日與四化規則可能造成結果差異。若時辰不確定，系統會以午時暫排，紫微宮位與八字時柱僅供參考。</p></details>
+          <details class="method-note"><summary>排盤規則與精確度說明</summary><p>預設採出生地鐘錶時間與傳統時辰排盤，支援 1900–2100 年。若使用者提供精確分鐘、出生地經度與出生地當時的 UTC 時差，可選用真太陽時校正；系統不會自行猜測出生地或歷史時區。子時換日仍依本站既有規則。不同流派、換日與四化規則可能造成結果差異。若時辰不確定，系統會以午時暫排，紫微宮位與八字時柱僅供參考。</p></details>
         </footer>
       </main>
     </div>

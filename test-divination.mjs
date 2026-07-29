@@ -1,9 +1,16 @@
 import { hexagram, plumBlossom, qimenStructure, determineJu, tiYongAnalysis, lineDiagram } from './src/engines/divination.js';
 import { convertToBaZi } from './src/engines/bazi.js';
 import lunarPkg from 'lunar-javascript';
+import { toTrueSolarTime } from './src/engines/true-solar-time.js';
 const { Solar } = lunarPkg.default ?? lunarPkg;
 
 const check = (ok, message) => { if (!ok) throw new Error(message); };
+
+const taipeiSolar = toTrueSolarTime({
+  year: 2002, month: 9, day: 4, hour: 14, minute: 11, longitude: 121.5654, utcOffset: 8,
+});
+check(taipeiSolar.hour === 14 && taipeiSolar.minute >= 15 && taipeiSolar.minute <= 22,
+  `台北真太陽時應約校正至14:19，實際為${taipeiSolar.hour}:${taipeiSolar.minute}`);
 
 const pure = hexagram(1, 1, 1);
 check(pure.name === '乾為天', '乾上乾下應為乾為天');
@@ -37,7 +44,7 @@ console.log('新增術數計算測試全部通過 ✅');
 // 這裡用 2002-09-04 未時女命逐條核對:宮干四化與落宮全部固定,任何一條錯掉都會被抓出來。
 {
   const { convertToZiWei } = await import('./src/engines/ziwei.js');
-  const { computeFlyingTransformations, findFlyingConvergence, flyingOfStem } =
+  const { computeFlyingTransformations, findFlyingConvergence, flyingOfStem, computeAnnualSnapshots, findAnnualRepeatedFocus } =
     await import('./src/engines/compose-annual.js');
   const z = convertToZiWei({ year: 2002, month: 9, day: 4, hour: 13, gender: 'female' });
   const fly = computeFlyingTransformations(z);
@@ -67,6 +74,17 @@ console.log('新增術數計算測試全部通過 ✅');
   const hit = conv.find((c) => c.palaceName === '疾厄宮' && c.mutagen === '忌');
   if (!hit || !(hit.from.includes('命宮') && hit.from.includes('福德宮'))) {
     bad++; console.log('❌ 疊加點未偵測到命宮+福德宮同時忌入疾厄宮');
+  }
+  const snapshots = computeAnnualSnapshots(z, 2026);
+  if (snapshots.length !== 7 || snapshots[0].year !== 2023 || snapshots[6].year !== 2029) {
+    bad++; console.log('❌ ±3 年流年快照範圍錯誤');
+  }
+  if (snapshots.some((s) => !s.palaceName || s.flights.length !== 4)) {
+    bad++; console.log('❌ 流年快照缺少命宮或四化');
+  }
+  const repeated = findAnnualRepeatedFocus(z, snapshots);
+  if (!repeated.transformations.length || !repeated.axes.length) {
+    bad++; console.log('❌ 跨年重複焦點未產生');
   }
   console.log(bad === 0 ? '飛星飛化測試全部通過 ✅' : `飛星飛化 ${bad} 項不一致 ❌`);
   if (bad) process.exitCode = 1;

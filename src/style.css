@@ -75,6 +75,11 @@ button { font-family: inherit; border: none; background: none; cursor: pointer; 
 .field input::placeholder { color: var(--cream-40); }
 .field select option { color: var(--ink); }
 .field input:focus, .field select:focus { border-bottom-color: var(--red); }
+.field .optional-check { display:flex; align-items:center; gap:8px; line-height:1.4; }
+.field .optional-check input { width:auto; margin:0; }
+#solar-time-fields { margin-top:10px; }
+#solar-time-fields label { margin-top:9px; line-height:1.35; }
+#solar-time-fields small { display:block; margin-top:8px; color:var(--cream-40); font:400 10.5px/1.5 var(--sans); }
 input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 .date-parts { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
 .date-parts input, .date-parts select { width: 100%; }
