@@ -117,6 +117,11 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
   transition: background .15s;
 }
 .nav-item.active { background: var(--red); color: var(--cream); font-weight: 600; }
+/* 兩個解讀分頁光看名稱分不出差別(都是「解讀」),所以在導覽上直接標出「怎麼讀、要多久」。
+   副標平常壓低存在感,選中時才提高對比,避免側欄變得吵雜。 */
+.nav-item--timed { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; }
+.nav-item--timed small { font: 400 10.5px/1.3 var(--sans); color: var(--cream-40); }
+.nav-item--timed.active small { color: rgba(244, 237, 224, .72); }
 .more-tools {
   margin-top: 10px; border-top: 1px solid rgba(244, 237, 224, .12); padding-top: 14px;
 }
@@ -620,6 +625,15 @@ body:not(.has-chart) .side-nav { display: none; }
 .result-path small { color: var(--ink-45); font: 400 11.5px/1.65 var(--sans); }
 .result-path--primary { background: var(--red); color: var(--cream); border-color: var(--red); }
 .result-path--primary span, .result-path--primary small { color: rgba(255,255,255,.75); }
+/* 「先看命盤本身」原本是三選一裡的第三張卡,但它跟另外兩條路的性質不同——
+   那兩條是「讀解讀」,這條是「查資料」。放成同等大小的卡片會讓新手誤以為三者是平行選項,
+   降級成一行文字連結,既保留入口,也讓真正該先點的兩條路更明確。 */
+.result-path-more {
+  display: block; width: 100%; margin-top: 12px; padding: 12px;
+  border: 1px dashed rgba(43,38,33,.22); border-radius: 8px; background: transparent;
+  font: 400 12.5px/1.5 var(--sans); color: var(--ink-60); text-align: center;
+}
+.result-path-more:hover { border-color: rgba(166,61,47,.45); color: var(--ink); }
 .dashboard-details { border: 1px solid var(--border); border-radius: 14px; background: rgba(251,246,236,.65); overflow: hidden; scroll-margin-top: 18px; }
 .dashboard-details > summary { cursor: pointer; list-style: none; min-height: 72px; display: flex; align-items: center; padding: 16px 20px; }
 .dashboard-details > summary::-webkit-details-marker { display: none; }

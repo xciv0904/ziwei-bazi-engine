@@ -451,15 +451,25 @@ check('大限流年同宮的邊界案例排盤後側邊導覽可點擊', $$('.si
 check('大限流年同宮的邊界案例仍能正常顯示 12 宮位', $$('.palace-cell').length === 12);
 
 // --- 資訊架構改版:導覽名稱統一、三頁互相導引、按鈕鍵盤可操作、無 console.error ---
-check('導覽列已改名為「重點解讀」「深度解析」', $$('.nav-item').some((n) => n.textContent === '重點解讀') && $$('.nav-item').some((n) => n.textContent === '深度解析'));
-check('導覽列不再出現舊名稱「解讀報告」「命盤解析」', !$$('.nav-item').some((n) => n.textContent === '解讀報告' || n.textContent === '命盤解析'));
+// 「重點解讀」與「深度解析」字面上都是「解讀」,一般人分不出差別。
+// 導覽改成用「怎麼讀、要多久」命名,並且側欄名稱必須跟總覽三條路徑的按鈕文字一致——
+// 舊版按鈕寫「01・先看現在」、點下去側欄卻亮「重點解讀」,使用者對不起來。
+const navText = (v) => $$('.nav-item').find((n) => n.dataset.view === v)?.textContent ?? '';
+check('導覽改名為「重點摘要」「完整報告」', navText('report').includes('重點摘要') && navText('comprehensive').includes('完整報告'));
+check('導覽標出閱讀方式與所需時間', navText('report').includes('分鐘') && navText('comprehensive').includes('分鐘'));
+check('導覽列不再出現舊名稱', !$$('.nav-item').some((n) => ['解讀報告', '命盤解析', '重點解讀', '深度解析'].includes(n.textContent.trim())));
 await nav('dashboard');
-check('命盤總覽提供重點解讀／主題分析／完整命盤三條新手路徑',
+check('命盤總覽提供重點摘要／主題分析／完整報告三條下一步',
   !!$('#view-dashboard [data-result-goto="report"]')
   && !!$('#view-dashboard [data-result-goto="topics"]')
+  && !!$('#view-dashboard [data-result-goto="comprehensive"]')
   && !!$('#view-dashboard [data-result-goto="dashboard-detail"]'));
+check('三條路徑的按鈕文字與側欄名稱一致', (() => {
+  const label = (v) => $(`#view-dashboard [data-result-goto="${v}"] b`)?.textContent.trim();
+  return label('report') === '重點摘要' && label('topics') === '主題分析' && label('comprehensive') === '完整報告';
+})());
 await nav('comprehensive');
-check('深度解析有跳轉到重點解讀/命盤總覽的導引連結', !!$('#view-comprehensive [data-goto="report"]') && !!$('#view-comprehensive [data-goto="dashboard"]'));
+check('完整報告有跳轉到重點摘要的導引連結', !!$('#view-comprehensive [data-goto="report"]'));
 await nav('report');
 check('重點解讀有跳轉到命盤總覽/深度解析的導引連結', !!$('#view-report [data-goto="dashboard"]') && !!$('#view-report [data-goto="comprehensive"]'));
 

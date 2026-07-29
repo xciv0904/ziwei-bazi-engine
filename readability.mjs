@@ -9,7 +9,8 @@
 // 只看「白話面板」(專業命理依據面板本來就該有術語,會先被移除),檢查三件事:
 //   1) 術語外洩:白話面板不該出現只有學過命理的人才懂的詞;
 //   2) 一字不差的重複句:同一頁讀到兩次一模一樣的話,是最傷閱讀意願的問題;
-//   3) 空話:放到任何人身上都成立、沒有資訊量的句子。
+//   3) 空話:放到任何人身上都成立、沒有資訊量的句子;
+//   4) 跨分頁重複:「重點摘要」與「完整報告」不能讀起來像同一頁(這是使用者實際反映過的問題)。
 //
 // 例外:少數核心概念(身宮)允許出現,但必須就地附上白話說明,見 GLOSSED_TERMS。
 import { Window } from 'happy-dom';
@@ -66,6 +67,7 @@ for (const [y, m, d, hour, gender] of CHARTS) {
   await settle();
   await settle();
 
+  const viewText = {};
   for (const view of VIEWS) {
     $$('.nav-item').find((n) => n.dataset.view === view).click();
     await settle();
@@ -89,6 +91,22 @@ for (const [y, m, d, hour, gender] of CHARTS) {
     sentences.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1));
     const dup = [...counts.entries()].filter(([, n]) => n > 1);
     if (dup.length) fail(`${where} 同頁重複句:${dup.map(([t, n]) => `${n}× ${t.slice(0, 40)}`).join(' / ')}`);
+    viewText[view] = text;
+  }
+
+  // ---- 跨分頁:重點摘要 與 完整報告 不能讀起來像同一頁 ----
+  // 這兩頁最常被反映「看不出差別」。曾經的原因很具體:完整報告每段的導讀句
+  // 直接重用重點摘要卡片的第一句,使用者點進去看到一字不差的開頭,就認定兩頁一樣。
+  // 兩頁本來就該有不同的入口感受——重點摘要給結論,完整報告給脈絡。
+  const sentsOf = (t) => [...new Set(t.split(/[。;；]/).map((x) => x.trim()).filter((x) => x.length >= 14))];
+  const repS = sentsOf(viewText.report ?? '');
+  const compS = sentsOf(viewText.comprehensive ?? '');
+  if (repS.length && compS.length) {
+    if (repS[0] === compS[0]) fail(`${y}/${m}/${d} 重點摘要與完整報告的第一句一字不差:${repS[0].slice(0, 40)}`);
+    const shared = repS.filter((x) => compS.includes(x));
+    const ratio = shared.length / repS.length;
+    // 少量重疊可以接受(兩頁本來就講同一張命盤),但超過三成就會失去分頁的意義
+    if (ratio > 0.3) fail(`${y}/${m}/${d} 兩頁重疊過高:${shared.length}/${repS.length} 句相同(${Math.round(ratio * 100)}%)`);
   }
 }
 

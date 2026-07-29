@@ -525,7 +525,7 @@ function elementPlainSummary(elements) {
 }
 
 function renderResultSummary() {
-  const { ziWei, baZi, elements } = state.data;
+  const { name, ziWei, baZi, elements } = state.data;
   const life = ziWei.palaces.find((p) => p.name === '命宮');
   const mainStars = life.majorStars.map((s) => s.name).join('・') || '空宮（參考對宮）';
   const fp = baZi.fourPillars;
@@ -534,9 +534,9 @@ function renderResultSummary() {
   const focus = state.data.byBranch[limit.ganZhi[1]]?.name ?? '—';
   const focusPlain = palaceMeanings[focus] ?? focus;
   return `<section class="card result-home" aria-labelledby="summary-title">
-    <div class="result-home-kicker">你的個人重點首頁</div>
-    <h2 id="summary-title">先從看得懂、用得上的內容開始</h2>
-    <p class="result-home-lead">不需要先研究宮位或五行。你可以看近期重點、選一個生活問題，或再進入完整命盤。</p>
+    <div class="result-home-kicker">排盤完成</div>
+    <h2 id="summary-title">${esc(name)}，接下來想先看什麼？</h2>
+    <p class="result-home-lead">不需要先懂宮位或五行。下面三條路各自給你不同的東西，隨時可以從左側切換。</p>
     <div class="result-summary">
       <div class="summary-item"><div class="summary-label">命宮主星</div><div class="summary-value">${esc(mainStars)}</div></div>
       <div class="summary-item"><div class="summary-label">八字日主</div><div class="summary-value">${esc(dayMaster)}</div></div>
@@ -544,10 +544,11 @@ function renderResultSummary() {
       <div class="summary-item summary-item--plain"><div class="summary-label">${esc(year)} 年重點</div><div class="summary-value">${esc(focusPlain)}</div><small>目前落在${esc(focus)}</small></div>
     </div>
     <div class="result-paths" aria-label="選擇下一步">
-      <button type="button" class="result-path result-path--primary" data-result-goto="report"><span>01・先看現在</span><b>目前最值得注意什麼？</b><small>近期重點、可能挑戰與行動建議</small></button>
-      <button type="button" class="result-path" data-result-goto="topics"><span>02・問生活問題</span><b>從愛情、工作或財運開始</b><small>選一題，直接閱讀紫微與八字的綜合回答</small></button>
-      <button type="button" class="result-path result-path--quiet" data-result-goto="dashboard-detail"><span>03・研究資料</span><b>查看完整紫微與八字命盤</b><small>適合想研究宮位、星曜、四柱與流年的使用者</small></button>
+      <button type="button" class="result-path result-path--primary" data-result-goto="report"><span>最多人從這裡開始・約 3 分鐘</span><b>重點摘要</b><small>一張一張的重點卡片，挑你在意的點開就好，不用全部讀完</small></button>
+      <button type="button" class="result-path" data-result-goto="topics"><span>心裡已經有問題・約 2 分鐘</span><b>主題分析</b><small>從愛情、工作、財運等十個主題中選一題，直接看方向</small></button>
+      <button type="button" class="result-path" data-result-goto="comprehensive"><span>想一次讀完・約 15 分鐘</span><b>完整報告</b><small>把性格、工作、感情、家庭串成一篇連貫的長文，交代前後關聯</small></button>
     </div>
+    <button type="button" class="result-path-more" data-result-goto="dashboard-detail">或者，先看看命盤本身 —— 十二宮、四柱與流年切換 ↓</button>
   </section>`;
 }
 
@@ -821,7 +822,7 @@ function renderLuckBrowser() {
 
   return `<div class="card">
     <div class="card-label">大限・流年</div>
-    <div class="card-hint">先選十年大限，再選其中某一年，逐年查看這一年的重點——這裡可自由切換任何年份，跟「重點解讀」固定顯示現在的摘要不同。</div>
+    <div class="card-hint">先選十年大限，再選其中某一年，逐年查看這一年的重點——這裡可自由切換任何年份，跟「重點摘要」固定顯示現在的內容不同。</div>
     <div class="chip-label">大限（十年）</div>
     <div class="chip-row">${limitChips}</div>
     <div class="chip-label">流年（${esc(limit.ageRange.replace('~', '–'))} 歲・${esc(daxianPalace)}大限）</div>
@@ -1119,7 +1120,7 @@ function topicChartBasisHtml(topic, ziweiCard, baziCard) {
   return `<section class="topic-answer topic-answer--basis">
     <b>先看你的命盤:這個主題排出來是什麼</b>
     <ul class="topic-basis-list">${rows.join('')}</ul>
-    <small>以上兩行是依你的生辰實際排出的,完整版本在「重點解讀」。下面每一題的內容則是為「${esc(topic.label)}」主題撰寫的通用方向,不是逐字依你的命盤生成;點「複製這題給 AI 深入問」會把題目與你的命盤資料一起複製到剪貼簿(不會自動上傳),交給 AI 才能得到真正針對你的回答。</small>
+    <small>以上兩行是依你的生辰實際排出的,完整版本在「重點摘要」。下面每一題的內容則是為「${esc(topic.label)}」主題撰寫的通用方向,不是逐字依你的命盤生成;點「複製這題給 AI 深入問」會把題目與你的命盤資料一起複製到剪貼簿(不會自動上傳),交給 AI 才能得到真正針對你的回答。</small>
   </section>`;
 }
 
@@ -1250,8 +1251,8 @@ function renderReport() {
   const isStudy = state.reportViewMode[state.reportTab] === 'study';
 
   const intro = isZiwei
-    ? '這裡整理你現在最值得注意的命盤重點，包括本命特質、目前大限與流年。想查看宮位、星曜或切換其他年份，請到<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>；想讀完整的人生主題分析，請到<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。'
-    : '這裡整理你現在最值得注意的命盤重點，包括日主特質、目前大運與流年。想查看四柱、十神或切換其他年份，請到<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>；想讀完整的人生主題分析，請到<button type="button" class="link-jump" data-goto="comprehensive">深度解析</button>。'
+    ? '<b>這頁是一張一張的重點卡片，挑你在意的點開就好，不用全部讀完。</b>每張卡都是「重點一句話 → 現在可能出現 → 需要留意 → 接下來可以做」。想從頭讀完一份完整的人生分析，去<button type="button" class="link-jump" data-goto="comprehensive">完整報告</button>（約 15 分鐘）；想自己切換宮位或年份查資料，去<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>。'
+    : '<b>這頁是一張一張的重點卡片，挑你在意的點開就好，不用全部讀完。</b>每張卡都是「重點一句話 → 現在可能出現 → 需要留意 → 接下來可以做」。想從頭讀完一份完整的人生分析，去<button type="button" class="link-jump" data-goto="comprehensive">完整報告</button>（約 15 分鐘）；想自己切換宮位或年份查資料，去<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>。'
 
   const list = items.map((it) => {
     const open = expandedKeys.includes(it.key);
@@ -1357,21 +1358,27 @@ function splitParagraphs(text, sentencesPerParagraph = 2) {
   return paragraphs.length ? paragraphs : [text];
 }
 
-/** 每段的白話 headline:能對應到單一宮位/主題的,直接重用命盤總覽/重點解讀已經產生的白話摘要;
- * 沒有單一對應對象的(行動建議/地支關係/神煞),用誠實但不下定論的靜態導語。 */
-function comprehensiveHeadline(title, { ziWei, baZi, baziCards }) {
-  const findBazi = (key) => baziCards.find((c) => c.key === key)?.summary ?? '';
+/**
+ * 每段的導讀句:告訴讀者「這一段要談什麼」,而不是先把結論講一次。
+ *
+ * 舊版是直接重用 generatePlainPalaceCard(命宮).summary——也就是「重點摘要」那張卡的第一句。
+ * 立意是保持兩頁說法一致,但實際效果是:使用者從重點摘要點進完整報告,
+ * 看到的第一句話一字不差,直覺就是「這兩頁根本一樣」,於是不再往下讀。
+ * 兩頁本來就該有明顯不同的入口感受:重點摘要給結論,完整報告給脈絡。
+ * 所以這裡改成描述「這一段的範圍與看法角度」的固定導讀句,不重複任何結論。
+ */
+function comprehensiveHeadline(title) {
   switch (title) {
-    case '一、性格與才華': return R.generatePlainPalaceCard(ziWei, '命宮').summary;
-    case '二、事業與金錢': return R.generatePlainPalaceCard(ziWei, '官祿宮').summary;
-    case '三、戀愛與婚姻': return R.generatePlainPalaceCard(ziWei, '夫妻宮').summary;
-    case '四、健康、家庭與人際': return R.generatePlainPalaceCard(ziWei, '疾厄宮').summary;
+    case '一、性格與才華': return '這一段從命宮與身宮出發，談你性格的底層邏輯——不只是「你是什麼樣的人」，而是這些特質從哪裡來、在什麼情境下會被放大。';
+    case '二、事業與金錢': return '工作方式與金錢觀通常互相牽動。這一段把事業、財務、精神追求與居家資源四塊合起來看，找出彼此呼應或拉扯的地方。';
+    case '三、戀愛與婚姻': return '這一段談你在親密關係裡的基本模式：容易被什麼吸引、關係穩定時的樣子，以及壓力來時最先鬆動的環節。';
+    case '四、健康、家庭與人際': return '這一段把身心狀態、原生家庭、居住環境與交友圈放在一起看——它們常常是同一組壓力的不同出口。';
     case '五、行動建議': return '以下整理幾個目前值得留意、可以主動調整的方向。';
-    case '六、當前焦點': return R.generatePlainZiweiTimeCard(ziWei, {}).summary;
-    case '全盤概覽':
-    case '一、個性本質': return findBazi('zhu');
-    case '二、財官流向': return findBazi('xiji');
-    case '三、人際健康與行動建議': return R.generatePlainBaziTimeCard(baZi, {}).summary;
+    case '六、當前焦點': return '前面談的是長期底色，這一段回到現在：目前這十年與今年，重心分別落在哪裡。';
+    case '全盤概覽': return '先用一頁的篇幅，把八字在事業、財運、感情、健康、家庭與當前運勢上的方向各講一句，讓你對整體有個輪廓。';
+    case '一、個性本質': return '這一段從八字的角度重看一次性格——與紫微那段互為對照，一致的地方代表傾向明確，不一致的地方值得分開理解。';
+    case '二、財官流向': return '這一段談錢與事業在你命盤裡的流向：資源從哪裡來、容易停在哪裡，以及五行分布如何影響你的做事節奏。';
+    case '三、人際健康與行動建議': return '這一段把人際互動、身心負荷與目前的大運流年合起來談，並收在幾個具體可行的方向上。';
     case '四、地支關係': return '這裡整理你命盤四柱之間的地支互動，會反映在跟不同對象、不同人生階段的相處模式上。';
     case '五、神煞': return '以下是命盤中幾個比較特別的印記，代表一些額外的加分或需要留意的地方。';
     default: return '';
@@ -1455,7 +1462,7 @@ function renderComprehensive() {
     <div class="accordion">${sections.map((s) => {
       const collapsible = COLLAPSIBLE_DETAIL_TITLES.has(s.title);
       const open = !collapsible || state.expandedComprehensiveDetails.has(s.title);
-      const headline = comprehensiveHeadline(s.title, ctx);
+      const headline = comprehensiveHeadline(s.title);
       const paragraphs = splitParagraphs(stripJargonOpeners(s.text));
       const source = deepSourceCard(s.title, ctx);
       const body = `<div class="acc-body comp-section">
@@ -1488,7 +1495,7 @@ function renderComprehensive() {
     }).join('')}
     </div>`;
 
-  const intro = `<div class="report-intro">這裡從性格、工作、感情、家庭與人生課題等面向，整理完整的長篇分析。若只想看現在最值得注意的內容，請到<button type="button" class="link-jump" data-goto="report">重點解讀</button>；想自己切換宮位或年份探索，則到<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>。</div>`;
+  const intro = `<div class="report-intro"><b>這頁是一份從頭讀到尾的長篇報告，約 15 分鐘。</b>它把性格、工作、感情、家庭與人生課題串成一條完整的敘事，會交代前後之間的關聯；跟<button type="button" class="link-jump" data-goto="report">重點摘要</button>看的是同一張命盤，但那邊是可以跳著看的短卡片，這邊是連貫的長文。沒時間讀完的話，先看重點摘要就夠了。</div>`;
 
   $('#view-comprehensive').innerHTML =
     intro +
@@ -1959,7 +1966,7 @@ function renderNameElementCard(fullName) {
 
   return `<div class="card">
     <div class="card-label">姓名五行 × ${esc(state.data.name)}的紫微八字</div>
-    <div class="card-hint">每個人的八字都能算出「喜用神」(對你比較有幫助的五行)跟「忌神」(比較不搭的五行)——排盤時就已經算好。這裡是看姓名用字的五行組成跟你的喜用神/忌神合不合,再補一段紫微命宮主星五行的參考角度。喜用神判斷跟深度解析頁的八字綜合解讀是同一份邏輯。</div>
+    <div class="card-hint">每個人的八字都能算出「喜用神」(對你比較有幫助的五行)跟「忌神」(比較不搭的五行)——排盤時就已經算好。這裡是看姓名用字的五行組成跟你的喜用神/忌神合不合,再補一段紫微命宮主星五行的參考角度。喜用神判斷跟「完整報告」的八字段落是同一份邏輯。</div>
     ${rows ? `<div class="wuge-grid">${rows}</div>` : ''}
     <div class="reading-line"><span class="lead gold">判斷　</span>${esc(r.verdict)}</div>
     <div class="reading-line">${esc(r.verdictNote)}</div>
