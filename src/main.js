@@ -2388,19 +2388,34 @@ function renderEmpty() {
   $('#birth-summary').textContent = '';
   const reminder = renderAnnualReminderCard();
   const welcome = `<div class="stack"><div class="card welcome-card">
-    <div class="welcome-eyebrow">免費線上排盤・資料只在你的瀏覽器處理</div>
-    <h2>用紫微與八字，看懂你現在最值得注意的方向</h2>
-    <p class="welcome-text">不需要命理基礎。從愛情、工作、財運與近期運勢開始，再依需要查看完整命盤。</p>
-    <div class="welcome-preview">
-      <div><span>現在</span><b>今年最值得注意的事</b><small>近期重點與具體建議</small></div>
-      <div><span>關係</span><b>感情中的互動模式</b><small>從問題開始，不必讀懂術語</small></div>
-      <div><span>發展</span><b>適合發揮的工作方式</b><small>紫微與八字交叉整理</small></div>
+    <div class="welcome-cosmos" aria-hidden="true">
+      <div class="cosmos-orbit cosmos-orbit--outer"><span>子</span><span>卯</span><span>午</span><span>酉</span></div>
+      <div class="cosmos-orbit cosmos-orbit--inner"><span>甲</span><span>丙</span><span>庚</span><span>壬</span></div>
+      <div class="cosmos-core"><span>紫微</span><small>命</small></div>
+      <i class="cosmos-star cosmos-star--1"></i><i class="cosmos-star cosmos-star--2"></i>
+      <i class="cosmos-star cosmos-star--3"></i><i class="cosmos-star cosmos-star--4"></i>
     </div>
-    <div class="welcome-steps"><div class="welcome-step"><b>1</b>輸入出生日期與時辰</div><div class="welcome-step"><b>2</b>產生命盤與重點摘要</div><div class="welcome-step"><b>3</b>閱讀報告、流年與宮位解析</div></div>
-    <button type="button" class="welcome-cta" id="welcome-start">免費排盤，開始看重點</button>
-    <p class="welcome-text muted">生辰資料不會上傳。內容供文化研究與自我探索參考。</p>
-  </div>${reminder}</div>`;
+    <div class="welcome-video-overlay" aria-hidden="true"></div>
+    <div class="welcome-content">
+      <div class="welcome-eyebrow">免費線上排盤・資料只在你的瀏覽器處理</div>
+      <h2 class="animate-fade-rise">用紫微與八字，看懂你現在最值得注意的方向</h2>
+      <p class="welcome-text animate-fade-rise-delay">不需要命理基礎。從愛情、工作、財運與近期運勢開始，再依需要查看完整命盤。</p>
+      <div class="welcome-preview">
+        <div><span>現在</span><b>今年最值得注意的事</b><small>近期重點與具體建議</small></div>
+        <div><span>關係</span><b>感情中的互動模式</b><small>從問題開始，不必讀懂術語</small></div>
+        <div><span>發展</span><b>適合發揮的工作方式</b><small>紫微與八字交叉整理</small></div>
+      </div>
+      <div class="welcome-steps"><div class="welcome-step"><b>1</b>輸入出生日期與時辰</div><div class="welcome-step"><b>2</b>產生命盤與重點摘要</div><div class="welcome-step"><b>3</b>閱讀報告、流年與宮位解析</div></div>
+      <button type="button" class="welcome-cta animate-fade-rise-delay-2" id="welcome-start">免費排盤，開始看重點</button>
+      <p class="welcome-text muted">生辰資料不會上傳。內容供文化研究與自我探索參考。</p>
+    </div>
+  </div>${reminder ? `<div class="welcome-secondary reveal-section">${reminder}</div>` : ''}</div>`;
   for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
+  // 歡迎內容沿用既有做法預先放進各分頁，但動態星盤只保留在真正可見的首頁，
+  // 避免隱藏分頁同時執行不必要的背景動畫。
+  for (const v of VIEWS) {
+    if (v !== 'dashboard') $(`#view-${v} .welcome-cosmos`)?.remove();
+  }
   dirtyViews.clear(); // 歡迎畫面已把每一頁都填成同一份內容,沒有待補畫的分頁
   $$('[data-remind]').forEach((btn) =>
     btn.addEventListener('click', async () => {
@@ -2423,6 +2438,19 @@ function renderEmpty() {
     setTimeout(() => $('#birth-form').classList.remove('form-highlight'), 1400);
     $('#name-input').focus();
   });
+  const revealSections = $$('#view-dashboard .reveal-section');
+  if (typeof window.IntersectionObserver === 'function') {
+    const revealObserver = new window.IntersectionObserver((entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    }, { threshold: 0.12 });
+    revealSections.forEach((section) => revealObserver.observe(section));
+  } else {
+    revealSections.forEach((section) => section.classList.add('is-visible'));
+  }
 }
 
 // ---------- 初始化 ----------
