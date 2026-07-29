@@ -31,3 +31,43 @@ check(qimen.zhiFuShi && qimen.zhiFuShi.palace >= 1 && qimen.zhiFuShi.palace <= 9
 check(lineDiagram(pure.lines, [1]).length === 6, '卦象應有六爻');
 
 console.log('新增術數計算測試全部通過 ✅');
+
+// ---------- 飛星:十二宮飛化 / 大限流年飛化 ----------
+// 飛化是解盤時判斷「哪個宮位把資源或壓力送到哪裡」的主體,自化只是它的特例。
+// 這裡用 2002-09-04 未時女命逐條核對:宮干四化與落宮全部固定,任何一條錯掉都會被抓出來。
+{
+  const { convertToZiWei } = await import('./src/engines/ziwei.js');
+  const { computeFlyingTransformations, findFlyingConvergence, flyingOfStem } =
+    await import('./src/engines/compose-annual.js');
+  const z = convertToZiWei({ year: 2002, month: 9, day: 4, hour: 13, gender: 'female' });
+  const fly = computeFlyingTransformations(z);
+  const byName = Object.fromEntries(fly.map((f) => [f.palaceName, f]));
+  const fmt = (p) => byName[p].flights.map((f) => `${f.star}化${f.mutagen}→${f.palaceName}`).join('、');
+
+  const cases = [
+    ['命宮(癸)', fmt('命宮'), '破軍化祿→田宅宮、巨門化權→財帛宮、太陰化科→遷移宮、貪狼化忌→疾厄宮'],
+    ['夫妻宮(辛)', fmt('夫妻宮'), '巨門化祿→財帛宮、太陽化權→遷移宮、文曲化科→夫妻宮、文昌化忌→福德宮'],
+    ['僕役宮(丙)', fmt('僕役宮'), '天同化祿→官祿宮、天機化權→財帛宮、文昌化科→福德宮、廉貞化忌→父母宮'],
+    ['田宅宮(甲)', fmt('田宅宮'), '廉貞化祿→父母宮、破軍化權→田宅宮、武曲化科→僕役宮、太陽化忌→遷移宮'],
+    ['大限辛亥', flyingOfStem(z, '辛').map((f) => `${f.star}化${f.mutagen}→${f.palaceName}`).join('、'),
+      '巨門化祿→財帛宮、太陽化權→遷移宮、文曲化科→夫妻宮、文昌化忌→福德宮'],
+    ['流年丙午', flyingOfStem(z, '丙').map((f) => `${f.star}化${f.mutagen}→${f.palaceName}`).join('、'),
+      '天同化祿→官祿宮、天機化權→財帛宮、文昌化科→福德宮、廉貞化忌→父母宮'],
+  ];
+  let bad = 0;
+  for (const [label, actual, expected] of cases) {
+    const ok = actual === expected;
+    if (!ok) { bad++; console.log(`❌ 飛化|${label}\n   預期 ${expected}\n   實際 ${actual}`); }
+  }
+  // 自化必須是飛化的子集合:標了 isSelf 的,落宮就等於來源宮
+  const selfMismatch = fly.flatMap((p) => p.flights.filter((f) => f.isSelf && f.palaceName !== p.palaceName));
+  if (selfMismatch.length) { bad++; console.log('❌ 自化標記與落宮不一致'); }
+  // 疊加點:命宮與福德宮宮干同為癸,兩者必定同時把忌飛入疾厄宮
+  const conv = findFlyingConvergence(fly);
+  const hit = conv.find((c) => c.palaceName === '疾厄宮' && c.mutagen === '忌');
+  if (!hit || !(hit.from.includes('命宮') && hit.from.includes('福德宮'))) {
+    bad++; console.log('❌ 疊加點未偵測到命宮+福德宮同時忌入疾厄宮');
+  }
+  console.log(bad === 0 ? '飛星飛化測試全部通過 ✅' : `飛星飛化 ${bad} 項不一致 ❌`);
+  if (bad) process.exitCode = 1;
+}

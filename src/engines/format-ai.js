@@ -4,7 +4,7 @@
 
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
 import { computeYongShen } from './compose-yongshen.js';
-import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange } from './compose-annual.js';
+import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange, computeFlyingTransformations, findFlyingConvergence, flyingOfStem } from './compose-annual.js';
 // naming.js 會一併帶進 44KB 的 name-characters.json 字庫,但整支 format-ai 只有
 // formatNamingPromptForAI 一個函式用得到。改成在那個函式內部動態 import,
 // 其餘所有 AI 提示詞(命盤、宮位、流年、合盤、每日、時間軸)就不必為此背上字庫的重量。
@@ -43,7 +43,12 @@ function formatMajorStar(s) {
 
 // ---------- 紫微 ----------
 
-function formatZiWeiSection(ziWei, input) {
+/**
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @param {object} input { year, month, day, hour, gender }
+ * @param {number} [year] 要當成「目前」的西元年;預設今年。大限/流年飛化以它為準。
+ */
+function formatZiWeiSection(ziWei, input, year = new Date().getFullYear()) {
   const lines = [];
   lines.push('【紫微斗數】');
   lines.push('');
@@ -99,6 +104,56 @@ function formatZiWeiSection(ziWei, input) {
       ].join('、');
       lines.push(`  自化:${marks}`);
     }
+  }
+
+  // ---- 十二宮飛化 ----
+  // 之前只輸出自化,但自化只是飛化的特例(飛出去的星剛好留在本宮)。
+  // 少了完整的飛化表,讀盤的一方就看不到「命宮把忌送進疾厄宮」這類跨宮關係,
+  // 而宮位之間怎麼互相輸送資源與壓力,正是飛星派判斷的主體。
+  // 這裡把 12 宮 × 4 化 = 48 條全部列出,並標示哪些屬於自化。
+  const flying = computeFlyingTransformations(ziWei);
+  lines.push('');
+  lines.push('◆ 十二宮飛化(各宮宮干引動四化,箭頭右側為落入的本命宮位)');
+  for (const src of flying) {
+    const body = src.flights
+      .map((f) => `${f.star}化${f.mutagen}→${f.palaceName}${f.isSelf ? '(自化)' : ''}`)
+      .join('、');
+    lines.push(`${src.palaceName}(宮干${src.stem}):${body}`);
+  }
+
+  // ---- 飛化疊加點 ----
+  // 同一個宮位被兩三個宮位同時飛入同一種四化,遠比只被飛入一次值得注意。
+  // 這種重複指向是解盤時最該優先看的地方,先算好,免得閱讀的人自己去比對上面 48 條。
+  const convergence = findFlyingConvergence(flying);
+  if (convergence.length) {
+    lines.push('');
+    lines.push('◆ 飛化疊加點(同一宮位被多個宮位飛入同一種四化,依重複次數排序)');
+    for (const c of convergence) {
+      lines.push(`${c.palaceName}被${c.from.length}個宮位化${c.mutagen}:${c.from.join('、')}`);
+    }
+  }
+
+  // ---- 大限與流年飛化 ----
+  // 規則跟宮干飛化相同,只是換成大限干、流年干在飛。
+  // 三層(本命宮干／大限／流年)若指向同一宮位,代表同一個主題在不同時間尺度上重複出現。
+  // 直接由命盤本身推出「目前」的大限與流年干支,不依賴呼叫端傳進運勢物件——
+  // formatZiWeiSection 有六個呼叫點,其中多數手上沒有 zwLuck,自己算才不會有的有、有的沒有。
+  const nominalAge = year - Number(input.year) + 1; // 虛歲
+  const curLimit = ziWei.majorLimits.find((l) => {
+    const [a, b] = l.ageRange.split('~').map(Number);
+    return nominalAge >= a && nominalAge <= b;
+  });
+  const annualGanZhi = ziWei.annualFlow?.[year] ?? ziWei.annualFlow?.[String(year)];
+  const flyLine = (label, ganZhi) => {
+    if (!ganZhi) return;
+    const body = flyingOfStem(ziWei, ganZhi[0]).map((f) => `${f.star}化${f.mutagen}→${f.palaceName}`).join('、');
+    if (body) lines.push(`${label} ${ganZhi}:${body}`);
+  };
+  if (curLimit || annualGanZhi) {
+    lines.push('');
+    lines.push('◆ 大限／流年飛化(規則與宮干飛化相同,落入的是本命宮位)');
+    if (curLimit) flyLine(`大限(${curLimit.ageRange}歲)`, curLimit.ganZhi);
+    if (annualGanZhi) flyLine(`${year}年流年`, annualGanZhi);
   }
 
   return lines.join('\n');
@@ -218,29 +273,54 @@ function formatBaZiSection(baZi, baseYear = null) {
 
 // ---------- 固定解讀指令(最終版,完整附上,不省略任何一段) ----------
 
-const AI_INSTRUCTION = `請以此資料為唯一事實來源進行分析:不要重新排盤,不要自行推算,不要補充資料中不存在的星曜、宮位、四化或流年資訊。
-如果我提出的是具體問題(例如感情、工作、創業、健康,或某一年),請直接回答問題,不要先輸出完整人生分析;只有當我沒有提出具體問題時,才按以下框架做整體解盤。
-請不要只解釋單顆星曜,也不要孤立看某一個宮位。分析時請留意以下對宮軸線,不要孤立看單一宮位:
-命宮↔遷移宮(自我選擇與外部環境)、財帛宮↔福德宮(現實資源與精神滿足)、
-夫妻宮↔官祿宮(親密關係與事業責任)、兄弟宮↔交友宮(熟人協作與外部人脈)、
-子女宮↔田宅宮(投入產出與沉澱積累)、父母宮↔疾厄宮(規則身份與身心承載)。
-請區分本命、大限、流年三個層次:本命看長期性格與反覆出現的人生課題,
-大限看當前十年的階段性重心,流年看今年被推到前台的具體觸發點,不要混為一談。
-請依序說明:
-1) 天生性格與核心才華(命宮、身宮)
-2) 事業與金錢流向(官祿宮、財帛宮、福德宮、田宅宮)
-3) 戀愛婚姻(夫妻宮及相關宮位)
-4) 健康、家庭、居住、人際(疾厄宮、父母宮、田宅宮、交友宮)
-5) 能善用有利流向的行動,以及需要留意的現實模式
-每個判斷都必須以資料中實際顯示的主星、輔星、亮度與四化,以及流向部分顯示的大限、流年、小限為主要依據。未顯示的數值不要推測。
-輸出時請保持依據清楚,但不要寫成術數論文:
-- 80%輸出應是對我有用的結論、現實場景、性格機制、關係模式等實際影響
-- 20%輸出保留必要的依據(命宮、身宮、三方四正、大限流年四化)
-- 不要逐條解釋每顆星、每個宮位
-- 只在關鍵結論後簡短說明依據
-請務必依據提供的命盤資料說明。
+// 這段是使用者按「複製給AI」時附在資料後面的解讀指令。
+// 寫法刻意用自己的措辭與組織方式:功能上要求的東西(以資料為準、成對看宮位、
+// 分開三層時間、控制術語比例)是紫微斗數本來就有的判讀原則,但文字表述必須是自己的。
+const AI_INSTRUCTION = `以下資料由排盤引擎產生並經交叉驗證,請當成既定事實直接引用。
 
-請先回答使用者實際提出的問題，不要先輸出完整命盤總論。分析時以資料包提供的命盤結果為唯一事實來源，不要重新排盤，不要補充資料中不存在的星曜、宮位、四化、十神、喜用神或限運資訊。先用一般人看得懂的語言說明結論，再於必要時補充專業命理依據。避免只重述命盤資料，必須說明這些配置在日常生活中的可能表現、挑戰與具體建議。`;
+星曜、亮度、四化、飛化落宮、大限與流年,一律以資料所列為準,不要憑記憶重算。
+四化表與飛化落宮是最容易記錯的部分,一旦自行推導,結論就會和資料本身互相矛盾。
+資料裡沒有列出的東西,就是這張盤沒有,不要補上。
+
+若我問的是具體的事(某段關係、某個工作決定、某一年會怎樣),請直接回答那件事,
+不必先鋪陳整張命盤;只有在我沒有指定問題時,才做整體解讀。
+
+── 判讀順序(這是你思考的先後,不是回覆的章節標題,請勿照著分段輸出)──
+
+一、先看結構,再看單點
+單獨一顆星說明不了什麼。先掌握命宮、身宮、福德宮組成的底盤,
+再把命宮的三方四正(命宮、財帛宮、官祿宮、遷移宮)合起來看,
+判斷這個人做事的方式、資源從哪裡來、與外界如何相處。
+
+二、宮位要成對看
+十二宮不是十二個獨立抽屜,相對的兩宮永遠一起運作:
+　命宮／遷移宮——自己想怎麼走,對上環境實際允許怎麼走
+　財帛宮／福德宮——實際拿到多少,對上心裡覺得夠不夠
+　夫妻宮／官祿宮——最親近的關係,對上對外承擔的責任
+　兄弟宮／交友宮——少數幾個真正熟的人,對上廣泛的人脈圈
+　子女宮／田宅宮——往外投入與產出,對上往內累積與安放
+　父母宮／疾厄宮——外在的身分與規範,對上身體實際承受的重量
+只講單宮而不看對宮,結論多半會偏。
+
+三、用飛化找出重複出現的主題(這一步最影響準確度)
+資料提供三層飛化:十二宮宮干飛化、當前大限飛化、當前流年飛化。
+祿看資源與機會從哪裡進來,權看哪裡最有推力也最需要扛責任,
+科看哪裡容易被看見或取得緩衝,忌看哪裡反覆卡住、需要一再處理。
+
+「飛化疊加點」那一段是已經整理好的結果,列出哪些宮位被多個宮位同時飛入同一種四化。
+被反覆指向的宮位,比只出現一次的重要得多,請優先談。
+若本命、大限、流年三層同時指向同一宮位或同一組對宮,那就是現階段真正的主線。
+
+四、三種時間尺度不要混談
+本命講長期性格與會反覆回來的課題;大限講這十年的重心與環境變化;
+流年講今年被推到台面上的事。特別注意:不要把本命的長期傾向,說成今年會發生的事件。
+
+── 回覆方式 ──
+
+主要篇幅請放在我實際用得到的內容:這個配置在生活裡會怎麼出現、容易卡在哪、可以怎麼調整。
+命理依據只在關鍵結論後補一句,交代這個判斷從哪裡看出來
+(例如「因為命宮與福德宮同時把忌飛進疾厄宮」),不必逐星逐宮解釋一輪,
+也不要把整套推理攤開。我要的是能拿去用的判斷,不是一篇論文。`;
 
 // ---------- 白話摘要區塊(compose-plain.js 產出的 7 段式卡片,壓縮成給AI參考的精簡文字) ----------
 // 「複製給AI解讀」的資料包除了完整命盤資料(上面兩個 section)之外,也要附上網站上
@@ -426,7 +506,7 @@ export function formatPalacePromptForAI({ input, ziWei, palaceName }) {
     `4) ${t.avoid}。`,
     `5) ${t.strategy}`,
     '',
-    '請以上述資料為唯一事實來源,未顯示的星曜與四化不要推測;輸出以對當事人有用的結論與具體建議為主,依據簡短附在關鍵結論後即可。',
+    '以上資料由排盤引擎產生,請直接引用,未列出的星曜與四化不要自行補上;回覆以當事人用得上的判斷與具體做法為主,依據簡短附在關鍵結論之後即可。',
   ].join('\n');
 }
 
@@ -491,7 +571,7 @@ export function formatSynastryPromptForAI({ a, b }) {
     '4) 以一方的紫微夫妻宮星曜對照另一方的命宮星曜(雙向各做一次),分析「理想伴侶輪廓 vs 真實本性」的落差與接納空間。',
     '5) 不要做「合/不合」的斷語,而要具體化為相處中的強項、容易起摩擦的情境、以及雙方各自可以調整的做法。',
     '',
-    '請以上述資料為唯一事實來源,不要重新排盤;輸出以兩人實際相處會遇到的場景與建議為主,依據簡短附在關鍵結論後即可。',
+    '以上資料由排盤引擎產生,請直接引用,不要重算;回覆以兩人實際相處會遇到的情境與可行做法為主,依據簡短附在關鍵結論之後即可。',
   ].join('\n');
 }
 
@@ -577,7 +657,7 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
     '判讀順序:',
     ...order,
     '',
-    '請以上述資料為唯一事實來源,不要重新排盤或自行推算;輸出以對當事人有用的結論與具體建議為主,依據簡短附在關鍵結論後即可。',
+    '以上資料由排盤引擎產生,請直接引用,不要重算或自行推導;回覆以當事人用得上的判斷與具體做法為主,依據簡短附在關鍵結論之後即可。',
   );
   return lines.join('\n');
 }

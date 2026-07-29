@@ -249,6 +249,68 @@ export function computeSelfTransformations(ziWei) {
 }
 
 /**
+ * 依任一天干,算出四化落在本命十二宮的哪一宮。
+ * 大限干、流年干、宮干都適用——差別只在「是誰在飛」,規則本身相同。
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @param {string} stem  天干(甲~癸)
+ * @returns {Array<{mutagen, star, palaceName, position}>} 找不到落宮的星(該星不在盤上)會被略過
+ */
+export function flyingOfStem(ziWei, stem) {
+  const out = [];
+  for (const [mutagen, star] of Object.entries(FLOW_SIHUA[stem] ?? {})) {
+    const target = palaceOfStar(ziWei, star);
+    if (target) out.push({ mutagen, star, palaceName: target.name, position: target.position });
+  }
+  return out;
+}
+
+/**
+ * 十二宮飛化:每個宮位用自己的宮干引動四化,再看那四顆星落在哪一宮。
+ *
+ * 這是飛星派最核心的一張表,回答的是「A 宮把資源/壓力送到 B 宮」這種宮位之間的關係,
+ * 例如命宮化忌入疾厄宮 = 你自己的執著會消耗到身體。
+ *
+ * 注意它跟 computeSelfTransformations() 的關係:自化只是這張表的一個特例——
+ * 飛出去的星剛好還留在本宮(離心),或對宮飛過來的星剛好在本宮(向心)。
+ * 換句話說,只輸出自化等於把 12 宮 × 4 化 = 48 條線索砍到剩個位數,
+ * 「命宮忌入疾厄」「福德忌入疾厄」這種跨宮訊號會完全看不到。
+ *
+ * @param {object} ziWei convertToZiWei() 輸出
+ * @returns {Array<{palaceName, position, stem, flights:Array<{mutagen, star, palaceName, position, isSelf}>}>}
+ */
+export function computeFlyingTransformations(ziWei) {
+  return ziWei.palaces.map((p) => ({
+    palaceName: p.name,
+    position: p.position,
+    stem: p.position[0],
+    flights: flyingOfStem(ziWei, p.position[0])
+      .map((f) => ({ ...f, isSelf: f.palaceName === p.name })),
+  }));
+}
+
+/**
+ * 找出被多個宮位同時飛入同一種四化的宮位(訊號疊加點)。
+ * 一個宮位被兩三個宮位同時打忌,遠比只被打一次值得注意;
+ * 這種「重複指向」正是解盤時最該優先看的地方,先算好省得閱讀者自己比對 48 條線。
+ * @param {ReturnType<typeof computeFlyingTransformations>} flying
+ * @returns {Array<{palaceName, mutagen, from:string[]}>} 依來源數量由多到少排序,只保留 2 個來源以上
+ */
+export function findFlyingConvergence(flying) {
+  const bucket = new Map(); // `${落宮}|${四化}` → [來源宮]
+  for (const src of flying) {
+    for (const f of src.flights) {
+      const key = `${f.palaceName}|${f.mutagen}`;
+      if (!bucket.has(key)) bucket.set(key, []);
+      bucket.get(key).push(src.palaceName);
+    }
+  }
+  return [...bucket.entries()]
+    .map(([key, from]) => ({ palaceName: key.split('|')[0], mutagen: key.split('|')[1], from }))
+    .filter((x) => x.from.length >= 2)
+    .sort((a, b) => b.from.length - a.from.length);
+}
+
+/**
  * 來因宮(飛星派):宮干與生年天干相同的宮位;十二宮中有兩個候選時,
  * 依五虎遁排宮順序(寅起)取先出現者。已以文墨天機命盤驗證(壬年→壬寅父母宮)。
  * @param {object} ziWei convertToZiWei() 輸出(需含 yearStem)
