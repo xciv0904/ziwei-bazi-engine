@@ -189,6 +189,12 @@ check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedTop
   && copiedTopicPrompt.includes('整體回答必須實際使用紫微與八字')
   && copiedTopicPrompt.includes('不同調時')
   && copiedTopicPrompt.includes('不要硬湊成一致'));
+check('完整 AI 提示採人生使用說明敘事且避免論文語氣', copiedTopicPrompt.includes('人生使用說明')
+  && copiedTopicPrompt.includes('不是命理論文')
+  && copiedTopicPrompt.includes('開場直接說出')
+  && copiedTopicPrompt.includes('自然串成一條故事')
+  && copiedTopicPrompt.includes('不相干的清單')
+  && copiedTopicPrompt.includes('不是必須照抄的標題'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
 await nav('report');
