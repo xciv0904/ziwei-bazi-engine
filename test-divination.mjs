@@ -9,8 +9,20 @@ const check = (ok, message) => { if (!ok) throw new Error(message); };
 const taipeiSolar = toTrueSolarTime({
   year: 2002, month: 9, day: 4, hour: 14, minute: 11, longitude: 121.5654, utcOffset: 8,
 });
-check(taipeiSolar.hour === 14 && taipeiSolar.minute >= 15 && taipeiSolar.minute <= 22,
-  `台北真太陽時應約校正至14:19，實際為${taipeiSolar.hour}:${taipeiSolar.minute}`);
+check(taipeiSolar.hour === 14 && taipeiSolar.minute === 17,
+  `台北真太陽時 NOAA 近似式基準應為14:17，實際為${taipeiSolar.hour}:${taipeiSolar.minute}`);
+const leapSolar = toTrueSolarTime({
+  year: 2024, month: 2, day: 29, hour: 0, minute: 1, longitude: 120, utcOffset: 8,
+});
+check(leapSolar.year === 2024 && leapSolar.month === 2 && leapSolar.day === 28,
+  '真太陽時跨日校正應正確處理閏年');
+let invalidSolarRejected = false;
+try {
+  toTrueSolarTime({ year: 2024, month: 2, day: 30, hour: 24, minute: 60, longitude: 121, utcOffset: 8 });
+} catch {
+  invalidSolarRejected = true;
+}
+check(invalidSolarRejected, '真太陽時應拒絕不存在的日期與超出範圍的時間');
 
 const pure = hexagram(1, 1, 1);
 check(pure.name === '乾為天', '乾上乾下應為乾為天');
@@ -75,12 +87,15 @@ console.log('新增術數計算測試全部通過 ✅');
   if (!hit || !(hit.from.includes('命宮') && hit.from.includes('福德宮'))) {
     bad++; console.log('❌ 疊加點未偵測到命宮+福德宮同時忌入疾厄宮');
   }
-  const snapshots = computeAnnualSnapshots(z, 2026);
+  const snapshots = computeAnnualSnapshots(z, 2026, 3, 2002);
   if (snapshots.length !== 7 || snapshots[0].year !== 2023 || snapshots[6].year !== 2029) {
     bad++; console.log('❌ ±3 年流年快照範圍錯誤');
   }
   if (snapshots.some((s) => !s.palaceName || s.flights.length !== 4)) {
     bad++; console.log('❌ 流年快照缺少命宮或四化');
+  }
+  if (snapshots.some((s) => !s.majorLimit) || snapshots[0].majorLimit.ganZhi === snapshots[1].majorLimit.ganZhi) {
+    bad++; console.log('❌ 流年快照未正確標出跨大限交界');
   }
   const repeated = findAnnualRepeatedFocus(z, snapshots);
   if (!repeated.transformations.length || !repeated.axes.length) {

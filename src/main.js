@@ -289,7 +289,8 @@ async function computeAllInner(parsed) {
     const [clockHour, clockMinute] = $('#birth-clock-time').value.split(':').map(Number);
     const longitude = Number($('#birth-longitude').value);
     const utcOffset = Number($('#birth-utc-offset').value);
-    if (!Number.isFinite(clockHour) || !Number.isFinite(clockMinute) || $('#birth-longitude').value === '') {
+    if (!Number.isFinite(clockHour) || !Number.isFinite(clockMinute)
+      || $('#birth-longitude').value === '' || $('#birth-utc-offset').value === '') {
       toast('請完整填寫出生地鐘錶時間、經度與 UTC 時差');
       return false;
     }

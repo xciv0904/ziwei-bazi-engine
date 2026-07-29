@@ -310,16 +310,23 @@ export function findFlyingConvergence(flying) {
     .sort((a, b) => b.from.length - a.from.length);
 }
 
-/** 查詢年 ±radius 的流年命宮與四化快照。 */
-export function computeAnnualSnapshots(ziWei, baseYear, radius = 3) {
+/** 查詢年 ±radius 的流年命宮、所在大限與四化快照。 */
+export function computeAnnualSnapshots(ziWei, baseYear, radius = 3, birthYear = null) {
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
   const snapshots = [];
   for (let year = baseYear - radius; year <= baseYear + radius; year++) {
     const ganZhi = yearGanZhi(year);
     const palace = byBranch[ganZhi[1]];
+    const nominalAge = Number.isFinite(Number(birthYear)) ? year - Number(birthYear) + 1 : null;
+    const majorLimit = nominalAge == null ? null : ziWei.majorLimits.find((limit) => {
+      const [startAge, endAge] = limit.ageRange.split('~').map(Number);
+      return nominalAge >= startAge && nominalAge <= endAge;
+    }) ?? null;
     snapshots.push({
       year,
       ganZhi,
+      nominalAge,
+      majorLimit,
       palaceName: palace?.name ?? null,
       position: palace?.position ?? null,
       flights: flyingOfStem(ziWei, ganZhi[0]),

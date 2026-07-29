@@ -7,7 +7,9 @@ export function equationOfTimeMinutes(year, month, day, hour = 12) {
   const start = Date.UTC(year, 0, 1);
   const current = Date.UTC(year, month - 1, day);
   const dayOfYear = Math.floor((current - start) / 86400000) + 1;
-  const gamma = (2 * Math.PI / 365) * (dayOfYear - 1 + (hour - 12) / 24);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInYear = leapYear ? 366 : 365;
+  const gamma = (2 * Math.PI / daysInYear) * (dayOfYear - 1 + (hour - 12) / 24);
   return 229.18 * (
     0.000075
     + 0.001868 * Math.cos(gamma)
@@ -20,6 +22,15 @@ export function equationOfTimeMinutes(year, month, day, hour = 12) {
 export function toTrueSolarTime({ year, month, day, hour, minute, longitude, utcOffset }) {
   const values = [year, month, day, hour, minute, longitude, utcOffset];
   if (values.some((value) => !Number.isFinite(Number(value)))) throw new TypeError('真太陽時輸入必須是數字');
+  if (!Number.isInteger(year) || year < 1) throw new RangeError('年份必須是正整數');
+  if (!Number.isInteger(month) || month < 1 || month > 12) throw new RangeError('月份必須介於 1 到 12');
+  if (!Number.isInteger(day) || day < 1 || day > 31) throw new RangeError('日期超出範圍');
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) throw new RangeError('小時必須介於 0 到 23');
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) throw new RangeError('分鐘必須介於 0 到 59');
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) {
+    throw new RangeError('日期不存在');
+  }
   if (longitude < -180 || longitude > 180) throw new RangeError('經度必須介於 -180 到 180');
   if (utcOffset < -12 || utcOffset > 14) throw new RangeError('UTC 時差必須介於 -12 到 +14');
   const equation = equationOfTimeMinutes(year, month, day, hour + minute / 60);

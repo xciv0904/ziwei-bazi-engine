@@ -153,7 +153,7 @@ function formatZiWeiSection(ziWei, input, year = new Date().getFullYear()) {
     const [a, b] = l.ageRange.split('~').map(Number);
     return nominalAge >= a && nominalAge <= b;
   });
-  const annualGanZhi = ziWei.annualFlow?.[year] ?? ziWei.annualFlow?.[String(year)];
+  const annualGanZhi = ziWei.annualFlow?.[year] ?? ziWei.annualFlow?.[String(year)] ?? yearGanZhiOf(year);
   const flyLine = (label, ganZhi) => {
     if (!ganZhi) return;
     const body = flyingOfStem(ziWei, ganZhi[0]).map((f) => `${f.star}化${f.mutagen}→${f.palaceName}`).join('、');
@@ -166,13 +166,14 @@ function formatZiWeiSection(ziWei, input, year = new Date().getFullYear()) {
     if (annualGanZhi) flyLine(`${year}年流年`, annualGanZhi);
   }
 
-  const snapshots = computeAnnualSnapshots(ziWei, year);
+  const snapshots = computeAnnualSnapshots(ziWei, year, 3, input.year);
   const repeated = findAnnualRepeatedFocus(ziWei, snapshots);
   lines.push('');
   lines.push(`◆ ${year - 3}–${year + 3}流年快照(命宮疊本命宮；四化為流年干飛入本命宮)`);
   for (const snapshot of snapshots) {
     const flights = snapshot.flights.map((f) => `${f.mutagen}→${f.palaceName}`).join('、');
-    lines.push(`${snapshot.year}${snapshot.ganZhi}:命宮→${snapshot.palaceName}；${flights}`);
+    const limit = snapshot.majorLimit ? `限${snapshot.majorLimit.ganZhi}(${snapshot.majorLimit.ageRange}歲)；` : '';
+    lines.push(`${snapshot.year}${snapshot.ganZhi}:${limit}命宮→${snapshot.palaceName}；${flights}`);
   }
   if (repeated.transformations.length || repeated.axes.length) {
     lines.push('跨年重複焦點(程式比對):');
@@ -319,7 +320,8 @@ const AI_INSTRUCTION = `請把這份資料視為已完成計算的觀察紀錄�
 
 若我已有明確問題，回覆就從那個問題開始；沒有明確問題時，才整理全盤重點。
 每個主要判斷請寫成「生活中可能怎麼出現、需要留意什麼、可以採取什麼做法」，
-並在句末用一小段括號標出關鍵依據。省略逐星教學、完整推演和固定格式的宮位巡禮。`;
+並給兩個可由本人核對的具體場景；若存在相反表現，說清楚在什麼條件下會切換。
+句末用一小段括號標出關鍵依據。避免人人都適用的形容詞，也省略逐星教學與固定格式的宮位巡禮。`;
 
 // ---------- 白話摘要區塊(compose-plain.js 產出的 7 段式卡片,壓縮成給AI參考的精簡文字) ----------
 // 白話摘要僅供明確要求的相容情境選用；完整命盤提示預設不附，
@@ -624,7 +626,7 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
       }
     }
     lines.push('');
-    lines.push(formatZiWeiSection(ziWei, input));
+    lines.push(formatZiWeiSection(ziWei, input, year));
     lines.push('');
   }
 
