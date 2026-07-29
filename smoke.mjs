@@ -189,12 +189,22 @@ check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedTop
   && copiedTopicPrompt.includes('整體回答必須實際使用紫微與八字')
   && copiedTopicPrompt.includes('不同調時')
   && copiedTopicPrompt.includes('不要硬湊成一致'));
-check('完整 AI 提示採人生使用說明敘事且避免論文語氣', copiedTopicPrompt.includes('人生使用說明')
+check('完整 AI 提示採白話人生分類且避免論文語氣', copiedTopicPrompt.includes('人生使用說明')
   && copiedTopicPrompt.includes('不是命理論文')
   && copiedTopicPrompt.includes('開場直接說出')
-  && copiedTopicPrompt.includes('自然串成一條故事')
-  && copiedTopicPrompt.includes('不相干的清單')
-  && copiedTopicPrompt.includes('不是必須照抄的標題'));
+  && copiedTopicPrompt.includes('你是怎麼運作的')
+  && copiedTopicPrompt.includes('工作與天賦')
+  && copiedTopicPrompt.includes('金錢與價值感')
+  && copiedTopicPrompt.includes('感情與重要關係')
+  && copiedTopicPrompt.includes('身心使用方式')
+  && copiedTopicPrompt.includes('只選最相關的一至三類'));
+check('完整 AI 提示附藏干十神與完整神煞並限制輔助用法',
+  copiedTopicPrompt.includes('◆ 藏干(天干-十神)')
+  && /藏干\(天干-十神\)[\s\S]*[甲乙丙丁戊己庚辛壬癸]-(?:比肩|劫財|食神|傷官|偏財|正財|七殺|正官|偏印|正印)/.test(copiedTopicPrompt)
+  && copiedTopicPrompt.includes('藏干用來補充未直接表現在天干')
+  && copiedTopicPrompt.includes('神煞只作輔助')
+  && copiedTopicPrompt.includes('最多挑一至兩項')
+  && copiedTopicPrompt.includes('不得保證一定有人出現'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
 await nav('report');
