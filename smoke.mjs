@@ -184,6 +184,11 @@ await new Promise((r) => setTimeout(r, 0));
 check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
   && copiedTopicPrompt.includes('網站提供的主題一般方向')
   && copiedTopicPrompt.includes('完整命盤資料包'));
+check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedTopicPrompt.includes('紫微用來辨認人生領域與事件舞台')
+  && copiedTopicPrompt.includes('八字用來驗證內在動力與應對方式')
+  && copiedTopicPrompt.includes('整體回答必須實際使用紫微與八字')
+  && copiedTopicPrompt.includes('不同調時')
+  && copiedTopicPrompt.includes('不要硬湊成一致'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
 await nav('report');
