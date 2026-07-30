@@ -184,30 +184,52 @@ await new Promise((r) => setTimeout(r, 0));
 check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
   && copiedTopicPrompt.includes('網站提供的主題一般方向')
   && copiedTopicPrompt.includes('完整命盤資料包'));
-check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedTopicPrompt.includes('紫微用來辨認人生領域與事件舞台')
+check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedTopicPrompt.includes('紫微用來辨認人生領域')
   && copiedTopicPrompt.includes('八字用來驗證內在動力與應對方式')
-  && copiedTopicPrompt.includes('整體回答必須實際使用紫微與八字')
+  && copiedTopicPrompt.includes('重要結論至少要有兩項資料支持')
   && copiedTopicPrompt.includes('不同調時')
   && copiedTopicPrompt.includes('不要硬湊成一致'));
-check('完整 AI 提示採白話人生分類且避免論文語氣', copiedTopicPrompt.includes('人生使用說明')
-  && copiedTopicPrompt.includes('不是命理論文')
-  && copiedTopicPrompt.includes('開場直接說出')
+check('完整 AI 提示將抽象判斷翻譯成行為與觸發情境',
+  copiedTopicPrompt.includes('生活中如何表現')
+  && copiedTopicPrompt.includes('何時最容易出現')
+  && copiedTopicPrompt.includes('別人可能如何感受')
+  && copiedTopicPrompt.includes('使用過度付出什麼代價')
+  && copiedTopicPrompt.includes('必須立即說明對什麼')
+  && copiedTopicPrompt.includes('做不到就刪除該詞')
+  && copiedTopicPrompt.includes('要交代切換條件'));
+check('完整 AI 提示採白話人生分類且避免跨類重複',
+  copiedTopicPrompt.includes('開場只用一至兩句')
   && copiedTopicPrompt.includes('你是怎麼運作的')
   && copiedTopicPrompt.includes('工作與天賦')
   && copiedTopicPrompt.includes('金錢與價值感')
   && copiedTopicPrompt.includes('感情與重要關係')
   && copiedTopicPrompt.includes('身心使用方式')
   && copiedTopicPrompt.includes('只選最相關的一至三類')
-  && copiedTopicPrompt.includes('1200至1800個中文字')
-  && copiedTopicPrompt.includes('具體場景全篇選兩個')
-  && copiedTopicPrompt.includes('不得換標題重複'));
+  && copiedTopicPrompt.includes('選出三個最重要的分類詳寫')
+  && copiedTopicPrompt.includes('其餘分類各用一個短段落')
+  && copiedTopicPrompt.includes('所有行動建議集中在「你現在走到哪裡」')
+  && copiedTopicPrompt.includes('這部分訊號較少')
+  && copiedTopicPrompt.includes('同一核心結論只能在一類完整說明')
+  && copiedTopicPrompt.includes('1200至1600個中文字'));
 check('完整 AI 提示附藏干十神與完整神煞並限制輔助用法',
   copiedTopicPrompt.includes('◆ 藏干(天干-十神)')
   && /藏干\(天干-十神\)[\s\S]*[甲乙丙丁戊己庚辛壬癸]-(?:比肩|劫財|食神|傷官|偏財|正財|七殺|正官|偏印|正印)/.test(copiedTopicPrompt)
-  && copiedTopicPrompt.includes('藏干用來補充未直接表現在天干')
+  && copiedTopicPrompt.includes('藏干則補充未直接顯露')
   && copiedTopicPrompt.includes('神煞只作輔助')
-  && copiedTopicPrompt.includes('最多挑一至兩項')
-  && copiedTopicPrompt.includes('不得保證一定有人出現'));
+  && copiedTopicPrompt.includes('最多採用一至兩項')
+  && copiedTopicPrompt.includes('不得保證一定出現'));
+check('完整 AI 提示區分時間層級、禁用必然語氣並要求具體建議',
+  copiedTopicPrompt.includes('本命只寫')
+  && copiedTopicPrompt.includes('大限只寫')
+  && copiedTopicPrompt.includes('流年只寫')
+  && copiedTopicPrompt.includes('注定、一定、必然、肯定會發生')
+  && copiedTopicPrompt.includes('建議必須回答做什麼、何時做、如何做')
+  && copiedTopicPrompt.includes('不得只說相信自己'));
+check('完整 AI 提示區分特質來源並執行輸出前自檢',
+  copiedTopicPrompt.includes('天生傾向、後天練出的能力、因環境要求形成的生存策略')
+  && copiedTopicPrompt.includes('不要把過度察言觀色')
+  && copiedTopicPrompt.includes('【輸出前自檢】')
+  && copiedTopicPrompt.includes('文末依據是否不超過三句'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
 await nav('report');
