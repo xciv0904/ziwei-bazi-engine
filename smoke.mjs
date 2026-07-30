@@ -197,7 +197,10 @@ check('完整 AI 提示採白話人生分類且避免論文語氣', copiedTopicP
   && copiedTopicPrompt.includes('金錢與價值感')
   && copiedTopicPrompt.includes('感情與重要關係')
   && copiedTopicPrompt.includes('身心使用方式')
-  && copiedTopicPrompt.includes('只選最相關的一至三類'));
+  && copiedTopicPrompt.includes('只選最相關的一至三類')
+  && copiedTopicPrompt.includes('1200至1800個中文字')
+  && copiedTopicPrompt.includes('具體場景全篇選兩個')
+  && copiedTopicPrompt.includes('不得換標題重複'));
 check('完整 AI 提示附藏干十神與完整神煞並限制輔助用法',
   copiedTopicPrompt.includes('◆ 藏干(天干-十神)')
   && /藏干\(天干-十神\)[\s\S]*[甲乙丙丁戊己庚辛壬癸]-(?:比肩|劫財|食神|傷官|偏財|正財|七殺|正官|偏印|正印)/.test(copiedTopicPrompt)
