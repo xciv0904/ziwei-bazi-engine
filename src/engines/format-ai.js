@@ -3,6 +3,7 @@
 // 人類與LLM都好讀的純文字,附上固定的解讀指令,讓使用者可以直接貼給任何一個對話式AI。
 
 import { relationDisplayName, relationsBetween } from './compose-branch-relations.js';
+import { tenGodOf } from './compose-luck.js';
 import { computeYongShen } from './compose-yongshen.js';
 import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJunBranchOf, composeZiWeiAnnualChange, composeZiWeiDecadalChange, computeFlyingTransformations, findFlyingConvergence, flyingOfStem, computeAnnualSnapshots, findAnnualRepeatedFocus } from './compose-annual.js';
 // naming.js 會一併帶進 44KB 的 name-characters.json 字庫,但整支 format-ai 只有
@@ -414,7 +415,7 @@ function formatPlainSummarySection(ziWei, baZi, zwLuck, bzLuck, elements) {
  */
 export function formatChartForAI({
   input, ziWei, baZi, zwLuck = null, bzLuck = null, elements = null, year = null,
-  includePlainSummary = false,
+  includePlainSummary = false, includeInstruction = true,
 }) {
   const baseYear = year ?? new Date().getFullYear();
   const hasPlainData = includePlainSummary && zwLuck && bzLuck && elements;
@@ -422,11 +423,8 @@ export function formatChartForAI({
     formatZiWeiSection(ziWei, input, baseYear),
     '',
     formatBaZiSection(baZi, year),
-    '',
     ...(hasPlainData ? ['---', '', formatPlainSummarySection(ziWei, baZi, zwLuck, bzLuck, elements), ''] : []),
-    '---',
-    '',
-    AI_INSTRUCTION,
+    ...(includeInstruction ? ['', '---', '', AI_INSTRUCTION] : []),
   ].join('\n');
 }
 
@@ -550,21 +548,43 @@ function relatedPalaces(ziWei, palaceName) {
 export function formatPalacePromptForAI({ input, ziWei, palaceName }) {
   const t = PALACE_PROMPTS[palaceName];
   if (!t) return null;
-  const related = relatedPalaces(ziWei, palaceName).join('、');
+  const relatedNames = relatedPalaces(ziWei, palaceName);
+  const related = relatedNames.join('、');
+  const wanted = new Set([palaceName, ...relatedNames]);
+  const selfByPalace = Object.fromEntries(computeSelfTransformations(ziWei).map((item) => [
+    item.palaceName,
+    [
+      ...item.outgoing.map((e) => `${e.star}↓${e.mutagen}`),
+      ...item.incoming.map((e) => `${e.star}↑${e.mutagen}`),
+    ],
+  ]));
+  const flyingByPalace = Object.fromEntries(computeFlyingTransformations(ziWei).map((item) => [
+    item.palaceName,
+    item.flights.map((e) => `${e.star}化${e.mutagen}→${e.palaceName}`),
+  ]));
+  const facts = ziWei.palaces
+    .filter((p) => wanted.has(p.name))
+    .map((p) => {
+      const stars = p.majorStars.length ? p.majorStars.map(formatMajorStar).join(' ') : '無主星(空宮)';
+      const minor = p.minorStars.length ? `｜輔星:${p.minorStars.join(' ')}` : '';
+      const self = selfByPalace[p.name]?.length ? `｜自化:${selfByPalace[p.name].join('、')}` : '';
+      return `${p.name}${p.isBodyPalace ? '(身宮)' : ''} ${p.position}｜主星:${stars}${minor}${self}｜宮干飛化:${flyingByPalace[p.name].join('、')}`;
+    });
   return [
     `這是紫微斗數 ${palaceName}(${t.subtitle})提示詞。`,
     '',
-    formatZiWeiSection(ziWei, input),
+    `基本資料:${input.gender === 'female' ? '女' : '男'}，${input.year}年${input.month}月${input.day}日${input.hour}時；命宮${ziWei.lifePalace}、身宮${ziWei.bodyPalace}。`,
+    `◆ ${palaceName}與三方四正必要資料`,
+    ...facts,
     '',
     `問題: ${t.question}`,
-    '判讀順序:',
-    `1) 看${palaceName}本宮的主星;只有在星曜括號內顯示亮度、四化時,才一併納入,說明${t.focus}。`,
-    `2) 同時查看${related},判斷${t.relatedNote}。`,
-    '3) 左輔、右弼、文昌、文曲、天魁、天鉞只有在摘要中出現時,作為協作、文書、推薦、提拔的依據;化祿說明順遂/資源,化權說明責任/權限,化科說明名聲/資格,化忌說明阻滯/壓力。',
-    `4) ${t.avoid}。`,
-    `5) ${t.strategy}`,
+    '輸出規則:',
+    `1) 先用一句白話結論說明${t.focus}，再用1至2個具體生活情境讓本人可以核對。`,
+    `2) 同時查看${related}，只補充${t.relatedNote}；不要展開其他人生分類。`,
+    `3) 說明一項用得好的優勢、一項使用過度的代價，並給1至2個可執行做法。${t.avoid}。`,
+    '4) 抽象形容詞後必須接「在什麼情況、會做出什麼行為」；正文先講白話，命理依據最後最多2句。',
     '',
-    '以上資料由排盤引擎產生,請直接引用,未列出的星曜與四化不要自行補上;回覆以當事人用得上的判斷與具體做法為主,依據簡短附在關鍵結論之後即可。',
+    '回覆控制在約500至800個中文字。以上資料由排盤引擎產生，請直接引用，不要重算或補入未列資料。',
   ].join('\n');
 }
 
@@ -629,8 +649,56 @@ export function formatSynastryPromptForAI({ a, b }) {
     '4) 以一方的紫微夫妻宮星曜對照另一方的命宮星曜(雙向各做一次),分析「理想伴侶輪廓 vs 真實本性」的落差與接納空間。',
     '5) 不要做「合/不合」的斷語,而要具體化為相處中的強項、容易起摩擦的情境、以及雙方各自可以調整的做法。',
     '',
-    '以上資料由排盤引擎產生,請直接引用,不要重算;回覆以兩人實際相處會遇到的情境與可行做法為主,依據簡短附在關鍵結論之後即可。',
+    '回覆控制在約800至1200個中文字；每個結論都要指出觸發情境與雙方可觀察的行為，不要擴寫個別完整人生報告。',
+    '以上資料由排盤引擎產生,請直接引用,不要重算;回覆以兩人實際相處會遇到的情境與可行做法為主,依據最後最多3句。',
   ].join('\n');
+}
+
+function formatAnnualBaZiSection(baZi, year, gz) {
+  const lines = ['◆ 八字本年必要資料'];
+  const fp = baZi.fourPillars;
+  const dayStem = fp.dayPillar.stem;
+  const pillars = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+    .map((key) => `${PILLAR_LABEL[key]}${fp[key].stem}${fp[key].branch}`)
+    .join('、');
+  lines.push(line('四柱', pillars));
+
+  const ys = computeYongShen(baZi);
+  const fmt = (arr) => arr.map((x) => `${x.element}(${x.role})`).join('、') || '無';
+  lines.push(line('日主與喜忌', `${dayStem}日主、${ys.strength}；喜用${fmt(ys.favorable)}；忌${fmt(ys.unfavorable)}`));
+
+  const cycle = baZi.greatLuckCycles.find((c) => year >= c.startYear && year < c.startYear + 10);
+  if (cycle) {
+    lines.push(line('目前大運', `${cycle.ganZhi}(${cycle.ageRange}歲)，天干對日主為${tenGodOf(dayStem, cycle.ganZhi[0])}`));
+  }
+  lines.push(line('本年干支', `${gz}，流年天干對日主為${tenGodOf(dayStem, gz[0])}`));
+
+  const branchHits = [];
+  const branchKeys = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar'];
+  for (const key of branchKeys) {
+    const natalBranch = fp[key].branch;
+    for (const rel of relationsBetween(gz[1], natalBranch)) {
+      branchHits.push(`${gz[1]}與${PILLAR_LABEL[key]}${natalBranch}${relationDisplayName(rel, `${gz[1]}${natalBranch}`)}`);
+    }
+  }
+  lines.push(line('流年支引動', branchHits.join('、') || '與本命四支無明顯合沖刑害'));
+
+  const natalRelations = [];
+  const seen = new Set();
+  for (const r of baZi.branchRelations ?? []) {
+    const key = [[r.branch, r.with].sort().join('-'), r.relation].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    natalRelations.push(`${BRANCH_LABEL[r.branch]}與${BRANCH_LABEL[r.with]}${relationDisplayName(r.relation, r.pair)}`);
+  }
+  if (natalRelations.length) lines.push(line('本命地支關係', natalRelations.join('、')));
+
+  const monthly = monthlyPillarsOf(year);
+  lines.push(line(
+    `${year}流月`,
+    Array.from({ length: 12 }, (_, i) => `${i + 1}月${monthly[String(i + 1).padStart(2, '0')]}`).join('、'),
+  ));
+  return lines.join('\n');
 }
 
 /**
@@ -672,41 +740,56 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
     if (zwAnnual.entries.length) {
       lines.push(line(`流年四化(${gz[0]}干)`, zwAnnual.entries.map((e) => `${e.star}化${e.mutagen}→${e.palace}`).join('、')));
     }
+    let zwDecadal = null;
     if (limit) {
       lines.push(line('所在大限', `${limit.ganZhi}限(${limit.ageRange}歲)`));
-      const zwDecadal = composeZiWeiDecadalChange(ziWei, limit, { mode: 'study' });
+      zwDecadal = composeZiWeiDecadalChange(ziWei, limit, { mode: 'study' });
       if (zwDecadal.entries.length) {
         lines.push(line(`大限四化(${limit.ganZhi[0]}干)`, zwDecadal.entries.map((e) => `${e.star}化${e.mutagen}→${e.palace}`).join('、')));
       }
     }
     lines.push('');
-    lines.push(formatZiWeiSection(ziWei, input, year));
+
+    const relevantNames = new Set([
+      annualPalace?.name,
+      ...zwAnnual.entries.map((e) => e.palace),
+      ...(zwDecadal?.entries ?? []).map((e) => e.palace),
+    ].filter(Boolean));
+    const selfByPalace = Object.fromEntries(computeSelfTransformations(ziWei).map((item) => [
+      item.palaceName,
+      [
+        ...item.outgoing.map((e) => `${e.star}↓${e.mutagen}`),
+        ...item.incoming.map((e) => `${e.star}↑${e.mutagen}`),
+      ],
+    ]));
+    lines.push('◆ 本年相關本命宮位');
+    for (const palace of ziWei.palaces.filter((p) => relevantNames.has(p.name))) {
+      const stars = palace.majorStars.length
+        ? palace.majorStars.map(formatMajorStar).join(' ')
+        : '無主星(空宮,借對宮)';
+      const self = selfByPalace[palace.name]?.join('、') ?? '';
+      lines.push(`${palace.name}(${palace.position})｜主星:${stars}${self ? `｜自化:${self}` : ''}`);
+    }
     lines.push('');
   }
 
   const order = ziWei
     ? [
-        '1) 八字:以流年天干對日主的十神關係判斷全年主軸(財/官殺/印/食傷/比劫),說明這一年的能量傾向。',
-        '2) 八字:檢查流年地支與四柱地支的合沖刑害,指出哪些人生領域被引動(年柱=家庭與長輩、月柱=職場與外在環境、日柱=自身與伴侶、時柱=晚輩與晚年布局)。',
-        '3) 八字:對照目前所在的大運方向,判斷這個流年是順勢加乘還是轉折試探。',
-        '4) 紫微:以流年命宮疊的本命宮位與其主星,判斷這一年的主要舞台與姿態。',
-        '5) 紫微:以流年四化祿權科忌的落宮指出被點亮與施壓的領域;若與生年四化或大限四化落在同一宮,該宮即全年最需留意的重點。',
-        '6) 交叉:比對八字全年主軸與紫微四化落宮,一致之處是這一年的確定主題;分歧之處視為不同層面的節奏差異,不要硬湊結論。',
-        '7) 不要做吉凶斷語,而要具體化為這一年適合推進的事、需要保守觀望的事。',
-        '8) 依流月干支給出季度層級的節奏建議。',
-        `9) 全部生活情境必須符合當事人約${lifeStage.age}歲的「${lifeStage.label}」；不得因官祿宮、財星或官殺出現，就自動寫成工作、升遷、創業或職場競爭。`,
+        '1) 先用一句話點出全年最重要主題，再列2至3個具體生活表現。',
+        '2) 交叉比對流年命宮與大限／流年四化、八字目前大運與本年十神；一致處優先，不同調時分開說明。',
+        '3) 說明一項適合推進、一項需要留意的事，各給具體做法，不作吉凶或必然事件斷語。',
+        '4) 依十二流月整併成上半年／下半年或四季節奏，不逐月寫十二段。',
+        `5) 全部情境必須符合約${lifeStage.age}歲的「${lifeStage.label}」，不得預設穩定職涯、婚姻或固定資產。`,
       ]
     : [
-        '1) 以流年天干對日主的十神關係判斷全年主軸(財/官殺/印/食傷/比劫),說明這一年的能量傾向。',
-        '2) 檢查流年地支與四柱地支的合沖刑害,指出哪些人生領域被引動(年柱=家庭與長輩、月柱=職場與外在環境、日柱=自身與伴侶、時柱=晚輩與晚年布局)。',
-        '3) 對照目前所在的大運方向,判斷這個流年是順勢加乘還是轉折試探。',
-        '4) 不要做吉凶斷語,而要具體化為這一年適合推進的事、需要保守觀望的事。',
-        '5) 依流月干支給出季度層級的節奏建議。',
-        `6) 全部生活情境必須符合當事人約${lifeStage.age}歲的「${lifeStage.label}」；不得因財星或官殺出現，就自動寫成工作、升遷、創業或職場競爭。`,
+        '1) 先用一句話點出全年主題，再列2至3個具體生活表現。',
+        '2) 交叉目前大運、本年十神與流年支引動，說明一項適合推進及一項需要留意的事。',
+        '3) 依十二流月整併成上半年／下半年或四季節奏，不逐月寫十二段。',
+        `4) 全部情境必須符合約${lifeStage.age}歲的「${lifeStage.label}」，不作吉凶或必然事件斷語。`,
       ];
 
   lines.push(
-    formatBaZiSection(baZi, year),
+    formatAnnualBaZiSection(baZi, year, gz),
     '',
     line('性別', input.gender === 'female' ? '女性' : '男性'),
     line('該年人生階段', `約${lifeStage.age}歲・${lifeStage.label}`),
@@ -715,7 +798,8 @@ export function formatAnnualPromptForAI({ input, baZi, ziWei = null, year }) {
     '判讀順序:',
     ...order,
     '',
-    '以上資料由排盤引擎產生,請直接引用,不要重算或自行推導;回覆以當事人用得上的判斷與具體做法為主,依據簡短附在關鍵結論之後即可。',
+    '回覆控制在約800至1200個中文字。以上資料由排盤引擎產生,請直接引用,不要重算或自行推導；',
+    '正文先講白話與生活情境，命理依據集中在最後最多3句。',
   );
   return lines.join('\n');
 }
@@ -792,18 +876,14 @@ export async function formatNamingPromptForAI({ input, surname, given, baZi, ziW
   lines.push('---');
   lines.push('');
   lines.push(
-    `請你根據以上「真實計算出來的」五格數字、五行、喜用神/忌神、命宮主星、生肖資料,寫一篇姓名學風格的解讀報告,分成以下幾個段落:`,
-    '1) 姓名賦予的特質(依總格、人格的五行與生剋關係詮釋個性傾向)',
-    '2) 這個名字帶來的天賦(依喜用神是否被姓名五行補益來詮釋)',
-    '3) 需要留意的隱患(依忌神或三才相剋的部分來詮釋,語氣提醒、不要用「絕對」「必定」等斷言字眼)',
-    '4) 事業運勢傾向(依人格、外格五行與命宮主星來詮釋)',
-    '5) 人生各階段運勢概覽(可概略分早年/中年/中晚年三段,語氣為傾向與提醒,不要給具體斷言年份的精準預測)',
-    '6) 生肖姓名速配(依生肖與姓名五行的生剋關係做簡短說明)',
+    '請根據以上已計算資料，回答「這個名字如何補益本人、最值得發揮什麼、要留意什麼」。',
+    '輸出分成「名字帶來的氣質」「可發揮的方向」「需要留意」三段，每段只留1至2個最有依據的結論。',
     '',
     '寫作要求:',
     '- 只能使用上面提供的真實數字與五行資料做詮釋依據,不要自己另外編造筆畫數、宮位或星曜',
     '- 語氣自然易懂、像在對本人說話,避免堆砌艱澀命理術語',
-    '- 每段 3-5 句即可,不用寫成長篇論文',
+    '- 抽象形容詞必須接具體行為或生活情境；不要從姓名延伸預測完整人生階段',
+    '- 回覆控制在約600至900個中文字，命理依據最後最多3句',
     '- 結尾加一句提醒:這是傳統命理規則的娛樂性解讀,不構成人生決策依據',
   );
   return lines.join('\n');
@@ -824,28 +904,37 @@ export async function formatNamingPromptForAI({ input, surname, given, baZi, ziW
  */
 export function formatDailyPromptForAI({ input, baZi, ziWei, days, curLimit, curLimitPalace, favorable, unfavorable }) {
   const fmtEls = (arr) => (arr.length ? arr.map((x) => `${x.element}(${x.role})`).join('、') : '無');
+  const fp = baZi.fourPillars;
+  const pillars = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+    .map((key) => `${PILLAR_LABEL[key]}${fp[key].stem}${fp[key].branch}`)
+    .join('、');
+  const limitPalace = ziWei.palaces.find((p) => p.name === curLimitPalace);
+  const limitStars = limitPalace?.majorStars.length
+    ? limitPalace.majorStars.map(formatMajorStar).join(' ')
+    : '無主星(空宮)';
+  const decadal = composeZiWeiDecadalChange(ziWei, curLimit, { mode: 'study' });
   return [
-    '這是八字 每日／週運提示詞。',
+    '這是紫微斗數×八字 每日／週運提示詞。',
     '',
-    formatZiWeiSection(ziWei, input),
-    '',
-    formatBaZiSection(baZi),
-    '',
+    line('基本資料', `${input.gender === 'female' ? '女' : '男'}，${input.year}年${input.month}月${input.day}日${input.hour}時`),
+    line('四柱', pillars),
+    line('日主', `${fp.dayPillar.stem}；${computeYongShen(baZi).strength}`),
     line('喜用神', fmtEls(favorable)),
     line('忌神', fmtEls(unfavorable)),
-    line('目前大限', `${curLimit.ganZhi}限(${curLimit.ageRange}歲)・紫微對應宮位:${curLimitPalace}`),
+    line('目前階段', `${curLimit.ganZhi}限(${curLimit.ageRange}歲)・紫微${curLimitPalace}｜主星:${limitStars}`),
+    line('大限四化', decadal.entries.map((e) => `${e.star}化${e.mutagen}→${e.palace}`).join('、') || '無'),
     '',
     '◆ 未來七日逐日干支與十神(黃曆宜取自傳統宜忌,忌神五行僅指當日天干或地支五行貼近本命忌神)',
     ...days.map((d) => `${d.date} ${d.week}｜${d.gz}｜十神:${d.god}｜黃曆宜:${d.yi}${d.avoidHit ? '｜貼近忌神五行' : ''}`),
     '',
-    '問題: 請以上述完整命盤為基礎,分析這七天的節奏,並指出哪幾天適合推進、哪幾天適合保守。',
-    '判讀順序:',
-    '1) 先確認日主強弱與喜用神/忌神,說明每日十神與當事人的整體體質如何互動,不要只複述十神字面意思。',
-    '2) 標示「貼近忌神五行」的日子,說明為什麼提醒放慢,但不要斷言當天會發生具體壞事。',
-    '3) 結合目前所在大限的宮位與四化重心,說明這七天的節奏與這個十年階段的關聯。',
-    '4) 給出具體、可執行、不涉醫療法律財務決策的行動建議,每天最多一句。',
+    '問題: 請分析這七天的節奏，指出適合推進、適合整理、需要放慢的日期。',
+    '輸出規則:',
+    '1) 開頭用2句白話概括本週主軸，不做七天逐項命理教學。',
+    '2) 只挑最有差異的3至4天詳寫，每天包含適合做什麼、什麼情境要放慢；其餘日期用一行表格簡述。',
+    '3) 交叉喜忌、每日十神與目前大限；「貼近忌神」只代表提高警覺，不等於當天會發生壞事。',
+    '4) 建議必須能直接執行，不涉醫療、法律或財務決策；命理依據最後最多2句。',
     '',
-    AI_INSTRUCTION,
+    '回覆控制在約600至900個中文字。資料是已完成計算的觀察紀錄，不要重算、補資料或擴寫完整人生報告。',
   ].join('\n');
 }
 
@@ -870,23 +959,29 @@ export function formatTimelinePromptForAI({ input, baZi, ziWei, events }) {
     const tag = `第${i + 1}限 ${l.ganZhi}限(${l.ageRange}歲,${from}-${to}年)｜宮位:${palace?.name ?? '—'}｜大限四化:${huaTxt}`;
     return inside.length ? `${tag}｜已記錄事件:${inside.map((e) => `${e.year} ${e.title}`).join('、')}` : tag;
   });
+  const fp = baZi.fourPillars;
+  const ys = computeYongShen(baZi);
+  const baZiLuck = baZi.greatLuckCycles
+    .map((cycle) => `${cycle.ganZhi}(${cycle.ageRange}歲，${cycle.startYear}年起)`)
+    .join('、');
   return [
     '這是紫微斗數 生涯運勢時間軸與事件驗盤提示詞。',
     '',
-    formatZiWeiSection(ziWei, input),
-    '',
-    formatBaZiSection(baZi),
+    line('基本資料', `${input.gender === 'female' ? '女' : '男'}，${input.year}年${input.month}月${input.day}日${input.hour}時；命宮${ziWei.lifePalace}、身宮${ziWei.bodyPalace}`),
+    line('四柱', `${fp.yearPillar.stem}${fp.yearPillar.branch} ${fp.monthPillar.stem}${fp.monthPillar.branch} ${fp.dayPillar.stem}${fp.dayPillar.branch} ${fp.hourPillar.stem}${fp.hourPillar.branch}`),
+    line('八字核心', `${fp.dayPillar.stem}日主、${ys.strength}；喜用${ys.favorable.map((x) => x.element).join('、') || '無'}；忌${ys.unfavorable.map((x) => x.element).join('、') || '無'}`),
+    line('八字大運', baZiLuck),
     '',
     '◆ 十個大限與已記錄事件',
     ...blocks,
     '',
-    '問題: 請以上述完整命盤與大限四化為基礎,協助我回顧人生各階段的主題,並與我記錄的真實事件互相印證。',
-    '判讀順序:',
-    '1) 逐一大限說明宮位與四化代表的主題傾向,說明依據來自哪個宮位或四化。',
-    '2) 對照「已記錄事件」欄位,說明該事件與這個大限主題是否呼應;沒有記錄事件的大限,只描述主題傾向,不要杜撰具體事件。',
-    '3) 指出跨越多個大限反覆出現的主題(如果有),作為觀察自己人生模式的線索,而不是宿命論斷。',
-    '4) 不做吉凶斷語與未來事件預言,只做已發生事實與命盤主題的對照整理。',
+    '問題: 請協助回顧人生階段，找出已記錄事件與大限／大運之間可核對的模式。',
+    '輸出規則:',
+    '1) 有事件的階段優先詳寫；沒有事件的階段只用一句主題概括，不逐限展開成十篇報告。',
+    '2) 先整理2至4個跨階段重複模式，每個模式都要引用至少一項真實事件；資料不足就明說。',
+    '3) 區分「事件已知事實」與「命理上的可能解釋」，不得把吻合寫成因果證明。',
+    '4) 未來階段只說可觀察的主題，不預言具體事件；最後提供2個可用來繼續驗盤的問題。',
     '',
-    AI_INSTRUCTION,
+    '回覆控制在約1000至1500個中文字，正文用白話，命理依據最後最多3句。不要重算或補入未提供的事件。',
   ].join('\n');
 }

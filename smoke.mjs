@@ -104,6 +104,24 @@ check('儲存按鈕在排盤後顯示', !$('#save-chart-btn').hidden);
 $('#save-chart-btn').click();
 check('儲存後收藏列表出現', !$('#saved-section').hidden && $$('.saved-chip').length === 1);
 
+// 完整命盤 AI 提示詞保留正式人生解讀規則；主題單題則不應重複附上這一大段。
+let copiedFullPrompt = '';
+Object.defineProperty(w.navigator, 'clipboard', {
+  configurable: true,
+  value: { writeText: async (text) => { copiedFullPrompt = text; } },
+});
+if (globalThis.navigator !== w.navigator) {
+  Object.defineProperty(globalThis.navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async (text) => { copiedFullPrompt = text; } },
+  });
+}
+$('#copy-ai-btn').click();
+await new Promise((r) => setTimeout(r, 0));
+check('完整命盤 AI 提示包含正式人生解讀規則', copiedFullPrompt.includes('【內部判讀】')
+  && copiedFullPrompt.includes('【白話翻譯】')
+  && copiedFullPrompt.includes('【輸出前自檢】'));
+
 // --- 大限流年瀏覽器(白話短版:年度重點/有利方向/需要留意,專業依據收合) ---
 check('大限流年瀏覽器有年度一句話重點', !!$('.luck-detail .palace-takeaway')?.textContent.length);
 check('大限流年瀏覽器有有利方向/需要留意其中之一', $$('.luck-detail .analysis-card__section-title').some((t) => t.textContent === '有利方向' || t.textContent === '需要留意'));
@@ -134,6 +152,15 @@ check('高齡流年改用超高齡生活語境', $('.luck-detail .life-stage-not
 $('#copy-annual-prompt').click();
 await new Promise((r) => setTimeout(r, 0));
 check('流年 AI 提示詞含年齡階段與禁止錯置情境', copiedAnnualPrompt.includes('超高齡生活期') && copiedAnnualPrompt.includes('禁止不合年齡的預設'));
+check('流年 AI 提示詞使用本年必要資料且不附完整命盤巡禮',
+  copiedAnnualPrompt.includes('◆ 本年相關本命宮位')
+  && copiedAnnualPrompt.includes('◆ 八字本年必要資料')
+  && copiedAnnualPrompt.includes('流年支引動')
+  && copiedAnnualPrompt.includes('800至1200個中文字')
+  && !copiedAnnualPrompt.includes('◆ 十二宮列表')
+  && !copiedAnnualPrompt.includes('◆ 十二宮飛化')
+  && !copiedAnnualPrompt.includes('◆ 2023–2029流年快照')
+  && !copiedAnnualPrompt.includes('◆ 大運列表'));
 $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
 check('切大限後年度重點仍在', !!$('.luck-detail .palace-takeaway')?.textContent.length);
@@ -184,52 +211,77 @@ await new Promise((r) => setTimeout(r, 0));
 check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
   && copiedTopicPrompt.includes('網站提供的主題一般方向')
   && copiedTopicPrompt.includes('完整命盤資料包'));
-check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedTopicPrompt.includes('紫微用來辨認人生領域')
-  && copiedTopicPrompt.includes('八字用來驗證內在動力與應對方式')
-  && copiedTopicPrompt.includes('重要結論至少要有兩項資料支持')
-  && copiedTopicPrompt.includes('不同調時')
-  && copiedTopicPrompt.includes('不要硬湊成一致'));
+check('主題單題使用精簡輸出規則且不附完整人生報告指令',
+  copiedTopicPrompt.includes('約500至800個中文字')
+  && copiedTopicPrompt.includes('不要展開其他人生分類')
+  && copiedTopicPrompt.includes('抽象形容詞後必須接具體行為與出現情境')
+  && !copiedTopicPrompt.includes('【內部判讀】')
+  && !copiedTopicPrompt.includes('【輸出前自檢】')
+  && !copiedTopicPrompt.includes('三個最重要的分類詳寫'));
+check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedFullPrompt.includes('紫微用來辨認人生領域')
+  && copiedFullPrompt.includes('八字用來驗證內在動力與應對方式')
+  && copiedFullPrompt.includes('重要結論至少要有兩項資料支持')
+  && copiedFullPrompt.includes('不同調時')
+  && copiedFullPrompt.includes('不要硬湊成一致'));
 check('完整 AI 提示將抽象判斷翻譯成行為與觸發情境',
-  copiedTopicPrompt.includes('生活中如何表現')
-  && copiedTopicPrompt.includes('何時最容易出現')
-  && copiedTopicPrompt.includes('別人可能如何感受')
-  && copiedTopicPrompt.includes('使用過度付出什麼代價')
-  && copiedTopicPrompt.includes('必須立即說明對什麼')
-  && copiedTopicPrompt.includes('做不到就刪除該詞')
-  && copiedTopicPrompt.includes('要交代切換條件'));
+  copiedFullPrompt.includes('生活中如何表現')
+  && copiedFullPrompt.includes('何時最容易出現')
+  && copiedFullPrompt.includes('別人可能如何感受')
+  && copiedFullPrompt.includes('使用過度付出什麼代價')
+  && copiedFullPrompt.includes('必須立即說明對什麼')
+  && copiedFullPrompt.includes('做不到就刪除該詞')
+  && copiedFullPrompt.includes('要交代切換條件'));
 check('完整 AI 提示採白話人生分類且避免跨類重複',
-  copiedTopicPrompt.includes('開場只用一至兩句')
-  && copiedTopicPrompt.includes('你是怎麼運作的')
-  && copiedTopicPrompt.includes('工作與天賦')
-  && copiedTopicPrompt.includes('金錢與價值感')
-  && copiedTopicPrompt.includes('感情與重要關係')
-  && copiedTopicPrompt.includes('身心使用方式')
-  && copiedTopicPrompt.includes('只選最相關的一至三類')
-  && copiedTopicPrompt.includes('選出三個最重要的分類詳寫')
-  && copiedTopicPrompt.includes('其餘分類各用一個短段落')
-  && copiedTopicPrompt.includes('所有行動建議集中在「你現在走到哪裡」')
-  && copiedTopicPrompt.includes('這部分訊號較少')
-  && copiedTopicPrompt.includes('同一核心結論只能在一類完整說明')
-  && copiedTopicPrompt.includes('1200至1600個中文字'));
+  copiedFullPrompt.includes('開場只用一至兩句')
+  && copiedFullPrompt.includes('你是怎麼運作的')
+  && copiedFullPrompt.includes('工作與天賦')
+  && copiedFullPrompt.includes('金錢與價值感')
+  && copiedFullPrompt.includes('感情與重要關係')
+  && copiedFullPrompt.includes('身心使用方式')
+  && copiedFullPrompt.includes('只選最相關的一至三類')
+  && copiedFullPrompt.includes('選出三個最重要的分類詳寫')
+  && copiedFullPrompt.includes('其餘分類各用一個短段落')
+  && copiedFullPrompt.includes('所有行動建議集中在「你現在走到哪裡」')
+  && copiedFullPrompt.includes('這部分訊號較少')
+  && copiedFullPrompt.includes('同一核心結論只能在一類完整說明')
+  && copiedFullPrompt.includes('1200至1600個中文字'));
 check('完整 AI 提示附藏干十神與完整神煞並限制輔助用法',
-  copiedTopicPrompt.includes('◆ 藏干(天干-十神)')
-  && /藏干\(天干-十神\)[\s\S]*[甲乙丙丁戊己庚辛壬癸]-(?:比肩|劫財|食神|傷官|偏財|正財|七殺|正官|偏印|正印)/.test(copiedTopicPrompt)
-  && copiedTopicPrompt.includes('藏干則補充未直接顯露')
-  && copiedTopicPrompt.includes('神煞只作輔助')
-  && copiedTopicPrompt.includes('最多採用一至兩項')
-  && copiedTopicPrompt.includes('不得保證一定出現'));
+  copiedFullPrompt.includes('◆ 藏干(天干-十神)')
+  && /藏干\(天干-十神\)[\s\S]*[甲乙丙丁戊己庚辛壬癸]-(?:比肩|劫財|食神|傷官|偏財|正財|七殺|正官|偏印|正印)/.test(copiedFullPrompt)
+  && copiedFullPrompt.includes('藏干則補充未直接顯露')
+  && copiedFullPrompt.includes('神煞只作輔助')
+  && copiedFullPrompt.includes('最多採用一至兩項')
+  && copiedFullPrompt.includes('不得保證一定出現'));
 check('完整 AI 提示區分時間層級、禁用必然語氣並要求具體建議',
-  copiedTopicPrompt.includes('本命只寫')
-  && copiedTopicPrompt.includes('大限只寫')
-  && copiedTopicPrompt.includes('流年只寫')
-  && copiedTopicPrompt.includes('注定、一定、必然、肯定會發生')
-  && copiedTopicPrompt.includes('建議必須回答做什麼、何時做、如何做')
-  && copiedTopicPrompt.includes('不得只說相信自己'));
+  copiedFullPrompt.includes('本命只寫')
+  && copiedFullPrompt.includes('大限只寫')
+  && copiedFullPrompt.includes('流年只寫')
+  && copiedFullPrompt.includes('注定、一定、必然、肯定會發生')
+  && copiedFullPrompt.includes('建議必須回答做什麼、何時做、如何做')
+  && copiedFullPrompt.includes('不得只說相信自己'));
 check('完整 AI 提示區分特質來源並執行輸出前自檢',
-  copiedTopicPrompt.includes('天生傾向、後天練出的能力、因環境要求形成的生存策略')
-  && copiedTopicPrompt.includes('不要把過度察言觀色')
-  && copiedTopicPrompt.includes('【輸出前自檢】')
-  && copiedTopicPrompt.includes('文末依據是否不超過三句'));
+  copiedFullPrompt.includes('天生傾向、後天練出的能力、因環境要求形成的生存策略')
+  && copiedFullPrompt.includes('不要把過度察言觀色')
+  && copiedFullPrompt.includes('【輸出前自檢】')
+  && copiedFullPrompt.includes('文末依據是否不超過三句'));
+let copiedSpecialPrompt = '';
+Object.defineProperty(globalThis.navigator, 'clipboard', {
+  configurable: true,
+  value: { writeText: async (text) => { copiedSpecialPrompt = text; } },
+});
+if (w.navigator !== globalThis.navigator) {
+  Object.defineProperty(w.navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async (text) => { copiedSpecialPrompt = text; } },
+  });
+}
+$('#copy-palace-prompt').click();
+await new Promise((r) => setTimeout(r, 0));
+check('單宮提示只附本宮與三方四正必要資料',
+  copiedSpecialPrompt.includes('與三方四正必要資料')
+  && copiedSpecialPrompt.includes('約500至800個中文字')
+  && !copiedSpecialPrompt.includes('◆ 十二宮列表')
+  && !copiedSpecialPrompt.includes('【內部判讀】'));
 
 // --- 解讀報告(白話摘要分析卡片) ---
 await nav('report');
@@ -319,6 +371,13 @@ await settle();
 check('合盤結果含契合指數', $('#view-synastry').textContent.includes('契合指數'));
 check('合盤結果八段', $$('#view-synastry .acc-item').length === 8);
 check('合盤 AI 提示詞按鈕', !!$('#copy-syn-prompt'));
+$('#copy-syn-prompt').click();
+await settle();
+check('合盤提示維持雙人必要摘要並限制篇幅',
+  copiedSpecialPrompt.includes('約800至1200個中文字')
+  && copiedSpecialPrompt.includes('不要擴寫個別完整人生報告')
+  && !copiedSpecialPrompt.includes('◆ 十二宮列表')
+  && !copiedSpecialPrompt.includes('【內部判讀】'));
 check('合盤時辰提供「不確定」選項', $$('#syn-hour option').some((o) => o.value === 'unknown'));
 $('#syn-hour').value = 'unknown'; $('#syn-hour').dispatchEvent(new w.Event('input'));
 $('#syn-run').click();
@@ -423,6 +482,13 @@ check('姓名五行×紫微八字卡片出現', $('#view-naming').textContent.in
 check('顯示喜用神判斷結果', /補益喜用神|偏向忌神|喜忌並存|中性/.test($('#view-naming').textContent));
 check('顯示紫微角度段落', $('#view-naming').textContent.includes('紫微角度'));
 check('複製AI提示詞按鈕出現', !!$('#copy-naming-prompt'));
+$('#copy-naming-prompt').click();
+await settle();
+check('姓名學提示聚焦三類且限制篇幅',
+  copiedSpecialPrompt.includes('名字帶來的氣質')
+  && copiedSpecialPrompt.includes('約600至900個中文字')
+  && copiedSpecialPrompt.includes('不要從姓名延伸預測完整人生階段')
+  && !copiedSpecialPrompt.includes('人生各階段運勢概覽'));
 
 $('#naming-surname').value = '喵';
 $('#naming-surname').dispatchEvent(new w.Event('input'));
@@ -448,11 +514,26 @@ check('目前工具顯示用途、所需資料與三步驟', !!$('.meta-intro') 
 check('未來七日運勢 7 張', $$('.daily-card').length === 7);
 check('每日週運顯示目前大限脈絡', $('#view-metaphysics').textContent.includes('目前大限'));
 check('每日週運有專用 AI 解讀', !!$('#ai-daily'));
+$('#ai-daily').click();
+await new Promise((r) => setTimeout(r, 0));
+check('每日週運提示只附七日必要資料並限制篇幅',
+  copiedSpecialPrompt.includes('◆ 未來七日逐日干支與十神')
+  && copiedSpecialPrompt.includes('約600至900個中文字')
+  && !copiedSpecialPrompt.includes('◆ 十二宮列表')
+  && !copiedSpecialPrompt.includes('【內部判讀】'));
 check('七個進階工具入口', $$('#view-metaphysics [data-meta]').length === 7);
 $$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'timeline').click();
 check('生涯時間軸含十個大限', $$('.timeline-block').length === 10);
 check('生涯時間軸每個大限顯示四化', $$('.timeline-block').every((b) => b.textContent.includes('大限四化')));
 check('生涯時間軸有專用 AI 解讀', !!$('#ai-timeline'));
+$('#ai-timeline').click();
+await new Promise((r) => setTimeout(r, 0));
+check('時間軸提示聚焦大限大運與真實事件',
+  copiedSpecialPrompt.includes('◆ 十個大限與已記錄事件')
+  && copiedSpecialPrompt.includes('約1000至1500個中文字')
+  && copiedSpecialPrompt.includes('有事件的階段優先詳寫')
+  && !copiedSpecialPrompt.includes('◆ 十二宮列表')
+  && !copiedSpecialPrompt.includes('【內部判讀】'));
 check('生涯時間軸每個區塊有手機版展開按鈕', $$('.tl-toggle').length === 10);
 $$('.tl-toggle')[0].click();
 check('點擊展開按鈕會標記該區塊為 expanded', $$('.timeline-block')[0].classList.contains('expanded'));
@@ -462,27 +543,47 @@ await settle();
 check('時辰驗盤產生十二候選', $$('#rectify-result tbody tr').length === 12);
 check('時辰驗盤含五行局與命宮四化欄位', $('#rectify-result thead').textContent.includes('五行局') && $('#rectify-result thead').textContent.includes('四化'));
 check('時辰驗盤有專用 AI 協助', !!$('#ai-rectify'));
+$('#ai-rectify').click();
+await new Promise((r) => setTimeout(r, 0));
+check('時辰驗盤共用短版規則不擴寫人生報告',
+  copiedSpecialPrompt.includes('約500至800個中文字')
+  && copiedSpecialPrompt.includes('不擴寫無關人生分類'));
 $$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'dates').click();
 $('#date-run').click();
 await settle();
 check('個人擇日產生候選與 AI 比較', $$('.date-results article').length > 0 && !!$('#ai-dates'));
 check('個人擇日提及喜用神', $('#view-metaphysics').textContent.includes('喜用神'));
+$('#ai-dates').click();
+await new Promise((r) => setTimeout(r, 0));
+check('擇日提示使用短版問題導向規則', copiedSpecialPrompt.includes('約500至800個中文字') && copiedSpecialPrompt.includes('下一步'));
 $$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'iching').click();
 $('#iching-question').value = '測試問題';
 $('#iching-cast').click();
 check('易經起卦產生六爻', $$('#iching-result .hex-line').length === 6);
 check('易經結果含白話重點與 AI 解讀', !!$('#iching-result .plain-summary') && !!$('#ai-iching'));
+$('#ai-iching').click();
+await new Promise((r) => setTimeout(r, 0));
+check('易經提示使用短版問題導向規則', copiedSpecialPrompt.includes('約500至800個中文字') && copiedSpecialPrompt.includes('具體情境'));
 $$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'meihua').click();
 $('#meihua-run').click();
 check('梅花易數產生本卦與變卦', $('#meihua-result').textContent.includes('變卦'));
 check('梅花易數含體用斷卦', !!$('#meihua-result .tiyong-card'));
 check('梅花易數含白話重點與 AI 解讀', !!$('#meihua-result .plain-summary') && !!$('#ai-meihua'));
+$('#ai-meihua').click();
+await new Promise((r) => setTimeout(r, 0));
+check('梅花提示使用短版問題導向規則', copiedSpecialPrompt.includes('約500至800個中文字') && copiedSpecialPrompt.includes('不逐項教學術語'));
 $$('#view-metaphysics [data-meta]').find((b) => b.dataset.meta === 'qimen').click();
 $('#qimen-run').click();
 await settle();
 check('奇門結構盤顯示九宮', $$('.qimen-palace').length === 9);
 check('奇門地盤三奇六儀至少排入一宮', $$('.qimen-yiqi').some((el) => el.textContent.trim() && el.textContent.trim() !== '—'));
 check('奇門含白話重點與 AI 解讀', !!$('#qimen-result .plain-summary') && !!$('#ai-qimen'));
+$('#ai-qimen').click();
+await new Promise((r) => setTimeout(r, 0));
+check('奇門提示保留資料限制並使用短版規則',
+  copiedSpecialPrompt.includes('約500至800個中文字')
+  && copiedSpecialPrompt.includes('不是本次天盤')
+  && copiedSpecialPrompt.includes('資料不足或門派有差異'));
 
 // --- 迴歸測試:大限與流年同宮時(annual 合併為 null)不可讓整張盤崩潰、側邊欄卡死 ---
 // 1980/8/12 戌時(19-21)出生、預設性別(女)在本次修正前會在 renderComprehensive() 拋出

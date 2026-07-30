@@ -1217,7 +1217,9 @@ function renderTopics() {
       const question = topic.questions[index];
       const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCard);
       await ensureModules('formatAi');
-      const chartPacket = mod.formatAi.formatChartForAI({ input, ziWei, baZi, zwLuck, bzLuck, elements });
+      const chartPacket = mod.formatAi.formatChartForAI({
+        input, ziWei, baZi, zwLuck, bzLuck, elements, includeInstruction: false,
+      });
       const text = [
         `【主題分析：${topic.label}】`,
         `使用者問題：${question}`,
@@ -1226,7 +1228,8 @@ function renderTopics() {
         '請先直接回答上面的單一問題，不要先輸出完整命盤總論。',
         '只使用下方資料包裡實際存在的命盤資料，不重新排盤、不補造星曜、十神或人生事件。',
         '請把紫微與八字交叉比對：一致處作為較明顯的傾向，分歧處分開說明，不要硬湊。',
-        '輸出順序：一句結論 → 2至4個生活中的可能表現 → 需要留意的盲點 → 2個具體可行建議 → 簡短專業依據。',
+        '請用約500至800個中文字回答：一句結論 → 2至3個具體生活表現 → 1個盲點 → 2個可執行建議 → 最多2句命理依據。',
+        '不要展開其他人生分類，不要逐宮、逐星或逐十神解說；抽象形容詞後必須接具體行為與出現情境。',
         '不要預測具體對象、疾病、死亡、必然事件或精確發生日期。只回答資料能合理支持的部分；沒有依據的內容直接省略，不要輸出「命盤無法判定」等限制聲明。',
         '',
         '--- 完整命盤資料包 ---',
@@ -2032,7 +2035,7 @@ function renderNaming() {
   if (hasInput) {
     resultHtml = `${renderWuGeCard(mod.naming.computeWuGe(surname, given))}${renderNameElementCard(fullName)}`;
     if (state.data) {
-      aiBtnHtml = `<button type="button" class="mini-btn" id="copy-naming-prompt" style="margin-top:12px">複製姓名學 AI 提示詞(生成賦予特質/天賦/隱患/事業運勢/人生階段運勢/生肖速配長文解讀)</button>`;
+      aiBtnHtml = `<button type="button" class="mini-btn" id="copy-naming-prompt" style="margin-top:12px">複製姓名學 AI 提示詞</button>`;
     }
   }
 
@@ -2092,7 +2095,7 @@ function bindAiPrompt(id, prompt) {
   });
 }
 function aiPromptBase(tool, result, question = '') {
-  return `你是一位熟悉傳統術數、但不採宿命論的繁體中文解讀者。\n工具：${tool}\n${question ? `使用者問題：${question}\n` : ''}計算結果：\n${result}\n\n請依序回答：\n1. 先用三句白話摘要重點。\n2. 說明每個術語代表什麼，以及推論如何從結果而來。\n3. 分成「可運用的方向」「需要留意」「一個可立即執行的行動」。\n4. 明確區分傳統象徵、推測與已知事實。\n5. 不預言死亡、疾病、災難或保證財運；醫療、法律、財務問題應建議尋求專業意見。\n6. 若資料不足或規則存在門派差異，直接說明限制。`;
+  return `你是一位熟悉傳統術數、但不採宿命論的繁體中文解讀者。\n工具：${tool}\n${question ? `使用者問題：${question}\n` : ''}已計算結果：\n${result}\n\n請只回答本次問題，控制在約500至800個中文字：\n1. 先用1至2句白話直接回答，再說明2至3個最重要的判斷。\n2. 每個判斷都要翻譯成具體情境、可觀察行為或候選方案的實際差異，不逐項教學術語。\n3. 最後列出「可運用」「要留意」「下一步」各一項，做法必須可執行。\n4. 已知事實、傳統象徵與推測要分清楚；資料不足或門派有差異時直接說明。\n5. 不擴寫無關人生分類，不預言死亡、疾病、災難或保證結果；醫療、法律、財務問題應回到專業意見。`;
 }
 
 // 「今天適合先看」的預設 3 個工具:不用額外輸入資料就能立刻用,對第一次來的人負擔最小;
