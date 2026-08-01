@@ -22,6 +22,7 @@ import { composeBaZiReading } from './compose-bazi.js';
 import { computeYongShen, FAVOR_IMPACT, AVOID_IMPACT } from './compose-yongshen.js';
 import { composeZiWeiLuck, composeBaZiLuck, categoryLabel } from './compose-luck.js';
 import { palaceMeanings } from '../data/palace-meanings.js';
+import { inspectCardQuality } from './text-quality.js';
 
 const STAR_PROFILES = starDb['主星白話性格'];
 const STAR_DOMAIN = starDb['主星白話領域延伸'];
@@ -51,6 +52,57 @@ const DOMAIN_REFLECTION = {
 // 但開頭先點出這個宮位實際在看的主題(沿用 palace-meanings.js 的短句),避免使用者誤以為是在講命宮個性。
 const PALACE_DOMAIN_MAP = { 財帛宮: 'money', 官祿宮: 'career', 夫妻宮: 'relationship', 疾厄宮: 'health' };
 
+const PALACE_HEADING = {
+  命宮: '做決定時的基本反應', 財帛宮: '面對金錢與資源時', 官祿宮: '進入工作情境之後',
+  夫妻宮: '關係靠近之後的反應', 疾厄宮: '壓力累積時的身心反應', 遷移宮: '進入陌生環境時',
+  僕役宮: '團隊分工不清楚時', 父母宮: '面對長輩與規則時', 田宅宮: '建立生活基地時',
+  福德宮: '獨處與放鬆時', 子女宮: '照顧、教學與創作時', 兄弟宮: '與同輩並肩做事時',
+};
+
+const TRANSFORMATION_TRIGGER = {
+  祿: '得到資源、善意回應或合作機會時，這項特質更容易帶來順手感',
+  權: '需要負責、主導或做決定時，這項特質會明顯變強',
+  科: '需要說明、被評量或公開呈現時，這項能力較容易被看見',
+  忌: '遇到回應模糊、進度受阻或壓力累積時，這個模式容易反覆出現',
+};
+
+const BRIGHTNESS_DIRECT = new Set(['廟', '旺', '得']);
+
+function transformationOf(star) {
+  return String(star?.transformation ?? '').replace(/^化/, '');
+}
+
+function differentiatedContext(stars, primaryProfile) {
+  const lines = [];
+  const transformed = stars.filter((star) => TRANSFORMATION_TRIGGER[transformationOf(star)]);
+  for (const star of transformed.slice(0, 2)) {
+    lines.push(`${TRANSFORMATION_TRIGGER[transformationOf(star)]}。`);
+  }
+  const lead = stars[0];
+  if (lead?.brightness) {
+    lines.push(BRIGHTNESS_DIRECT.has(lead.brightness)
+      ? `平常就容易看見這種${primaryProfile.tag}反應，不必等到壓力很大才會出現。`
+      : `環境熟悉、規則清楚時，你比較能用好這項特質；遇到評價壓力或資訊不足，反應可能轉為保守。`);
+  }
+  return lines;
+}
+
+function palaceEvidence(palaceName, stars, borrowed, opposite, ziWei) {
+  const starNames = stars.map((star) => star.name).join('、') || '無主星';
+  const details = stars.map((star) => `${star.name}${star.brightness ? `亮度${star.brightness}` : ''}${star.transformation ? `、${star.transformation}` : ''}`).join('；');
+  const triangle = trianglePalacesOf(ziWei, palaceName).map((item) => `${item.name}見${item.stars}`).join('、');
+  return [
+    `${palaceName}${borrowed ? `借對宮${opposite?.name ?? ''}` : ''}以${starNames}為主要判斷`,
+    details || `${palaceName}目前沒有可用的主星細節`,
+    `三方四正連到${triangle || '目前無可用資料'}`,
+  ];
+}
+
+function finalizeCard(card) {
+  card.qualityIssues = inspectCardQuality(card);
+  return card;
+}
+
 function paletteModeOf(palaceName) {
   if (palaceName === '命宮') return { mode: 'personality', domain: null };
   const domain = PALACE_DOMAIN_MAP[palaceName];
@@ -64,7 +116,7 @@ const YONGSHEN_ADVICE_FAVOR = {
   印: '遇到需要學習或有貴人相助的機會,可以多把握,向前輩請教會特別有幫助',
   比劫: '重要的事情上,找信任的夥伴一起合作,會比單打獨鬥更順',
   食傷: '把想法說出來、做出來,會比悶著不表達更容易帶來機會',
-  財: '把精力放在能落地、能看到具體成果的事情上,會比較有收穫',
+  財: '把精力放在能做出具體成果的事情上,會比較有收穫',
   官殺: '適度接受挑戰與規範,反而能幫助自己成長得更快',
 };
 const YONGSHEN_ADVICE_AVOID = {
@@ -127,7 +179,44 @@ function borrowedOpener(palaceName, label) {
   if (palaceName === '命宮') {
     return '你的個性不是天生固定的類型,而是會隨著環境、經歷與後天選擇逐漸成形。';
   }
-  return `${label}方面沒有專屬的固定主星坐鎮,這代表這個領域的樣貌比較不是天生註定,而是更容易隨環境、經驗與你的選擇而變化,以下參考對宮呼應的星曜傾向。`;
+  return `${label}方面沒有專屬主星，會隨環境、經驗與你的選擇改變。以下參考對宮星曜呈現的傾向。`;
+}
+
+function triangleContext(ziWei, palaceName) {
+  const tags = trianglePalacesOf(ziWei, palaceName)
+    .flatMap((item) => item.stars.split('、'))
+    .map((name) => STAR_PROFILES[name]?.tag)
+    .filter(Boolean);
+  const distinct = [...new Set(tags)].slice(0, 2);
+  if (!distinct.length) return '';
+  return `遇到不同人或場合時，你也可能出現${distinct.join('與')}的反應。`;
+}
+
+function differentiatedSummary(base, stars, ziWei, palaceName, borrowed) {
+  const tags = trianglePalacesOf(ziWei, palaceName)
+    .flatMap((item) => item.stars.split('、'))
+    .map((name) => STAR_PROFILES[name]?.tag)
+    .filter(Boolean);
+  const distinct = [...new Set(tags)].slice(0, 2);
+  const lead = stars[0];
+  const secondary = stars[1];
+  const transform = TRANSFORMATION_TRIGGER[transformationOf(lead)];
+  const context = transform
+    ? transform.split('，')[0]
+    : secondary
+      ? `同宮的${STAR_PROFILES[secondary.name]?.tag ?? secondary.name}反應也會加入`
+      : BRIGHTNESS_DIRECT.has(lead?.brightness)
+        ? '這個反應平常就容易被看見'
+        : '規則清楚、環境熟悉時，這個反應更明顯';
+  const cleanBase = String(base ?? '').replace(/[，,。；;\s]+$/, '');
+  const related = distinct.length ? `。你也可能同時出現${distinct.join('與')}的反應` : '';
+  return `${context}：${cleanBase}${borrowed ? '。這部分會隨環境改變' : ''}${related}。`;
+}
+
+function contextualAdvice(advice, palaceName) {
+  const trigger = PALACE_HEADING[palaceName];
+  if (!trigger) return advice;
+  return `${trigger}，${advice.replace(/^[，,。\s]+/, '')}`;
 }
 
 function mergeExtra(target, extraSrc, { lifeMax = 4, challengeMax = 3, adviceMax = 3 } = {}) {
@@ -138,11 +227,10 @@ function mergeExtra(target, extraSrc, { lifeMax = 4, challengeMax = 3, adviceMax
   return target;
 }
 
-function buildDomainExplanation(primary, tag, domainSrc) {
-  const p1 = `延續${tag}的傾向,在這件事上,${domainSrc.summary}`;
+function buildDomainExplanation(primary, tag, domainSrc, domain) {
+  const p1 = `${domainSrc.summary}這是${tag}傾向處理${DOMAIN_LABEL[domain] ?? '這類事情'}時的具體表現。`;
   const c0 = domainSrc.challenges?.[0];
-  const p2 = c0 ? `不過,${c0},這是比較容易出現、也值得留意的地方。` : '這個部分整體來說相對平穩,沒有太特別需要留意之處。';
-  return [p1, p2];
+  return c0 ? [p1, `${c0}。`] : [p1];
 }
 
 // 「一般化橋接」explanation:給沒有專屬領域內容庫的 7 個宮位用。先點出這個宮位實際在看什麼主題
@@ -172,14 +260,15 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain: forced
 
   if (names.length === 0) {
     // 兩端都沒有主星資料可對應(極少數狀況),仍輸出誠實的 7 段式卡片,不硬套個性描述
-    return {
+    return finalizeCard({
       key, title, letter, color, borrowed,
       summary: `${palaceName}目前沒有足夠的主星資料可以對應到白話性格描述。`,
       explanation: ['這個宮位在你的命盤中屬於比較特殊的組合,沒有主星或可借的對宮星曜可以對應。', '建議直接參考下方「專業命理依據」中的完整宮位資料,或綜合命盤其他宮位交叉判斷。'],
       lifeExamples: [], challenges: [], advice: [],
       reflection: '這個領域對你來說,平常比較容易透過哪些具體的事來感受到?',
+      evidence: palaceEvidence(palaceName, stars, borrowed, opposite, ziWei),
       technical: technicalBlock({ chartData, judgment: studyReading.text, plainMapping: '此宮位無主星資料可對應白話摘要。', warnings: '完整判斷請綜合命盤其他宮位、三方四正與大限流年。' }),
-    };
+    });
   }
 
   const primary = names[0];
@@ -190,7 +279,7 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain: forced
 
   const card = clone({
     summary: isGeneric ? `${palaceLabel}:${src.summary}` : src.summary,
-    explanation: isPersonality ? src.explanation : isGeneric ? buildGenericExplanation(primary, palaceLabel) : buildDomainExplanation(primary, STAR_PROFILES[primary].tag, src),
+    explanation: isPersonality ? src.explanation : isGeneric ? buildGenericExplanation(primary, palaceLabel) : buildDomainExplanation(primary, STAR_PROFILES[primary].tag, src, domain),
     lifeExamples: src.lifeExamples ?? [],
     challenges: src.challenges ?? [],
     advice: src.advice ?? [],
@@ -198,26 +287,35 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain: forced
 
   if (secondary) mergeExtra(card, contentFor(mode, secondary, domain));
 
+  if (secondary) {
+    const secondarySrc = contentFor(mode, secondary, domain) ?? STAR_PROFILES[secondary];
+    if (secondarySrc?.summary) card.explanation.push(`同宮的另一組${STAR_PROFILES[secondary]?.tag ?? ''}特質補上不同反應：${secondarySrc.summary}`);
+  }
+  card.explanation.push(...differentiatedContext(stars, STAR_PROFILES[primary]));
+  const triadContext = triangleContext(ziWei, palaceName);
+  if (triadContext) card.explanation.push(triadContext);
+
   if (borrowed) card.explanation = [borrowedOpener(palaceName, palaceLabel), ...card.explanation];
 
   const reflection = mode === 'domain' ? DOMAIN_REFLECTION[domain] : STAR_PROFILES[primary].reflection;
   const tagLabel = names.map((n) => `${n}(${STAR_PROFILES[n]?.tag ?? ''})`).join('、');
 
-  return {
-    key, title, letter, color, borrowed,
-    summary: card.summary,
+  return finalizeCard({
+    key, title: `${PALACE_HEADING[palaceName] ?? title}・${STAR_PROFILES[primary].tag}`, letter, color, borrowed,
+    summary: differentiatedSummary(card.summary, stars, ziWei, palaceName, borrowed),
     explanation: card.explanation,
     lifeExamples: cap(card.lifeExamples, 4),
     challenges: cap(card.challenges, 3),
-    advice: cap(card.advice, 3),
+    advice: cap(card.advice, 3).map((item) => contextualAdvice(item, palaceName)),
     reflection,
+    evidence: palaceEvidence(palaceName, stars, borrowed, opposite, ziWei),
     technical: technicalBlock({
       chartData,
       judgment: studyReading.text,
       plainMapping: `以上專業判斷,對應到白話摘要中的:${tagLabel}。`,
       warnings: '此處僅呈現單一宮位的基礎判斷,完整解讀仍需綜合三方四正、四化飛星與大限流年等因素,本區塊為輔助參考、非最終定論。',
     }),
-  };
+  });
 }
 
 /**
@@ -260,7 +358,7 @@ function ziweiTimeTopic(ziWei, zwLuck) {
   const chartData = enriched.map((p) => `${p.scope}:${p.range},落於「${p.palaceName}」宮`).join('；');
   const judgment = [studyLuck.decadal?.text, studyLuck.annual?.text].filter(Boolean).join('\n\n');
 
-  return {
+  return finalizeCard({
     key: 'xian', title: '大限・流年重點', letter: '限', color: 'var(--gold)',
     summary,
     explanation,
@@ -268,13 +366,18 @@ function ziweiTimeTopic(ziWei, zwLuck) {
     challenges: cap(base.challenges ?? [], 2),
     advice: cap(base.advice ?? [], 2),
     reflection: '這段時間,你有沒有感覺到上面提到的傾向比平常更明顯一些?',
+    evidence: [
+      ...enriched.map((part) => `${part.scope}${part.range}落在${part.palaceName}`),
+      ...enriched.map((part) => `${part.palaceName}主星:${part.primary || '空宮'}`),
+      `專業限運判斷:${judgment || '目前資料不足'}`,
+    ].slice(0, 3),
     technical: technicalBlock({
       chartData,
       judgment,
       plainMapping: lead.profile ? `以上專業判斷,對應到白話摘要中的:${lead.primary}(${lead.profile.tag})。` : '此區間之判斷請參考完整專業依據。',
       warnings: '大限與流年的完整判斷需綜合命宮三方四正、四化飛星與其他宮位交叉參看,此處僅呈現目前階段的重點提示,並非唯一結論。',
     }),
-  };
+  });
 }
 
 // ---------- 八字:日主分析 ----------
@@ -287,7 +390,7 @@ function baziZhuTopic(baZi) {
 
   const explanation = [...profile.explanation, `整體來看,目前的狀態比較偏向「${ys.strength}」:${STRENGTH_PLAIN[ys.strength]}。`];
 
-  return {
+  return finalizeCard({
     key: 'zhu', title: '你的先天底色', letter: '主', color: 'var(--gold)',
     summary: profile.summary,
     explanation,
@@ -295,13 +398,14 @@ function baziZhuTopic(baZi) {
     challenges: cap(profile.challenges, 2),
     advice: cap(profile.advice, 2),
     reflection: profile.reflection,
+    evidence: [`日主為${dayStem}${ys.dayEl}`, `生於${monthBranch}月`, `扶抑判定為${ys.strength}`],
     technical: technicalBlock({
       chartData: `日主:${dayStem}(${ys.dayEl}),生於${monthBranch}月;幫身${ys.helpScore}分、抑身${ys.opposeScore}分(月令加權×2)。`,
       judgment: `依扶抑法判定為「${ys.strength}」(各派系取用方式不一,結果僅供參考)。`,
       plainMapping: `以上專業判斷,對應到白話摘要中的:${ys.dayEl}(${profile.tag})。`,
       warnings: '身強身弱的完整判斷需綜合四柱干支、月令與其他刑沖合會等因素,不能只看單一條件。',
     }),
-  };
+  });
 }
 
 // ---------- 八字:五行喜忌(命局五行分布偏多/偏弱) ----------
@@ -320,7 +424,7 @@ function baziXijiTopic(baZi, elements) {
   const chartData = Object.entries(elements.classification ?? {})
     .map(([el, c]) => `${el}:${c.count}顆(${c.level})`).join('、');
 
-  return {
+  return finalizeCard({
     key: 'xiji', title: '你身上偏多與偏少的特質', letter: '喜', color: 'var(--red)',
     summary: domProfile?.summary ?? explanation[0],
     explanation,
@@ -328,13 +432,18 @@ function baziXijiTopic(baZi, elements) {
     challenges: cap([...(domProfile?.challenges ?? []), ...(weakProfile?.challenges ?? [])], 3),
     advice: cap([...(domProfile?.advice ?? []), ...(weakProfile?.advice ?? [])], 3),
     reflection: '你有沒有發現,自己在剛剛提到的這些面向,特別容易出現這種傾向?',
+    evidence: [
+      `五行偏多:${domEl ?? '無明顯項目'}`,
+      `五行偏少:${weakEl ?? '無明顯項目'}`,
+      chartData || '五行分布資料不足',
+    ],
     technical: technicalBlock({
       chartData,
       judgment: elements.text,
       plainMapping: `以上專業判斷,對應到白話摘要中的:${[domEl, weakEl].filter(Boolean).join('、')}。`,
       warnings: '五行數量僅是分布上的參考,實際的喜用神判斷需綜合日主強弱、月令與扶抑法等因素,不能只看數量多寡直接推論喜用神。',
     }),
-  };
+  });
 }
 
 // ---------- 八字:喜用神與忌神(卡片標題對外顯示為「對你有幫助與要避開的方向」——
@@ -363,17 +472,22 @@ function baziYongshenTopic(baZi) {
 
   const chartData = `喜用神:${fav.map((f) => `${f.element}(${f.role})`).join('、') || '無'};忌神:${avoid.map((a) => `${a.element}(${a.role})`).join('、') || '無'}。`;
 
-  return {
+  return finalizeCard({
     key: 'yongshen', title: '對你有幫助與要避開的方向', letter: '用', color: 'var(--gold)',
     summary, explanation, lifeExamples, challenges, advice,
     reflection: '你有沒有發現,自己在某些特定的人事物出現時,會特別順或特別卡?',
+    evidence: [
+      `扶抑判定:${ys.strength}`,
+      `可提供支持的方向:${fav.map((f) => `${f.element}${f.role}`).join('、') || '無明顯資料'}`,
+      `容易增加負荷的方向:${avoid.map((a) => `${a.element}${a.role}`).join('、') || '無明顯資料'}`,
+    ],
     technical: technicalBlock({
       chartData,
       judgment: `日主${ys.dayEl},判為「${ys.strength}」,依扶抑法取用(各派系取用方式不一,此處採最通行的扶抑法,結果僅供參考)。`,
       plainMapping: '以上專業判斷,對應到白話摘要中列出的喜用神/忌神方向。',
       warnings: '喜用神的判定會因流派(扶抑/調候/通關等)而有不同結論,此處僅呈現其中一種常用方法的結果。',
     }),
-  };
+  });
 }
 
 // ---------- 八字:十神配置 ----------
@@ -387,21 +501,22 @@ function baziShishenTopic(baZi) {
   const primary = sorted[0]?.[0];
 
   if (!primary) {
-    return {
+    return finalizeCard({
       key: 'shishen', title: '你做事與待人的方式', letter: '神', color: 'var(--gold)',
       summary: '目前命盤的十神配置資料不足,無法對應白話描述。',
       explanation: ['請直接參考下方專業命理依據中的完整資料。'],
       lifeExamples: [], challenges: [], advice: [],
       reflection: '',
+      evidence: ['十神配置資料不足', '四柱未形成可用的主要類型', '只保留專業資料供人工判讀'],
       technical: technicalBlock({ chartData: '無', judgment: studyReading.text, plainMapping: '無對應資料。', warnings: '' }),
-    };
+    });
   }
 
   const profile = clone(TEN_GOD_PROFILES[primary]);
   const pillars = reading.entries.filter((e) => e.gods.includes(primary)).map((e) => e.pillar);
   const explanation = [...profile.explanation, `這個特質在你的${pillars.join('、')}都有出現,是命盤中比較鮮明的一組配置。`];
 
-  return {
+  return finalizeCard({
     key: 'shishen', title: '你做事與待人的方式', letter: '神', color: 'var(--gold)',
     summary: profile.summary,
     explanation,
@@ -409,13 +524,14 @@ function baziShishenTopic(baZi) {
     challenges: cap(profile.challenges, 2),
     advice: cap(profile.advice, 2),
     reflection: profile.reflection,
+    evidence: [`主要十神:${primary}`, `出現位置:${pillars.join('、')}`, `共出現${counts[primary]}次`],
     technical: technicalBlock({
       chartData: reading.entries.map((e) => `${e.pillar}:${e.gods.join('、')}`).join('；'),
       judgment: studyReading.text,
       plainMapping: `以上專業判斷,對應到白話摘要中的:${primary}(出現於${pillars.join('、')})。`,
       warnings: '完整的十神判斷需綜合四柱組合、藏干與大運流年交互影響,此處僅呈現出現頻率最高的一組配置。',
     }),
-  };
+  });
 }
 
 // ---------- 八字:大運概況(時間軸主題,沿用既有大運/流年類別疊加,不另建內容庫) ----------
@@ -434,7 +550,7 @@ function baziTimeTopic(baZi, bzLuck) {
   const summary = `${scope}走「${categoryLabel(info.category)}」,這段期間這方面的特質會比平常更明顯。`;
   const explanation = [categoryText, profile?.summary ?? ''].filter(Boolean);
 
-  return {
+  return finalizeCard({
     key: 'dayun', title: '目前這十年的走向', letter: '運', color: 'var(--red)',
     summary,
     explanation,
@@ -442,13 +558,18 @@ function baziTimeTopic(baZi, bzLuck) {
     challenges: cap(profile?.challenges ?? [], 2),
     advice: cap(profile?.advice ?? [], 2),
     reflection: profile?.reflection ?? '這段時間,你有沒有感覺到上面提到的傾向比平常更明顯一些?',
+    evidence: [
+      `${scope}:${info.ganZhi}`,
+      `十神:${info.god}`,
+      `運勢類別:${info.category}`,
+    ],
     technical: technicalBlock({
       chartData: `${info.ganZhi}:${info.god},屬於${info.category}${info.ageRange ? `(${info.ageRange}歲)` : ''}${info.year ? `(${info.year}年)` : ''}。`,
       judgment: studyText,
       plainMapping: `以上專業判斷,對應到白話摘要中的:${info.god}(${info.category})。`,
       warnings: '大運與流年的完整判斷需綜合日主強弱、喜用神與其他刑沖合會因素,此處僅呈現當前階段的十神類別重點。',
     }),
-  };
+  });
 }
 
 // ---------- 對外主入口 ----------

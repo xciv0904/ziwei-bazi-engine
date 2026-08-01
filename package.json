@@ -8,9 +8,10 @@
     "build": "node scripts/build-wiki.mjs && vite build",
     "preview": "vite preview",
     "test": "node test.js && node test-divination.mjs",
-    "smoke": "node --import ./css-hook.mjs smoke.mjs && npm run readability",
+    "smoke": "node --import ./css-hook.mjs smoke.mjs && npm run readability && npm run text-quality",
     "wiki": "node scripts/build-wiki.mjs",
-    "readability": "node --import ./css-hook.mjs readability.mjs"
+    "readability": "node --import ./css-hook.mjs readability.mjs",
+    "text-quality": "node tests/ziwei-text-quality.mjs"
   },
   "devDependencies": {
     "happy-dom": "^20.10.6",

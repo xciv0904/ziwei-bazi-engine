@@ -177,21 +177,17 @@ check('每個主題至少顯示 6 個具體問題', (() => {
   });
 })());
 $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'love').click();
-// 主題分析每題要有兩段:主題通用方向 + 依命盤實際排出的依據。
-// 兩段必須分開標示——通用方向全站只有兩種寫法,不能講得像是替這個人算出來的。
-// 同時維持「主題分析頁零術語」的規則(五行/日主/十神等字樣不得外洩到這一頁)。
-// 主題分析每題要有「通用方向」,而「你的命盤依據」與免責說明整個主題只出現一次
-// ——這兩段對六題來說內容完全相同,每題各印一次等於同一頁重複 30 行,是很明顯的閱讀負擔。
-// 同時維持「主題分析頁零術語」的規則(五行/日主/十神等字樣不得外洩到這一頁)。
-check('每題有一般方向,命盤依據與免責說明整頁只出現一次', (() => {
+// 主題回答必須由本次命盤投影；只渲染目前展開的一題，避免隱藏內容造成重複。
+check('主題回答來自本次命盤，且整頁只渲染展開題', (() => {
   const text = $('#view-topics').textContent;
-  return $$('#view-topics .topic-answer--combined').length === 6
+  return $$('#view-topics .topic-answer--combined').length === 1
     && $$('#view-topics .topic-answer--basis').length === 1
-    && $$('#view-topics .topic-basis-list li').length >= 1
-    && text.includes('這一題的一般方向')
-    && (text.match(/不是逐字依你的命盤生成/g) ?? []).length === 1
-    && (text.match(/不會自動上傳/g) ?? []).length === 1
-    && !text.includes('八字補充')
+    && $$('#view-topics .topic-basis-list li').length >= 3
+    && $$('#view-topics .topic-question-body').length === 1
+    && text.includes('依你的命盤回答')
+    && text.includes('這個主題在你的命盤裡')
+    && !text.includes('這一題的一般方向')
+    && (text.match(/不會由網站上傳/g) ?? []).length === 1
     && !text.includes('命盤無法判定') && !text.includes('水多')
     && !text.includes('五行') && !text.includes('日主') && !text.includes('十神');
 })());
@@ -209,7 +205,7 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
 $('#view-topics .topic-ai-btn').click();
 await new Promise((r) => setTimeout(r, 0));
 check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
-  && copiedTopicPrompt.includes('網站提供的主題一般方向')
+  && copiedTopicPrompt.includes('網站依本次命盤投影的初步回答')
   && copiedTopicPrompt.includes('完整命盤資料包'));
 check('主題單題使用精簡輸出規則且不附完整人生報告指令',
   copiedTopicPrompt.includes('約500至800個中文字')
@@ -223,6 +219,10 @@ check('完整 AI 提示要求紫微與八字交叉驗證且不硬湊', copiedFul
   && copiedFullPrompt.includes('重要結論至少要有兩項資料支持')
   && copiedFullPrompt.includes('不同調時')
   && copiedFullPrompt.includes('不要硬湊成一致'));
+check('完整 AI 提示要求臺灣用語、短句與去空話',
+  copiedFullPrompt.includes('使用臺灣繁體中文')
+  && copiedFullPrompt.includes('值得注意的是')
+  && copiedFullPrompt.includes('各段要有不同的起點與節奏'));
 check('完整 AI 提示將抽象判斷翻譯成行為與觸發情境',
   copiedFullPrompt.includes('生活中如何表現')
   && copiedFullPrompt.includes('何時最容易出現')
@@ -287,9 +287,9 @@ check('單宮提示只附本宮與三方四正必要資料',
 await nav('report');
 check('報告視圖顯示', !$('#view-report').hidden);
 check('紫微白話摘要卡片 6 項', $$('#view-report .analysis-card').length === 6);
-check('預設展開命宮總論', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('命宮總論'));
-check('命宮總論卡片採快速摘要結構(重點/近期訊號/行動/專業依據)', (() => {
-  const card = $$('#view-report .analysis-card').find((c) => c.querySelector('.analysis-card__title').textContent.includes('命宮總論'));
+check('預設展開本盤動態命宮卡片', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('做決定時的基本反應'));
+check('命宮卡片採快速摘要結構(重點/近期訊號/行動/專業依據)', (() => {
+  const card = $$('#view-report .analysis-card').find((c) => c.querySelector('.analysis-card__title').textContent.includes('做決定時的基本反應'));
   return !!card.querySelector('.analysis-card__summary')
     && !!card.querySelector('.analysis-card__explanation')
     && card.textContent.includes('現在可能出現')
@@ -299,7 +299,7 @@ check('命宮總論卡片採快速摘要結構(重點/近期訊號/行動/專業
 })());
 check('專業依據面板預設收合(白話摘要模式)', $$('#view-report [data-report-panel="technical"]').every((p) => p.hidden));
 check('白話面板預設顯示(白話摘要模式)', $$('#view-report [data-report-panel="plain"]').every((p) => !p.hidden));
-$$('#view-report .analysis-card__header').find((r) => r.textContent.includes('財帛宮')).click();
+$$('#view-report .analysis-card__header').find((r) => r.textContent.includes('金錢與資源')).click();
 check('重點解讀同時間只展開一張卡片', $$('#view-report .analysis-card.open').length === 1);
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('大限・流年重點')).click();
 check('大限流年重點區塊有跳轉命盤總覽按鈕', !!$('#view-report [data-jump-dashboard]'));
@@ -333,11 +333,11 @@ check('神煞段改用白話標題',
   && !$('#view-comprehensive').textContent.includes('五、神煞'));
 check('深度解析具備完整內容層級', (() => {
   const text = $('#view-comprehensive').textContent;
-  return text.includes('你可以發揮的地方')
-    && text.includes('不同情境中的表現')
+  return text.includes('現實中可能怎麼出現')
     && text.includes('容易反覆出現的課題')
     && text.includes('長期發展建議')
-    && text.includes('與其他人生主題的關聯');
+    && text.includes('專業命理依據')
+    && !text.includes('與其他人生主題的關聯');
 })());
 
 // 地支關係/神煞屬於補充細節,預設收合(acc-item 沒有 open class,內文不渲染),點開才展開
@@ -443,7 +443,7 @@ check('小教室的專業資料永遠是完整內容,不受開關影響', $('.pa
 $('.mode-pill[data-mode="study"]').click();
 check('切學習版,小教室白話段落仍維持白話(不因開關混入依據句)', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
 await nav('comprehensive');
-check('學習版命盤解析:白話段落含十神依據(細節上)', $$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
+check('學習版命盤解析:一般版文字仍白話，依據放在專業區', !$$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
 check('深度解析的專業命理依據永遠是完整內容,不受開關影響', $$('#view-comprehensive .palace-technical').length > 0);
 $('.mode-pill[data-mode="public"]').click();
 check('切回大眾版,白話段落不再含十神依據', !$$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
@@ -693,8 +693,10 @@ for (const view of ['topics', 'report', 'comprehensive']) {
   const dup = [...counts.entries()].filter(([, n]) => n > 1);
   check(`${view}:同一頁沒有一字不差的重複句${dup.length ? ':' + dup[0][0].slice(0, 30) : ''}`, dup.length === 0);
 }
-check('深度解析出現「身宮」時必須附白話說明',
-  plainTextOf('comprehensive').includes('命理上稱為身宮'));
+check('深度解析出現「身宮」時必須附白話說明', (() => {
+  const text = plainTextOf('comprehensive');
+  return !text.includes('身宮') || text.includes('命理上稱為身宮');
+})());
 
 // --- 打包切分的防迴歸檢查(靜態掃 main.js 原始碼,不需要跑 build) ---
 // 這幾支模組連同資料庫超過 100KB,全部都是排盤後才用得到。

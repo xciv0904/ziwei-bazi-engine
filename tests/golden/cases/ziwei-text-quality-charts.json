@@ -1,0 +1,30 @@
+{
+  "referenceYear": 2026,
+  "cases": [
+    {
+      "id": "seven-kill-life",
+      "input": { "year": 1990, "month": 5, "day": 20, "hour": 9, "gender": "female" },
+      "expected": { "lifeStars": ["七殺"], "bodyBranch": "戌", "spouseStars": ["紫微", "天相"], "careerStars": ["破軍"], "lifeMinorStars": ["天刑", "天哭", "天虛"], "transformations": ["天同忌@僕役宮", "太陰科@疾厄宮", "太陽祿@疾厄宮", "武曲權@遷移宮"], "currentLimit": "乙酉:36~45" }
+    },
+    {
+      "id": "wuqu-life-zi-body",
+      "input": { "year": 1978, "month": 11, "day": 3, "hour": 1, "gender": "male" },
+      "expected": { "lifeStars": ["武曲"], "bodyBranch": "子", "spouseStars": ["七殺"], "careerStars": ["紫微", "天府"], "lifeMinorStars": ["地空", "天姚", "恩光", "華蓋", "龍池"], "transformations": ["天機忌@田宅宮", "太陰權@僕役宮", "貪狼祿@遷移宮"], "currentLimit": "甲寅:42~51" }
+    },
+    {
+      "id": "sun-authority-life",
+      "input": { "year": 2001, "month": 2, "day": 14, "hour": 15, "gender": "female" },
+      "expected": { "lifeStars": ["太陽"], "bodyBranch": "戌", "spouseStars": ["天同"], "careerStars": ["巨門"], "lifeMinorStars": ["咸池", "天廚", "天空", "天魁", "鈴星(廟)"], "transformations": ["太陽權@命宮", "巨門祿@官祿宮"], "currentLimit": "丙申:24~33" }
+    },
+    {
+      "id": "tianji-taiyin-life",
+      "input": { "year": 1983, "month": 12, "day": 31, "hour": 19, "gender": "male" },
+      "expected": { "lifeStars": ["天機", "太陰"], "bodyBranch": "戌", "spouseStars": ["太陽"], "careerStars": ["天梁"], "lifeMinorStars": ["天巫", "孤辰", "左輔", "恩光", "文曲(平)"], "transformations": ["太陰科@命宮", "巨門權@福德宮", "破軍祿@子女宮", "貪狼忌@父母宮"], "currentLimit": "壬戌:42~51" }
+    },
+    {
+      "id": "tiantong-taboo-life",
+      "input": { "year": 2010, "month": 6, "day": 1, "hour": 11, "gender": "female" },
+      "expected": { "lifeStars": ["天同"], "bodyBranch": "亥", "spouseStars": [], "careerStars": ["天機", "巨門"], "lifeMinorStars": ["天官", "天巫", "天德"], "transformations": ["天同忌@命宮", "太陰科@福德宮", "太陽祿@福德宮", "武曲權@父母宮"], "currentLimit": "丙戌:15~24" }
+    }
+  ]
+}

@@ -35,3 +35,12 @@ export {
   computeLaiyinPalace,
 } from './compose-annual.js';
 export { composeYongShenReading, computeYongShen } from './compose-yongshen.js';
+export {
+  inspectAiTone,
+  inspectCardQuality,
+  inspectHeadingHierarchy,
+  normalizeForSimilarity,
+  sentenceList,
+  similarityScore,
+  uniqueHeading,
+} from './text-quality.js';

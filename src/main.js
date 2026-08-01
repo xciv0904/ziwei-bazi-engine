@@ -919,7 +919,7 @@ function renderMonthlyBrowser(year) {
   const categoryPlain = {
     比劫運: ['合作、自主與資源分配', '適合找可信任的人互相支援', '涉及人情、借貸或分工時要先說清楚'],
     食傷運: ['表達、學習成果與創意輸出', '適合分享想法、練習新技能或完成作品', '說話太快或安排太滿時，容易增加摩擦'],
-    財運: ['資源運用、成果落地與生活安排', '適合整理預算、物品或可執行的計畫', '不要只看眼前利益，也要保留長期餘裕'],
+    財運: ['資源運用、具體成果與生活安排', '適合整理預算、物品或可執行的計畫', '不要只看眼前利益，也要保留長期餘裕'],
     官殺運: ['責任、規則與需要完成的任務', '適合處理有期限、有標準的事情', '壓力增加時不要硬撐，先排出優先順序'],
     印運: ['學習、休息、支持與資訊整理', '適合請教他人、閱讀整理或補足能力', '蒐集太多資訊時，要替自己設定開始行動的時間'],
   }[detail.category] ?? ['步調整理與日常調整', '照原本節奏完成重要的小事', '臨時變化出現時保留彈性'];
@@ -1134,40 +1134,49 @@ const TOPIC_DIRECT_ANSWERS = {
 };
 
 /**
- * 主題六十題的「一般方向」。
- *
- * 重要:這裡的 TOPIC_DIRECT_ANSWERS 每題只有兩種寫法,是為整個主題寫的通用敘述,
- * 並不是依個人命盤逐字組裝出來的。原本的實作用命盤資料做雜湊後對 2 取餘數挑一則,
- * 畫面上卻寫「已綜合紫微與八字中和這題最相關的配置」——那句話會讓使用者以為
- * 這兩段字是替他一個人算出來的,實際上全站只有兩種答案。這是可信度風險,不是小文案問題。
- *
- * 現在的處理:選法維持穩定(同一張命盤永遠看到同一則,不會每次重整就變),
- * 但畫面上明確標示這是通用方向,真正依命盤排出的內容改放在下方「你的命盤依據」,
- * 由 R.generatePlainPalaceCard / R.generatePlainBaziTopics 實際輸出。
+ * 主題答案直接由本盤卡片投影，不再從兩則通用長文中二選一。
+ * 六種問題依序偏重：常見情境、優勢、適合做法、修復方式、盲點、長期調整。
+ * 固定題庫只決定「問什麼」，結論、情境與建議都由本次命盤內容決定。
  */
-function topicIntegratedAnswer(topic, questionIndex, ziweiCard, baziCard) {
-  const options = TOPIC_DIRECT_ANSWERS[topic.key]?.[questionIndex] ?? [];
-  if (!options.length) return '這個問題目前沒有可用的初步回答。';
-  const seedText = `${ziweiCard?.technical?.chartData ?? ''}|${baziCard?.technical?.chartData ?? ''}|${topic.key}|${questionIndex}`;
-  let hash = 0;
-  for (let i = 0; i < seedText.length; i++) hash = ((hash * 31) + seedText.charCodeAt(i)) | 0;
-  return options[Math.abs(hash) % options.length];
+function topicIntegratedAnswer(topic, questionIndex, ziweiCard, baziCards) {
+  const selectedBazi = topic.bazi.map((key) => baziCards.find((card) => card.key === key)).filter(Boolean);
+  const primaryBazi = selectedBazi[0];
+  const secondaryBazi = selectedBazi[1];
+  if (!ziweiCard?.summary && !primaryBazi?.summary) return '目前資料不足以判斷這題。';
+
+  const pick = (items, index = 0) => items?.[index % Math.max(items?.length ?? 0, 1)] ?? '';
+  const patterns = [
+    [pick(ziweiCard.lifeExamples, 0), pick(primaryBazi?.lifeExamples, 0)],
+    [pick(ziweiCard.lifeExamples, 1), pick(primaryBazi?.lifeExamples, 1)],
+    [pick(ziweiCard.lifeExamples, 0), pick(primaryBazi?.advice, 0)],
+    [pick(ziweiCard.challenges, 0), pick(ziweiCard.advice, 0)],
+    [pick(ziweiCard.challenges, 0), pick(primaryBazi?.challenges, 0)],
+    [pick(ziweiCard.advice, 0), pick(secondaryBazi?.advice, 0) || pick(primaryBazi?.advice, 1)],
+  ];
+  const details = patterns[questionIndex] ?? patterns[0];
+  const sentences = [
+    details[0] ? `這題最容易從這個情況看出來：${details[0]}。` : '',
+    details[1] ? `${questionIndex >= 2 ? '可以先這樣做' : '另一個可核對的反應'}：${details[1]}。` : '',
+    secondaryBazi?.lifeExamples?.[questionIndex % secondaryBazi.lifeExamples.length]
+      ? `內在還有一層反應：${secondaryBazi.lifeExamples[questionIndex % secondaryBazi.lifeExamples.length]}。`
+      : '',
+  ].filter(Boolean);
+  return sentences.join('');
 }
 
 /** 這一題底下真正依使用者命盤排出的依據(紫微對應宮位 + 八字對應面向);沒有資料就不硬湊 */
-function topicChartBasisHtml(topic, ziweiCard, baziCard) {
+function topicChartBasisHtml(topic, ziweiCard, baziCards) {
   const rows = [];
   if (ziweiCard?.summary) {
     rows.push(`<li><b>紫微斗數看到的</b><span>${esc(flat(ziweiCard.summary))}</span></li>`);
   }
-  if (baziCard?.summary) {
-    rows.push(`<li><b>八字看到的</b><span>${esc(flat(baziCard.summary))}</span></li>`);
-  }
+  topic.bazi.map((key) => baziCards.find((card) => card.key === key)).filter(Boolean).slice(0, 2)
+    .forEach((card, index) => rows.push(`<li><b>${index === 0 ? '八字內在反應' : '八字補充條件'}</b><span>${esc(flat(card.summary))}</span></li>`));
   if (!rows.length) return '';
   return `<section class="topic-answer topic-answer--basis">
-    <b>先看你的命盤:這個主題排出來是什麼</b>
+    <b>這個主題在你的命盤裡</b>
     <ul class="topic-basis-list">${rows.join('')}</ul>
-    <small>以上兩行是依你的生辰實際排出的,完整版本在「重點摘要」。下面每一題的內容則是為「${esc(topic.label)}」主題撰寫的通用方向,不是逐字依你的命盤生成;點「複製這題給 AI 深入問」會把題目與你的命盤資料一起複製到剪貼簿(不會自動上傳),交給 AI 才能得到真正針對你的回答。</small>
+    <small>以上內容由本次命盤的相關宮位與兩項八字條件組成。完整推導放在「重點摘要」的專業依據。複製給 AI 前，資料只會進入剪貼簿，不會由網站上傳。</small>
   </section>`;
 }
 
@@ -1176,23 +1185,22 @@ function renderTopics() {
   const topic = TOPIC_ANALYSIS.find((item) => item.key === state.topicKey) ?? TOPIC_ANALYSIS[0];
   const ziweiCard = R.generatePlainPalaceCard(ziWei, topic.palace);
   const baziCards = R.generatePlainBaziTopics(baZi, bzLuck, elements);
-  const baziCard = topic.bazi.map((key) => baziCards.find((card) => card.key === key)).find(Boolean);
 
   const tabs = TOPIC_ANALYSIS.map((item) => `
     <button type="button" class="topic-tab${item.key === topic.key ? ' active' : ''}" data-topic="${item.key}" aria-pressed="${item.key === topic.key}">
       <span>${item.icon}</span>${item.label}
     </button>`).join('');
   const questions = topic.questions.map((question, index) => {
-    const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCard);
     const open = state.topicQuestion === index;
+    const answer = open ? topicIntegratedAnswer(topic, index, ziweiCard, baziCards) : '';
     return `<article class="topic-question-card${open ? ' open' : ''}">
       <button type="button" class="topic-question-head" data-open-topic-question="${index}" aria-expanded="${open}" aria-controls="topic-answer-${index}">
         <span>Q${index + 1}</span><h3>${esc(question)}</h3><i aria-hidden="true">›</i>
       </button>
-      <div class="topic-question-body" id="topic-answer-${index}"${open ? '' : ' hidden'}>
-        <section class="topic-answer topic-answer--combined"><b>這一題的一般方向</b><p>${esc(answer)}</p></section>
+      ${open ? `<div class="topic-question-body" id="topic-answer-${index}">
+        <section class="topic-answer topic-answer--combined"><b>依你的命盤回答</b><p>${esc(answer)}</p></section>
         <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">複製這題給 AI 深入問</button>
-      </div>
+      </div>` : ''}
     </article>`;
   }).join('');
 
@@ -1200,7 +1208,7 @@ function renderTopics() {
     <div class="report-intro"><b>先選主題，再點開一個你真正想知道的問題。</b>每題提供紫微與八字的初步綜合方向，也可以把該題與命盤資料複製給 AI 繼續追問。</div>
     <div class="topic-tabs" aria-label="選擇分析主題">${tabs}</div>
     <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>${esc(palaceMeanings[topic.palace] ?? '')}</p></div></div>
-    ${topicChartBasisHtml(topic, ziweiCard, baziCard)}
+    ${topicChartBasisHtml(topic, ziweiCard, baziCards)}
     <div class="topic-question-list">${questions}</div>`;
 
   $$('#view-topics [data-topic]').forEach((button) =>
@@ -1215,7 +1223,7 @@ function renderTopics() {
     button.addEventListener('click', async () => {
       const index = Number(button.dataset.topicQuestion);
       const question = topic.questions[index];
-      const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCard);
+      const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCards);
       await ensureModules('formatAi');
       const chartPacket = mod.formatAi.formatChartForAI({
         input, ziWei, baZi, zwLuck, bzLuck, elements, includeInstruction: false,
@@ -1223,13 +1231,14 @@ function renderTopics() {
       const text = [
         `【主題分析：${topic.label}】`,
         `使用者問題：${question}`,
-        `網站提供的主題一般方向（非逐字依命盤生成）：${answer}`,
+        `網站依本次命盤投影的初步回答：${answer}`,
         '',
         '請先直接回答上面的單一問題，不要先輸出完整命盤總論。',
         '只使用下方資料包裡實際存在的命盤資料，不重新排盤、不補造星曜、十神或人生事件。',
         '請把紫微與八字交叉比對：一致處作為較明顯的傾向，分歧處分開說明，不要硬湊。',
         '請用約500至800個中文字回答：一句結論 → 2至3個具體生活表現 → 1個盲點 → 2個可執行建議 → 最多2句命理依據。',
         '不要展開其他人生分類，不要逐宮、逐星或逐十神解說；抽象形容詞後必須接具體行為與出現情境。',
+        '使用臺灣繁體中文。直接回答，刪除「值得注意的是、總的來說、深入探討」等空話；少用「不是…而是…」「不僅…更…」與破折號。長句拆開，各段不要用相同方式開頭或收尾。',
         '不要預測具體對象、疾病、死亡、必然事件或精確發生日期。只回答資料能合理支持的部分；沒有依據的內容直接省略，不要輸出「命盤無法判定」等限制聲明。',
         '',
         '--- 完整命盤資料包 ---',
@@ -1304,8 +1313,10 @@ function renderReport() {
     ? '<b>這頁是一張一張的重點卡片，挑你在意的點開就好，不用全部讀完。</b>每張卡都是「重點一句話 → 現在可能出現 → 需要留意 → 接下來可以做」。想從頭讀完一份完整的人生分析，去<button type="button" class="link-jump" data-goto="comprehensive">完整報告</button>（約 15 分鐘）；想自己切換宮位或年份查資料，去<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>。'
     : '<b>這頁是一張一張的重點卡片，挑你在意的點開就好，不用全部讀完。</b>每張卡都是「重點一句話 → 現在可能出現 → 需要留意 → 接下來可以做」。想從頭讀完一份完整的人生分析，去<button type="button" class="link-jump" data-goto="comprehensive">完整報告</button>（約 15 分鐘）；想自己切換宮位或年份查資料，去<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>。'
 
+  const usedCardTitles = new Set();
   const list = items.map((it) => {
     const open = expandedKeys.includes(it.key);
+    const cardTitle = R.uniqueHeading(it.title, usedCardTitles, it.summary);
     // 大限/大運這兩項跟「命盤總覽」的互動大限流年瀏覽器內容有重疊,這裡只保留現在的固定摘要,
     // 並加一個跳轉按鈕,引導想看其他年份的人去真正能自由切換的地方,而不是把所有年份都重複印一次
     const jumpNote = (it.key === 'xian' || it.key === 'dayun')
@@ -1316,7 +1327,7 @@ function renderReport() {
       <button type="button" class="analysis-card__header" data-acc="${it.key}" aria-expanded="${open}" aria-controls="${panelId}">
         <div class="round-icon" style="background:${it.color}">${it.letter}</div>
         <div class="analysis-card__headtext">
-          <div class="analysis-card__title">${esc(it.title)}</div>
+          <div class="analysis-card__title">${esc(cardTitle)}</div>
           ${!open ? `<div class="analysis-card__peek">${esc(it.summary)}</div>` : ''}
         </div>
         <div class="acc-chevron">›</div>
@@ -1390,6 +1401,7 @@ function stripJargonOpeners(text) {
     .replace(/而身宮所在的([一-龥]{2,4}宮)[,，]?則/g, '同時,你的$1也')
     .replace(/([一-龥]{2,4}宮)(?:顯示|呈現|給的[一-龥]{0,4}提醒是)[,，]?/g, '你')
     .replace(/日主[甲乙丙丁戊己庚辛壬癸][(（][^)）]*[)）](?:是這張命盤的核心)?[,，]?/g, '')
+    .replace(/(?:紫微|天機|太陽|武曲|天同|廉貞|天府|太陰|貪狼|巨門|天相|天梁|七殺|破軍)(?:化[祿權科忌])?[:：,，]?/g, '')
     // readingDeduped() 的空宮借星備註句:「本宮無主星,借對宮XX的YY參看,方向與前述XX的特質一致」
     .replace(/本宮無主星[,，]借對宮([一-龥]{2,4})的([^,，。]+)參看[,，]方向與前述\1的特質一致[,，。]?/g, '這裡跟前面提到的$1方向一致,呈現$2的傾向。')
     // 呼應差異判斷邏輯裡「交集數量=0」的固定句,是唯一命中禁用詞「呈現差異」的地方
@@ -1417,16 +1429,17 @@ function splitParagraphs(text, sentencesPerParagraph = 2) {
  * 兩頁本來就該有明顯不同的入口感受:重點摘要給結論,完整報告給脈絡。
  * 所以這裡改成描述「這一段的範圍與看法角度」的固定導讀句,不重複任何結論。
  */
-function comprehensiveHeadline(title) {
+function comprehensiveHeadline(title, source) {
+  if (source?.summary) return source.summary;
   switch (title) {
-    case '一、性格與才華': return '這一段從命宮與身宮出發，談你性格的底層邏輯——不只是「你是什麼樣的人」，而是這些特質從哪裡來、在什麼情境下會被放大。';
-    case '二、事業與金錢': return '工作方式與金錢觀通常互相牽動。這一段把事業、財務、精神追求與居家資源四塊合起來看，找出彼此呼應或拉扯的地方。';
-    case '三、戀愛與婚姻': return '這一段談你在親密關係裡的基本模式：容易被什麼吸引、關係穩定時的樣子，以及壓力來時最先鬆動的環節。';
-    case '四、健康、家庭與人際': return '這一段把身心狀態、原生家庭、居住環境與交友圈放在一起看——它們常常是同一組壓力的不同出口。';
+    case '一、性格與才華': return '先看你平常怎麼判斷、採取行動，以及壓力來時會切換成哪種反應。';
+    case '二、事業與金錢': return '工作選擇會連動收入、安全感與生活安排，這裡把幾個位置一起比對。';
+    case '三、戀愛與婚姻': return '親密關係裡的吸引、靠近與衝突反應，需要放在同一條互動過程裡看。';
+    case '四、健康、家庭與人際': return '身心負荷常會沿著家庭責任、居住狀態或人際互動浮現。';
     case '五、行動建議': return '以下整理幾個目前值得留意、可以主動調整的方向。';
     case '六、當前焦點': return '前面談的是長期底色，這一段回到現在：目前這十年與今年，重心分別落在哪裡。';
     case '全盤概覽': return '先用一頁的篇幅，把八字在事業、財運、感情、健康、家庭與當前運勢上的方向各講一句，讓你對整體有個輪廓。';
-    case '一、個性本質': return '這一段從八字的角度重看一次性格——與紫微那段互為對照，一致的地方代表傾向明確，不一致的地方值得分開理解。';
+    case '一、個性本質': return '八字補充內在動力與壓力反應，能和紫微呈現的外在行為互相核對。';
     case '二、財官流向': return '這一段談錢與事業在你命盤裡的流向：資源從哪裡來、容易停在哪裡，以及五行分布如何影響你的做事節奏。';
     case '三、人際健康與行動建議': return '這一段把人際互動、身心負荷與目前的大運流年合起來談，並收在幾個具體可行的方向上。';
     case '四、地支關係': return '這裡整理你命盤四柱之間的地支互動，會反映在跟不同對象、不同人生階段的相處模式上。';
@@ -1435,28 +1448,6 @@ function comprehensiveHeadline(title) {
   }
 }
 
-const DEEP_CONNECTIONS = {
-  '一、性格與才華': '這個核心性格會延伸到你的工作選擇與關係互動：能付出、會觀察是優勢，但也要留意是否把別人的需求排在自己前面。',
-  '二、事業與金錢': '工作方式與金錢態度通常互相牽動。越清楚自己重視的工作節奏與安全感，越容易做出一致的職涯和資源選擇。',
-  '三、戀愛與婚姻': '親密關係中的反應往往延續你平常照顧人、做決定與表達需求的方式，因此界線和溝通會是長期關鍵。',
-  '四、健康、家庭與人際': '家庭責任、人際壓力與身體狀態會彼此影響；當你長期配合外界而沒有休息，身心通常會先出現訊號。',
-  '全盤概覽': '八字各部分不是分開運作：你的能量強弱、表達方式與安全感需求，會一起影響工作、關係與面對壓力的反應。',
-  '一、個性本質': '這個內在氣質會影響你如何吸收資訊、採取行動和與人合作，也是理解其他人生主題的起點。',
-  '二、財官流向': '資源、責任與成就感之間會互相拉動；選擇符合自身節奏的目標，比單純追求外在標準更容易長久。',
-  '三、人際健康與行動建議': '人際互動與身心負荷常是同一件事的兩面：界線越清楚，越能保留穩定行動與照顧自己的空間。',
-};
-
-const DEEP_STRENGTHS = {
-  '一、性格與才華': ['能快速察覺環境與他人的需要', '願意承擔責任，也能主動提供支持'],
-  '二、事業與金錢': ['能把觀察力轉成工作上的判斷', '適合在清楚節奏中累積專業與可信度'],
-  '三、戀愛與婚姻': ['重視關係品質，願意為兩人的相處投入', '能留意伴侶的感受與關係中的細節'],
-  '四、健康、家庭與人際': ['對身邊人的狀態敏感，容易成為可靠的支持者', '能從生活細節察覺需要調整的地方'],
-  '全盤概覽': ['能依情境調整做法，不容易只用單一角度看事情', '內在動力與外在行動之間具有整合空間'],
-  '一、個性本質': ['有自己的感受與判斷方式', '在熟悉且有安全感的環境中更能穩定發揮'],
-  '二、財官流向': ['能把責任感轉成具體成果', '適合透過長期累積建立資源與成就感'],
-  '三、人際健康與行動建議': ['能感受到互動氣氛並調整回應', '願意維持關係，也具備實際照顧人的能力'],
-};
-
 function deepSourceCard(title, { ziWei, baziCards }) {
   const bazi = (key) => baziCards.find((c) => c.key === key);
   switch (title) {
@@ -1464,7 +1455,7 @@ function deepSourceCard(title, { ziWei, baziCards }) {
     case '二、事業與金錢': return R.generatePlainPalaceCard(ziWei, '官祿宮');
     case '三、戀愛與婚姻': return R.generatePlainPalaceCard(ziWei, '夫妻宮');
     case '四、健康、家庭與人際': return R.generatePlainPalaceCard(ziWei, '疾厄宮');
-    case '全盤概覽':
+    case '全盤概覽': return null;
     case '一、個性本質': return bazi('zhu');
     case '二、財官流向': return bazi('xiji') || bazi('yongshen');
     case '三、人際健康與行動建議': return bazi('shishen') || bazi('dayun');
@@ -1507,24 +1498,24 @@ function renderComprehensive() {
   const baziCards = R.generatePlainBaziTopics(baZi, bzLuck, elements);
   const ctx = { ziWei, baZi, baziCards };
 
-  const block = (label, sections, studyByTitle) => `
+  const block = (label, sections, studyByTitle) => {
+    const usedTitles = new Set([label]);
+    return `
     <div class="report-intro" style="margin-bottom:8px">${esc(label)}</div>
     <div class="accordion">${sections.map((s) => {
       const collapsible = COLLAPSIBLE_DETAIL_TITLES.has(s.title);
       const open = !collapsible || state.expandedComprehensiveDetails.has(s.title);
-      const headline = comprehensiveHeadline(s.title);
-      const paragraphs = splitParagraphs(stripJargonOpeners(s.text));
       const source = deepSourceCard(s.title, ctx);
+      const sectionTitle = R.uniqueHeading(displayTitle(s.title), usedTitles, source?.summary);
+      const headline = comprehensiveHeadline(s.title, source);
+      const paragraphs = splitParagraphs(stripJargonOpeners(s.text));
+      const plainParagraphs = source ? source.explanation : paragraphs;
       const body = `<div class="acc-body comp-section">
         ${headline ? `<p class="palace-takeaway">${esc(headline)}</p>` : ''}
-        <div class="palace-explain">${paragraphs.slice(0, source ? 3 : paragraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
-        ${source ? deepListHtml('你可以發揮的地方', DEEP_STRENGTHS[s.title], 'deep-strengths') : ''}
-        ${source ? deepPatternsHtml(source.lifeExamples) : ''}
+        <div class="palace-explain">${plainParagraphs.slice(0, source ? 3 : plainParagraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
+        ${source ? deepListHtml('現實中可能怎麼出現', source.lifeExamples, 'deep-strengths') : ''}
         ${source ? deepListHtml('容易反覆出現的課題', source.challenges, 'deep-challenges') : ''}
         ${source ? deepListHtml('長期發展建議', source.advice, 'deep-advice') : ''}
-        ${DEEP_CONNECTIONS[s.title] ? `<section class="deep-section deep-connections">
-          <h4>與其他人生主題的關聯</h4><p>${esc(DEEP_CONNECTIONS[s.title])}</p>
-        </section>` : ''}
         <details class="palace-technical">
           <summary>專業命理依據</summary>
           <div class="analysis-card__panel--technical" style="margin-top:10px">
@@ -1536,14 +1527,15 @@ function renderComprehensive() {
       <div class="acc-item${open ? ' open' : ''}">
         ${collapsible
           ? `<button type="button" class="acc-row" data-detail="${esc(s.title)}">
-              <div class="acc-title">${esc(displayTitle(s.title))}<span class="acc-subtle">(補充細節,點開查看)</span></div>
+              <div class="acc-title">${esc(sectionTitle)}<span class="acc-subtle">(補充細節,點開查看)</span></div>
               <div class="acc-chevron">›</div>
             </button>`
-          : `<div class="acc-row"><div class="acc-title">${esc(displayTitle(s.title))}</div></div>`}
+          : `<div class="acc-row"><div class="acc-title">${esc(sectionTitle)}</div></div>`}
         ${open ? body : ''}
       </div>`;
     }).join('')}
     </div>`;
+  };
 
   const intro = `<div class="report-intro"><b>這頁是一份從頭讀到尾的長篇報告，約 15 分鐘。</b>它把性格、工作、感情、家庭與人生課題串成一條完整的敘事，會交代前後之間的關聯；跟<button type="button" class="link-jump" data-goto="report">重點摘要</button>看的是同一張命盤，但那邊是可以跳著看的短卡片，這邊是連貫的長文。沒時間讀完的話，先看重點摘要就夠了。</div>`;
 
@@ -2095,7 +2087,7 @@ function bindAiPrompt(id, prompt) {
   });
 }
 function aiPromptBase(tool, result, question = '') {
-  return `你是一位熟悉傳統術數、但不採宿命論的繁體中文解讀者。\n工具：${tool}\n${question ? `使用者問題：${question}\n` : ''}已計算結果：\n${result}\n\n請只回答本次問題，控制在約500至800個中文字：\n1. 先用1至2句白話直接回答，再說明2至3個最重要的判斷。\n2. 每個判斷都要翻譯成具體情境、可觀察行為或候選方案的實際差異，不逐項教學術語。\n3. 最後列出「可運用」「要留意」「下一步」各一項，做法必須可執行。\n4. 已知事實、傳統象徵與推測要分清楚；資料不足或門派有差異時直接說明。\n5. 不擴寫無關人生分類，不預言死亡、疾病、災難或保證結果；醫療、法律、財務問題應回到專業意見。`;
+  return `你是一位熟悉傳統術數、但不採宿命論的臺灣繁體中文解讀者。\n工具：${tool}\n${question ? `使用者問題：${question}\n` : ''}已計算結果：\n${result}\n\n請只回答本次問題，控制在約500至800個中文字：\n1. 先用1至2句白話直接回答，再說明2至3個最重要的判斷。\n2. 每個判斷都要翻譯成具體情境、可觀察行為或候選方案的實際差異，不逐項教學術語。\n3. 最後列出「可運用」「要留意」「下一步」各一項，做法必須可執行。\n4. 已知事實、傳統象徵與推測要分清楚；資料不足或門派有差異時直接說明。\n5. 不擴寫無關人生分類，不預言死亡、疾病、災難或保證結果；醫療、法律、財務問題應回到專業意見。\n6. 直接進入內容，刪除「值得注意的是、總的來說、深入探討」等空話；少用制式對比與破折號。句子過長就拆開，各段不要用相同方式收尾。`;
 }
 
 // 「今天適合先看」的預設 3 個工具:不用額外輸入資料就能立刻用,對第一次來的人負擔最小;

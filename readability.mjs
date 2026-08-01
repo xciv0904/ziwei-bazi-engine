@@ -15,6 +15,7 @@
 // 例外:少數核心概念(身宮)允許出現,但必須就地附上白話說明,見 GLOSSED_TERMS。
 import { Window } from 'happy-dom';
 import { readFileSync } from 'node:fs';
+import { inspectAiTone, inspectHeadingHierarchy } from './src/engines/text-quality.js';
 
 /** 白話面板不得出現的術語 */
 const BANNED_JARGON = [
@@ -26,6 +27,8 @@ const BANNED_JARGON = [
 const GLOSSED_TERMS = { 身宮: '命理上稱為身宮' };
 /** 沒有資訊量、套在誰身上都成立的句子 */
 const VAGUE_FILLER = ['實際狀況仍會', '可以著力的方向', '會比單看', '要更務實地經營', '因人而異'];
+/** 表面像白話，但一般使用者仍難以對照生活的抽象說法 */
+const HARD_TO_APPLY = ['課題性', '能量傾向', '議題被引動', '資源流向', '內在動力結構', '人生展開的場域'];
 
 /** 刻意選差異大的命盤:跨 1965–2010、男女各半、含子時(23 時)與早晚不同時辰 */
 const CHARTS = [
@@ -85,6 +88,19 @@ for (const [y, m, d, hour, gender] of CHARTS) {
 
     const filler = VAGUE_FILLER.filter((v) => text.includes(v));
     if (filler.length) fail(`${where} 出現空話:${filler.join('、')}`);
+    const abstract = HARD_TO_APPLY.filter((v) => text.includes(v));
+    if (abstract.length) fail(`${where} 出現難以對照生活的抽象說法:${abstract.join('、')}`);
+
+    // 以單一段落/條列為單位，不把整頁按鈕與標題串成假長句。
+    for (const node of [...root.querySelectorAll('p, li, .analysis-card__summary, .palace-explain')]) {
+      const issues = inspectAiTone(node.textContent).filter((issue) => issue.startsWith('句子過長') || issue.startsWith('空泛句型') || issue.startsWith('通用結尾'));
+      if (issues.length) fail(`${where} 段落不夠白話:${issues.join('、')}`);
+    }
+
+    const primaryHeadings = [...root.querySelectorAll('h2, h3, .analysis-card__title, .acc-title')]
+      .map((node) => node.textContent.trim());
+    const headingIssues = inspectHeadingHierarchy(primaryHeadings);
+    if (headingIssues.length) fail(`${where} 主標題重複:${headingIssues.join('、')}`);
 
     const sentences = text.split(/[。;；]/).map((t) => t.trim()).filter((t) => t.length >= 14);
     const counts = new Map();
