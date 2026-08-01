@@ -997,10 +997,13 @@ function renderDashboard() {
     chip.addEventListener('click', () => { state.limitIdx = Number(chip.dataset.limit); state.yearIdx = 0; renderDashboard(); }));
   $$('#view-dashboard [data-year]').forEach((chip) =>
     chip.addEventListener('click', () => { state.yearIdx = Number(chip.dataset.year); state.monthIdx = null; renderDashboard(); }));
-  // 大限／流年目前選取的 chip 自動捲動到可視範圍,不用使用者自己在窄窄的一排裡找
+  // 只在各 chip 列內做水平置中；scrollIntoView 會連整頁一起垂直捲動，
+  // 造成使用者切流月後被帶回按鈕列，還得重新往下找正文。
   $$('#view-dashboard .chip-row').forEach((row) => {
     const activeChip = row.querySelector('.chip.active');
-    if (activeChip?.scrollIntoView) activeChip.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    if (activeChip) {
+      row.scrollLeft = Math.max(0, activeChip.offsetLeft - (row.clientWidth - activeChip.clientWidth) / 2);
+    }
   });
   $('#open-monthly')?.addEventListener('click', () => {
     // 展開時預設選「現在的月份」(若瀏覽的是當年),否則 1 月
@@ -1050,33 +1053,19 @@ function topicReportFor(contract, ziWei, baziCards) {
 function topicChartBasisHtml(report) {
   const rows = report.topicAnalysis.evidence.map((item) =>
     `<li><b>${esc(item.supportedTarget)}</b><span>${esc(item.label)}</span></li>`);
-  if (!rows.length) return '<p class="card-hint">這部分可使用的命盤訊號較少，不會引用其他主題補滿。</p>';
-  return `<section class="topic-answer topic-answer--basis">
-    <b>這一題的命盤依據</b>
+  if (!rows.length) return '';
+  return `<details class="topic-answer topic-answer--basis">
+    <summary>查看這一題的命盤依據（專業資料）</summary>
     <ul class="topic-basis-list">${rows.join('')}</ul>
-    <small>每項依據都已綁定這題的回答目標。複製給 AI 時也只會使用這些內容，不會由網站上傳。</small>
-  </section>`;
+    <small>複製給 AI 時只會使用這些已篩選內容，不會由網站上傳。</small>
+  </details>`;
 }
 
 function topicDirectAnswerHtml(report) {
   const answer = report.directAnswer;
   return `<section class="topic-answer topic-answer--combined">
-    <b>依你的命盤回答</b>
-    <p><strong>直接答案：</strong>${esc(answer.answer)}</p>
-    ${answer.reasons.length ? `<p><strong>為什麼：</strong>${esc(answer.reasons.join(''))}</p>` : ''}
-    ${answer.scenario ? `<p><strong>生活中可能怎麼出現：</strong>${esc(answer.scenario)}</p>` : ''}
-    ${answer.actions.length ? `<p><strong>你可以怎麼判斷或處理：</strong>${esc(answer.actions.join(''))}</p>` : ''}
-  </section>`;
-}
-
-function topicAnalysisHtml(report) {
-  const analysis = report.topicAnalysis;
-  const manifestations = analysis.manifestations.filter((item) => item !== analysis.scenario);
-  return `<section class="topic-answer topic-answer--analysis">
-    <b>主題分析・${esc(analysis.headline)}</b>
-    ${manifestations.length ? `<p><strong>主要表現：</strong>${esc(manifestations.join(''))}</p>` : ''}
-    ${analysis.strength && analysis.strength !== analysis.directConclusion ? `<p><strong>可以發揮的優勢：</strong>${esc(analysis.strength)}</p>` : ''}
-    ${analysis.cost && analysis.cost !== analysis.scenario ? `<p><strong>過度使用的代價：</strong>${esc(analysis.cost)}</p>` : ''}
+    <b>簡單回答</b>
+    <p>${esc(answer.answer)}</p>
   </section>`;
 }
 
@@ -1098,7 +1087,6 @@ function renderTopics() {
       </button>
       ${open ? `<div class="topic-question-body" id="topic-answer-${index}">
         ${topicDirectAnswerHtml(report)}
-        ${topicAnalysisHtml(report)}
         ${topicChartBasisHtml(report)}
         <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">複製這題給 AI 深入問</button>
       </div>` : ''}
@@ -1108,7 +1096,7 @@ function renderTopics() {
   $('#view-topics').innerHTML = `
     <div class="report-intro"><b>先選主題，再點開一個你真正想知道的問題。</b>每題提供紫微與八字的初步綜合方向，也可以把該題與命盤資料複製給 AI 繼續追問。</div>
     <div class="topic-tabs" aria-label="選擇分析主題">${tabs}</div>
-    <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>每題會依自己的 Topic Contract 重新篩選命盤依據。</p></div></div>
+    <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>選一題，先看簡短答案；需要時再展開命盤依據。</p></div></div>
     <div class="topic-question-list">${questions}</div>`;
 
   $$('#view-topics [data-topic]').forEach((button) =>
@@ -1361,11 +1349,10 @@ function longTermAdviceHtml(card) {
     <h4>長期發展建議</h4>
     <ol>${items.map((item) => `<li>
       <b>${esc(item.priority)}</b>
-      <p><strong>目前容易卡住：</strong>${esc(item.problem)}</p>
-      <p><strong>何時使用：</strong>${esc(item.trigger)}</p>
-      <p><strong>要做什麼：</strong>${esc(item.action)}</p>
-      <p><strong>怎麼做：</strong>${esc(item.method)}</p>
-      <p><strong>怎麼檢查：</strong>${esc(item.check)}</p>
+      <p><strong>遇到的情況：</strong>${esc(item.problem)}</p>
+      <p><strong>具體做法：</strong>${esc(item.action)}</p>
+      <p><strong>開始時機：</strong>${esc(item.trigger)}</p>
+      <p><strong>怎麼知道有效：</strong>${esc(item.check)}</p>
     </li>`).join('')}</ol>
   </section>`;
 }

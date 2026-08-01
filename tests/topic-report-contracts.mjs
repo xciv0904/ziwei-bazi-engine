@@ -81,6 +81,11 @@ for (const testCase of fixture.cases) {
       if (text.includes(field)) fail(`${testCase.chartId}/${contract.id} 公開文字泄漏 ${field}`);
     }
     if (/也會加入|形成作用|帶來表現/.test(text)) fail(`${testCase.chartId}/${contract.id} 有殘句`);
+    if (/較明顯的方向是|這項傾向運用得宜|需要的判斷與安排/.test(text)) fail(`${testCase.chartId}/${contract.id} 使用抽象模板`);
+    if (contract.id === 'love.partner-pattern'
+      && !(report.directAnswer.answer.startsWith('你常遇到的類型是：') && report.directAnswer.answer.includes('對方'))) {
+      fail(`${testCase.chartId}/${contract.id} 沒有直接描述對象類型`);
+    }
     if (contract.category === 'money' && /賺到\d+|月收\d+|必定獲利/.test(text)) fail(`${testCase.chartId}/${contract.id} 預測具體財務結果`);
     if (contract.category === 'health' && /診斷為|你有.+症|治療後會/.test(text)) fail(`${testCase.chartId}/${contract.id} 做出醫療診斷`);
   }

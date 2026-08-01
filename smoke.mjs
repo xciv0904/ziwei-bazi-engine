@@ -103,6 +103,13 @@ check('點擊命盤符號會用 toast 顯示說明(手機無 hover 也看得到)
 check('儲存按鈕在排盤後顯示', !$('#save-chart-btn').hidden);
 $('#save-chart-btn').click();
 check('儲存後收藏列表出現', !$('#saved-section').hidden && $$('.saved-chip').length === 1);
+// 收藏不是只有「顯示在清單」就算完成；實際點回去會重新走一次欄位回填與排盤流程。
+// 這裡使用上面 2002-09-04 未時女命，防止已存資料可見、卻無法重新載入的回歸。
+$('#name-input').value = '暫時修改';
+$('.saved-chip').click();
+await settle();
+check('已存命盤可從側欄重新排盤', $('#page-title').textContent.includes('Shelly')
+  && $$('.palace-cell').length === 12);
 
 // 完整命盤 AI 提示詞保留正式人生解讀規則；主題單題則不應重複附上這一大段。
 let copiedFullPrompt = '';
@@ -165,6 +172,15 @@ $$('[data-limit]')[0].click();
 check('切大限 → 流年重算', $$('[data-year]')[0].classList.contains('active'));
 check('切大限後年度重點仍在', !!$('.luck-detail .palace-takeaway')?.textContent.length);
 
+// 切換年份後，正文不只換年份標題，也必須換成該年自己的紫微／八字內容。
+$$('[data-limit]').find((chip) => chip.classList.contains('is-now'))?.click();
+const annualTextBeforeSwitch = $('.luck-detail').textContent;
+const nextYearChip = $$('[data-year]').find((chip) => !chip.classList.contains('active'));
+nextYearChip?.click();
+const annualTextAfterSwitch = $('.luck-detail').textContent;
+check('切換流年會更新該年解析，不只顯示十年大運', annualTextBeforeSwitch !== annualTextAfterSwitch
+  && $('.luck-detail .palace-explain').textContent.includes('今年流年'));
+
 // --- 主題分析（問題導向＋紫微八字初解＋逐題 AI） ---
 await nav('topics');
 check('主題分析視圖顯示', !$('#view-topics').hidden);
@@ -181,12 +197,15 @@ $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'love').click();
 check('主題回答來自本次命盤，且整頁只渲染展開題', (() => {
   const text = $('#view-topics').textContent;
   return $$('#view-topics .topic-answer--combined').length === 1
-    && $$('#view-topics .topic-answer--analysis').length === 1
     && $$('#view-topics .topic-answer--basis').length === 1
     && $$('#view-topics .topic-basis-list li').length >= 3
     && $$('#view-topics .topic-question-body').length === 1
-    && text.includes('依你的命盤回答')
-    && text.includes('這一題的命盤依據')
+    && text.includes('簡單回答')
+    && text.includes('你常遇到的類型是')
+    && text.includes('查看這一題的命盤依據（專業資料）')
+    && !$('#view-topics .topic-answer--basis').open
+    && !text.includes('較明顯的方向是')
+    && !text.includes('Topic Contract')
     && !text.includes('這一題的一般方向')
     && (text.match(/不會由網站上傳/g) ?? []).length === 1
     && !text.includes('命盤無法判定') && !text.includes('水多')
@@ -345,16 +364,17 @@ check('深度解析具備完整內容層級', (() => {
     && text.includes('專業命理依據')
     && !text.includes('與其他人生主題的關聯');
 })());
-check('長期發展建議含優先順序、時機、動作、方法與檢查', (() => {
+check('長期發展建議分成先處理與接著練習，且做法不再拼接卡片標籤', (() => {
   const advice = $('#view-comprehensive .deep-advice');
   const text = advice?.textContent ?? '';
   return !!advice
-    && advice.querySelectorAll('ol > li').length <= 3
-    && text.includes('現在優先處理')
-    && text.includes('何時使用')
-    && text.includes('要做什麼')
-    && text.includes('怎麼做')
-    && text.includes('怎麼檢查');
+    && advice.querySelectorAll('ol > li').length <= 2
+    && text.includes('先處理')
+    && text.includes('接著練習')
+    && text.includes('具體做法')
+    && text.includes('開始時機')
+    && text.includes('怎麼知道有效')
+    && !text.includes('的現在優先處理階段');
 })());
 
 // 地支關係/神煞屬於補充細節,預設收合(acc-item 沒有 open class,內文不渲染),點開才展開
@@ -416,7 +436,12 @@ check('展開流月後完整命盤不會自動收合', $('#dashboard-detail').op
 check('流月 chips 12 個', $$('[data-month]').length === 12);
 $('.monthly-plain .palace-technical').open = true;
 $('.monthly-plain .palace-technical').dispatchEvent(new w.Event('toggle'));
+let monthScrollIntoViewCalls = 0;
+const originalScrollIntoView = w.HTMLElement.prototype.scrollIntoView;
+w.HTMLElement.prototype.scrollIntoView = () => { monthScrollIntoViewCalls++; };
 $$('[data-month]')[1].click();
+w.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+check('切換流月不會把整頁捲回月份按鈕', monthScrollIntoViewCalls === 0);
 check('切換流月後外層與流月專業依據都維持展開', $('#dashboard-detail').open && $('.monthly-plain .palace-technical').open);
 check('流月正文改為白話重點/把握/留意/行動', (() => {
   const text = $('.monthly-plain').textContent;

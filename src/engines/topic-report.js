@@ -132,6 +132,11 @@ export function selectTopicEvidence(contract, candidates) {
     selected.push(candidate);
   };
 
+  if (contract.id === 'love.partner-pattern') {
+    // 這題要描述「對方是什麼樣的人」，必須先取關係宮位的整體特質；
+    // 不能只拿「你在約會時怎麼做」的生活例子，否則主詞會回答錯。
+    take(ordered.find((item) => item.kind === 'summary' && item.sourceType.startsWith('ziwei_')));
+  }
   for (const target of contract.requiredTargets) {
     take(ordered.find((item) => item.supportedTarget === target));
   }
@@ -154,7 +159,19 @@ function evidenceText(selected, kind, fallbackIndex = 0) {
 function actionText(selected, contract) {
   const advice = selected.find((item) => item.kind === 'advice')?.interpretation ?? '';
   if (advice) return advice;
-  return `下一次「${contract.questionFocus}」相關情境出現時，先記下當時的觸發點與行為，再決定要保留或調整哪一步。`;
+  return '下次遇到相似情況時，先看對方實際做了什麼，再決定要不要繼續投入。';
+}
+
+function directAnswerText(contract, directBase, summaryCandidate) {
+  // 「常遇到什麼對象」要直接描述對方，不把內部 answerTarget 或自己的反應繞寫進正文。
+  if (contract.id === 'love.partner-pattern') {
+    let partner = clean(summaryCandidate || directBase).split('。')[0];
+    // 宮位卡前半句有時是觸發條件或雙星組合說明；冒號後才是可讀的關係特質。
+    if (partner.includes('：')) partner = partner.split('：').at(-1);
+    partner = partner.replace(/對方/g, '伴侶').replace(/你/g, '對方');
+    return `你常遇到的類型是：${partner}。`;
+  }
+  return `${contract.answerTargets[0]}：${completeSentence(directBase)}`;
 }
 
 function buildSchemas(contract, selected, insufficient) {
@@ -163,30 +180,27 @@ function buildSchemas(contract, selected, insufficient) {
   const preferredCandidate = (selected.find((item) => item.kind === preferredKind && item.sourceType.startsWith('ziwei_'))
     ?? selected.find((item) => item.kind === preferredKind))?.interpretation ?? '';
   const lifeCandidate = selected.find((item) => item.kind === 'life')?.interpretation ?? '';
-  const answerPrefix = `${contract.answerTargets[0]}較明顯的方向是：`;
   let directBase = preferredCandidate || (compactLength(summaryCandidate) <= 72 ? summaryCandidate : lifeCandidate) || summaryCandidate;
-  if (compactLength(answerPrefix + directBase) > 100) {
+  if (compactLength(directBase) > 100) {
     directBase = selected.map((item) => item.interpretation)
-      .find((item) => compactLength(answerPrefix + item) <= 100) ?? directBase;
+      .find((item) => compactLength(item) <= 100) ?? directBase;
   }
-  const chartContext = summaryCandidate && summaryCandidate !== directBase
-    ? completeSentence(summaryCandidate.split(/[。！？]/)[0])
-    : '';
-  const direct = `${answerPrefix}${directBase}${chartContext && similarityScore(directBase, chartContext) < 0.72 ? chartContext : ''}`;
+  const direct = directAnswerText(contract, directBase, summaryCandidate);
   const lifeTexts = distinctTexts(selected.filter((item) => item.kind === 'life').map((item) => item.interpretation), 3);
   const challengeCandidate = selected.find((item) => item.kind === 'challenge')?.interpretation ?? '';
-  const scenario = lifeTexts.find((item) => item !== directBase) || challengeCandidate || summaryCandidate;
+  const scenario = lifeTexts.find((item) => similarityScore(item, direct) < 0.72)
+    || [challengeCandidate, summaryCandidate].find((item) => item && similarityScore(item, direct) < 0.72)
+    || '';
   const manifestations = distinctTexts(selected.filter((item) => item.kind === 'life')
-    .map((item) => item.interpretation).filter((text) => text !== directBase && text !== scenario), 2);
-  const cost = challengeCandidate !== scenario ? challengeCandidate : '';
+    .map((item) => item.interpretation)
+    .filter((text) => similarityScore(text, direct) < 0.72 && text !== scenario), 2);
+  const cost = challengeCandidate !== scenario && similarityScore(challengeCandidate, direct) < 0.72 ? challengeCandidate : '';
   const action = actionText(selected, contract);
   const prefix = insufficient ? '這部分可使用的命盤訊號較少，目前較能確認的是：' : '';
   const conclusion = `${prefix}${direct}`;
   const reasons = distinctTexts(selected.map((item) => item.interpretation)
     .filter((text) => text !== directBase && text !== scenario && text !== action), 2);
-  const strength = directBase && directBase !== cost
-    ? `這項傾向運用得宜時，能幫你處理「${contract.questionFocus}」需要的判斷與安排。`
-    : '';
+  const strength = '';
 
   return {
     topicAnalysis: {
@@ -242,7 +256,7 @@ export function validateTopicReport(report, contract) {
     if (pattern.test(publicText)) issues.push(`公開文字出現殘句：${pattern}`);
   }
   if (!report.directAnswer.answer) issues.push('缺少直接答案');
-  if (report.directAnswer.answer.indexOf(contract.answerTargets[0]) > 100) issues.push('直接答案未在前 100 字內\u6536\u6582');
+  if (/較明顯的方向是|這項傾向運用得宜|需要的判斷與安排/.test(report.directAnswer.answer)) issues.push('直接答案使用抽象模板');
   if (!report.directAnswer.scenario) issues.push('缺少具體情境');
   if (!(report.directAnswer.actions ?? []).length) issues.push('缺少可執行做法');
   if (compactLength(publicText) > contract.wordBudget.topicAnalysis + contract.wordBudget.directAnswer) issues.push('公開文字超過總字數預算');
@@ -272,6 +286,7 @@ export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [] })
     topicId: contract.id,
     question: contract.question,
     questionFocus: contract.questionFocus,
+    questionIndex: contract.questionIndex,
     selectedEvidence,
     insufficient,
     ...buildSchemas(contract, selectedEvidence, insufficient),
@@ -297,30 +312,26 @@ export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [] })
 }
 
 export function buildLongTermAdvicePlan(card, { wordBudget = 420 } = {}) {
-  const challenges = distinctTexts(card?.challenges ?? [], 3);
-  const advice = distinctTexts(card?.advice ?? [], 3);
+  const challenges = distinctTexts(card?.challenges ?? [], 2);
+  const advice = distinctTexts(card?.advice ?? [], 2);
   const slots = [
-    ['現在優先處理', '當這個情況一週內重複出現兩次時', '連續兩週記錄發生次數，若次數下降就保留這個做法'],
-    ['接下來可以累積', '當前一項做法已能穩定執行兩週時', '每週回顧一次，確認是否比上週少一次臨時補救'],
-    ['暫時不必急著處理', '當前兩項都已穩定，而且還有餘裕時間時', '兩週後再檢查是否仍影響日常，沒有就繼續擱置'],
-  ];
-  const items = slots.map(([priority, trigger, check], index) => {
-    const problem = challenges[index] ?? (index === 1
-      ? '第一個卡點尚未穩定前，不需要同時新增第二個課題。'
-      : index === 2
-        ? '前兩項做法尚未穩定前，其他延伸課題可以先擱置。'
-        : '目前沒有足夠訊號支持新的延伸課題。');
-    const action = advice[index]
-      ?? `針對「${clean(problem)}」的${priority}，先保留現有做法，不額外增加新任務。`;
+    ['先處理'],
+    ['接著練習'],
+  ].slice(0, Math.min(challenges.length, advice.length, 2));
+  const items = slots.map(([priority], index) => {
+    const problem = challenges[index];
+    const problemText = clean(problem);
+    const action = advice[index];
     return {
       priority,
       problem,
-      trigger: `${trigger}，並且「${clean(problem)}」再次出現時。`,
+      trigger: index === 0
+        ? `「${problemText}」一週內重複出現兩次時，就開始這個做法。`
+        : `第一個做法持續兩週後，再針對「${problemText}」開始這一項。`,
       action,
-      method: index === 2
-        ? `面對「${clean(problem)}」時先不開新任務，只記在待辦清單，等檢查日再決定。`
-        : `在「${clean(card?.title ?? '這個主題')}」的${priority}階段，一次只做一件事，當天留下一行紀錄。`,
-      check: `${check}，並對照「${clean(problem)}」是否改善。`,
+      check: index === 0
+        ? `兩週後，確認「${problemText}」是否比之前少發生。`
+        : `每週回顧一次，確認「${problemText}」是否減少。`,
     };
   });
   while (compactLength(items.map((item) => Object.values(item).join('')).join('')) > wordBudget && items.length > 1) items.pop();
@@ -330,7 +341,7 @@ export function buildLongTermAdvicePlan(card, { wordBudget = 420 } = {}) {
 export function validateLongTermAdvice(items) {
   const issues = [];
   for (const [index, item] of (items ?? []).entries()) {
-    for (const field of ['problem', 'trigger', 'action', 'method', 'check']) {
+    for (const field of ['problem', 'trigger', 'action', 'check']) {
       if (!item[field] || compactLength(item[field]) < 8) issues.push(`第 ${index + 1} 項長期建議缺少 ${field}`);
     }
   }

@@ -21,6 +21,7 @@ import { composePalaceReading } from './compose.js';
 import { composeBaZiReading } from './compose-bazi.js';
 import { computeYongShen, FAVOR_IMPACT, AVOID_IMPACT } from './compose-yongshen.js';
 import { composeZiWeiLuck, composeBaZiLuck, categoryLabel } from './compose-luck.js';
+import { composeAnnualChange } from './compose-annual.js';
 import { palaceMeanings } from '../data/palace-meanings.js';
 import { inspectCardQuality } from './text-quality.js';
 
@@ -57,6 +58,13 @@ const PALACE_HEADING = {
   夫妻宮: '關係靠近之後的反應', 疾厄宮: '壓力累積時的身心反應', 遷移宮: '進入陌生環境時',
   僕役宮: '團隊分工不清楚時', 父母宮: '面對長輩與規則時', 田宅宮: '建立生活基地時',
   福德宮: '獨處與放鬆時', 子女宮: '照顧、教學與創作時', 兄弟宮: '與同輩並肩做事時',
+};
+
+const PALACE_ADVICE_CONTEXT = {
+  財帛宮: '處理金錢與資源時', 官祿宮: '在工作中', 夫妻宮: '關係變得更靠近時',
+  疾厄宮: '壓力累積時', 遷移宮: '進入陌生環境時', 僕役宮: '與朋友或團隊合作時',
+  父母宮: '面對長輩與規則時', 田宅宮: '安排住家與生活時', 福德宮: '需要休息時',
+  子女宮: '照顧、教學或創作時', 兄弟宮: '與同輩一起做事時',
 };
 
 const TRANSFORMATION_TRIGGER = {
@@ -214,7 +222,9 @@ function differentiatedSummary(base, stars, ziWei, palaceName, borrowed) {
 }
 
 function contextualAdvice(advice, palaceName) {
-  const trigger = PALACE_HEADING[palaceName];
+  // 命宮的「做決定時的基本反應」是章節標題，不是自然的行動前提；
+  // 其他宮位也只使用能直接接動作的生活情境，不把 UI 標題硬塞進句子。
+  const trigger = PALACE_ADVICE_CONTEXT[palaceName];
   if (!trigger) return advice;
   return `${trigger}，${advice.replace(/^[，,。\s]+/, '')}`;
 }
@@ -328,11 +338,13 @@ export function generatePlainPalaceCard(ziWei, palaceName) {
 
 // ---------- 紫微:大限流年重點(時間軸主題,沿用既有大限/流年組裝結果,不另建內容庫) ----------
 
-function ziweiTimeTopic(ziWei, zwLuck) {
-  const studyLuck = composeZiWeiLuck(ziWei, { mode: 'study' });
+function ziweiTimeTopic(ziWei, zwLuck, selection = {}) {
+  const studyLuck = composeZiWeiLuck(ziWei, { ...selection, mode: 'study' });
   const parts = [];
-  if (zwLuck.decadal) parts.push({ scope: zwLuck.annual ? '大限' : '大限與流年', range: `${zwLuck.decadal.ageRange.replace('~', '–')}歲`, palaceName: zwLuck.decadal.palaceName });
+  // 大限流年瀏覽器切換的是「某一年」，白話正文必須先講該年，而不是每年都先重複十年大限。
+  // 大限仍保留成第二層背景；若大限與流年同宮，composeZiWeiLuck 會合併成單一訊號。
   if (zwLuck.annual) parts.push({ scope: '流年', range: `${zwLuck.annual.year}年`, palaceName: zwLuck.annual.palaceName });
+  if (zwLuck.decadal) parts.push({ scope: zwLuck.annual ? '大限' : '大限與流年', range: `${zwLuck.decadal.ageRange.replace('~', '–')}歲`, palaceName: zwLuck.decadal.palaceName });
 
   if (parts.length === 0) {
     return null;
@@ -544,7 +556,9 @@ function baziTimeTopic(baZi, bzLuck) {
   const categoryText = BZ_CATS['類別解讀'][info.category] ?? '';
   const profile = TEN_GOD_PROFILES[info.god];
   const studyLuck = composeBaZiLuck(baZi, { mode: 'study', year: info.year ?? new Date().getFullYear() });
-  const studyText = studyLuck.decadal?.text ?? studyLuck.annual?.text ?? '';
+  const studyText = bzLuck.annual
+    ? composeAnnualChange(baZi, info.year, { mode: 'study' }).text
+    : studyLuck.decadal?.text ?? studyLuck.annual?.text ?? '';
 
   // 這張是大眾版白話卡,用白話運別名;「食傷運/食神」這種術語留給專業依據面板。
   const summary = `${scope}走「${categoryLabel(info.category)}」,這段期間這方面的特質會比平常更明顯。`;
@@ -623,7 +637,7 @@ export function generatePlainZiweiTimeCard(ziWei, { age, year } = {}) {
   if (age != null) opts.age = age;
   if (year != null) opts.year = year;
   const zwLuck = composeZiWeiLuck(ziWei, opts);
-  return ziweiTimeTopic(ziWei, zwLuck);
+  return ziweiTimeTopic(ziWei, zwLuck, { age, year });
 }
 
 /**
@@ -632,8 +646,10 @@ export function generatePlainZiweiTimeCard(ziWei, { age, year } = {}) {
  * @param {{year?: number}} [sel]
  */
 export function generatePlainBaziTimeCard(baZi, { year } = {}) {
-  const opts = { mode: 'public' };
-  if (year != null) opts.year = year;
-  const bzLuck = composeBaZiLuck(baZi, opts);
-  return baziTimeTopic(baZi, bzLuck);
+  if (year != null) {
+    // 瀏覽器已經另外顯示十年大運背景；此卡專門回答使用者點選的那一年。
+    // composeAnnualChange 沿用既有流年干支、十神與地支引動結果，不在白話層重算命盤。
+    return baziTimeTopic(baZi, { decadal: null, annual: composeAnnualChange(baZi, year, { mode: 'public' }) });
+  }
+  return baziTimeTopic(baZi, composeBaZiLuck(baZi, { mode: 'public' }));
 }
