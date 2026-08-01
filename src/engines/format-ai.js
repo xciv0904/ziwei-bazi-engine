@@ -435,6 +435,45 @@ export function formatChartForAI({
   ].join('\n');
 }
 
+/**
+ * 單題主題提示詞只帶 Topic Contract 允許且已綁定 answerTarget 的證據。
+ * 不復用 formatChartForAI()，避免把十二宮、48 條飛化與其他人生領域重新丟給 AI。
+ */
+export function formatTopicPromptForAI({ contract, report }) {
+  if (!contract || !report) throw new TypeError('formatTopicPromptForAI 需要 contract 與 report');
+  const evidenceLines = report.selectedEvidence.map((item, index) => [
+    `${index + 1}. 來源：${item.publicBasis}`,
+    `   支持的回答目標：${item.supportedTarget}`,
+    `   可公開轉譯：${item.interpretation}`,
+  ].join('\n'));
+  const current = report.directAnswer;
+  return [
+    `【單一主題：${contract.categoryLabel}】`,
+    `使用者問題：${contract.question}`,
+    `回答焦點：${contract.questionFocus}`,
+    `必須回答：${contract.answerTargets.join('、')}`,
+    `不得延伸：${contract.excludedTargets.join('、')}`,
+    '',
+    '【網站已用相同證據生成的直接答案】',
+    current.answer,
+    '',
+    '【本題已篩選命盤依據】',
+    ...(evidenceLines.length ? evidenceLines : ['本題相關訊號不足，不得引用其他領域補滿。']),
+    '',
+    '【輸出結構】',
+    '直接答案：一至兩句，第一句就回答。',
+    '為什麼：只解釋上面證據支持的兩項原因。',
+    '生活中可能怎麼出現：一個具體情境。',
+    '你可以怎麼判斷或處理：一至兩項可執行做法。',
+    '',
+    `全文最多 ${contract.wordBudget.directAnswer} 個中文字。先刪重複句，不得直接截斷句子。`,
+    '只能使用上面三項以內的已篩選依據；不重新排盤，不自行補星曜、宮位、十神或事件。',
+    '不輸出任何內部欄位、稽核理由、知識庫短句或程式標籤。',
+    '每個結論必須能對回上面某一項「支持的回答目標」；無法對回就刪除。',
+    '使用臺灣繁體中文，不作醫療診斷、不預測具體金額、日期或必然事件。',
+  ].join('\n');
+}
+
 // ---------- 宮位中心提示詞(12 宮各一套「問題+判讀順序」) ----------
 
 // 每宮:副標、中心問題、判讀重點(第1步尾)、關聯宮判讀說明(第2步尾)、

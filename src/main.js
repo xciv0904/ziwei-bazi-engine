@@ -1037,168 +1037,69 @@ function renderDashboard() {
 }
 
 // ---------- 主題分析：從使用者真正想問的問題開始 ----------
-const TOPIC_ANALYSIS = [
-  { key: 'love', label: '愛情', icon: '愛', palace: '夫妻宮', bazi: ['shishen', 'zhu'], questions: ['我常遇到什麼類型的對象？', '什麼特質最容易讓我心動？', '什麼樣的相處方式最適合我？', '關係發生衝突後，我適合怎麼修復？', '我在感情裡最容易忽略什麼？', '我要怎麼建立不委屈自己的關係界線？'] },
-  { key: 'career', label: '事業', icon: '業', palace: '官祿宮', bazi: ['yongshen', 'xiji'], questions: ['我適合負責哪些工作內容？', '我在工作或團體中最拿手的是什麼？', '什麼樣的環境比較能讓我長期發揮？', '我在合作或帶領別人時適合扮演什麼角色？', '我的職涯最容易卡在哪裡？', '我要怎麼建立長期職涯方向？'] },
-  { key: 'money', label: '財運', icon: '財', palace: '財帛宮', bazi: ['xiji', 'yongshen'], questions: ['我比較適合怎麼累積收入與資源？', '我的金錢使用習慣有什麼特色？', '做財務決定時最需要留意什麼？', '我適合獨立賺錢，還是和別人合作？', '我在金錢管理上最有優勢的是什麼？', '我要怎麼建立更穩定的財務節奏？'] },
-  { key: 'parents', label: '父母', icon: '親', palace: '父母宮', bazi: ['shishen', 'zhu'], questions: ['我和父母或長輩常見的互動模式是什麼？', '我容易從長輩身上得到哪種支持？', '面對權威或家人期待時，界線要放在哪裡？', '家人的期待容易怎麼影響我的選擇？', '我適合怎麼和父母或長輩溝通？', '成年後，我要怎麼調整和原生家庭的距離？'] },
-  { key: 'children', label: '子女', icon: '育', palace: '子女宮', bazi: ['shishen', 'zhu'], questions: ['我和子女、晚輩或學生的互動方式是什麼？', '我適合用什麼方式陪伴與培育他人？', '這個宮位也反映哪些創作與產出能力？', '我容易對晚輩抱持什麼期待？', '意見不合時，我適合怎麼和晚輩溝通？', '照顧與培育他人時，我需要守住什麼界線？'] },
-  { key: 'luck', label: '幸運', icon: '運', palace: '福德宮', bazi: ['yongshen', 'xiji'], questions: ['我在什麼狀態下比較容易遇到機會？', '哪些人或環境比較能為我帶來助力？', '我可以主動做什麼，讓有利條件更容易發生？', '我最容易忽略哪一種機會？', '什麼習慣容易讓我錯過好時機？', '遇到順風期時，我要怎麼把機會留下來？'] },
-  { key: 'home', label: '住宅', icon: '宅', palace: '田宅宮', bazi: ['xiji', 'zhu'], questions: ['什麼樣的居住環境比較適合我？', '家與空間會怎麼影響我的安全感？', '面對搬遷、置產或家庭資源時要留意什麼？', '我適合和家人同住，還是保有自己的空間？', '我比較適合怎麼累積家庭與居住資源？', '我要怎麼安排住家與工作空間才不容易疲累？'] },
-  { key: 'health', label: '健康', icon: '健', palace: '疾厄宮', bazi: ['zhu', 'xiji'], questions: ['壓力累積時，我比較容易出現什麼反應？', '哪些生活習慣最能幫助我恢復？', '我在身心照顧上最容易忽略什麼？', '我適合怎麼安排忙碌與休息的節奏？', '哪些日常情境最容易消耗我的精神？', '我要怎麼提早發現自己快要透支？'] },
-  { key: 'social', label: '人際', icon: '友', palace: '僕役宮', bazi: ['shishen', 'zhu'], questions: ['我容易吸引什麼類型的朋友或合作對象？', '我在人際關係裡通常扮演什麼角色？', '合作與交朋友時，最需要設下什麼界線？', '別人對我的第一印象通常是什麼？', '人際衝突後，我適合怎麼修復關係？', '什麼樣的朋友圈最適合我長期相處？'] },
-  { key: 'migration', label: '遷移', icon: '行', palace: '遷移宮', bazi: ['dayun', 'zhu'], questions: ['離開熟悉環境後，我通常會有什麼表現？', '我適合往外發展、旅行或轉換環境嗎？', '面對新地方與陌生人時，怎麼做比較容易站穩？', '什麼樣的城市或環境比較適合我發展？', '轉換環境時，我最容易遇到什麼適應問題？', '我要怎麼把外地經驗轉成長期機會？'] },
-];
-
-const TOPIC_DIRECT_ANSWERS = {
-  love: [
-    ['你比較容易遇到成熟、有責任感，會用行動照顧關係的人。對方通常有自己的原則，關係穩定後才會慢慢表達情緒。', '你容易遇到外表獨立、內心重視安全感的人。對方未必很會說甜言蜜語，但會希望兩個人能一起規劃生活。'],
-    ['比起外表，你更容易被可靠、願意承擔，而且遇到問題肯溝通的人吸引。對方有自己的想法，但不會忽略你的感受，最容易讓你心動。', '你容易被有見識、情緒穩定又能給人安心感的人吸引。單純熱情不一定夠，真正打動你的是對方能不能把關係放在心上。'],
-    ['最適合你的關係是彼此照顧，但不替對方做完所有決定。有事直接說、責任分清楚，也要讓自己有被照顧的空間。', '你適合穩定、能討論未來的相處方式。關係中保留各自的生活，同時固定確認彼此需求，會比一方一直配合更長久。'],
-    ['衝突後先讓情緒降下來，再分開說明發生了什麼、你感受到什麼、希望怎麼調整。你適合把修復做成具體約定，而不是只說沒事。', '你不適合在情緒最高點逼自己立刻和好。先確認彼此真正介意的地方，再討論下一次可以怎麼做，信任會恢復得比較穩。'],
-    ['你在感情裡容易先看見對方的需要，卻比較晚才發現自己已經累了。真正要留意的不是付出，而是付出是否仍出於自願。', '你容易把可靠當成自己的責任，久了可能默默承擔太多。當你開始反覆失望或不想說話，通常就是需求被忽略的訊號。'],
-    ['界線可以從三件事開始：哪些事你願意幫、哪些需要一起承擔、哪些必須由對方自己處理。說清楚不等於不愛，而是避免關係只靠你維持。', '你需要練習在答應前先停一下，確認時間、情緒和能力是否允許。能直接說出目前做不到的部分，會比勉強配合更健康。'],
-  ],
-  career: [
-    ['你適合負責需要協調、整理資訊、照顧流程或協助團隊穩定運作的工作。比起只拚速度，你更能在需要耐心與判斷的任務中發揮。', '你適合處理需要觀察、分析與溝通的內容，例如規劃、研究、顧問、內容整理或跨部門協調，而不是長期做完全沒有自主空間的重複工作。'],
-    ['你最拿手的是先看懂局面，再找到大家都能執行的方法。你能察覺別人忽略的細節，也擅長在混亂時把事情重新排出順序。', '你的強項是把抽象想法整理成可執行的步驟，並照顧合作過程中的氣氛。需要同時用腦與溝通的任務，通常比單純競爭更適合你。'],
-    ['你適合目標清楚、可以自主安排做法，而且同事願意溝通的環境。若長期只看排名、氣氛緊繃，你的能力反而容易被疲憊感蓋過。', '能讓你長期發揮的環境，需要有穩定規則，也保留改善方法的空間。主管願意說明期待、團隊分工清楚，你會做得更久也更好。'],
-    ['你適合把方向整理清楚、協調分工並追蹤進度。帶人時先說明目標，再讓每個人決定做法，比事事親自控制更能發揮。', '合作中你適合成為資訊與執行之間的橋樑。你能看見細節，也能顧及團隊氣氛；只要避免把別人的責任一併接走。'],
-    ['你的職涯容易卡在想把條件確認完整才開始，或因為不想破壞關係而延後表達意見。設定決策期限，會比繼續收集資訊更有幫助。', '當環境缺少明確標準時，你容易一邊承擔、一邊懷疑自己做得夠不夠。先確認權責與完成標準，不要只靠猜。'],
-    ['長期方向適合建立在可以持續累積的專業上，再逐步增加決策權與影響力。先選定一項核心能力，連續做出可展示的成果。', '你不必一次決定終身職業，但要讓每次轉換都累積同一條主線。定期檢查能力、作品與人脈是否持續增加，就能逐漸形成方向。'],
-  ],
-  money: [
-    ['你比較適合靠專業、資訊整理或長期累積來增加收入，而不是追逐短期起伏。把能力做成可以重複提供的服務或成果，會更符合你的節奏。', '你的資源累積方式偏向穩健：先看懂風險，再慢慢放大有效的方法。固定儲蓄、分散來源與提升專業，比臨時押注更適合你。'],
-    ['你花錢前通常會比較與思考，但遇到能提升生活品質或照顧身邊人的東西，也可能放寬標準。容易不是亂花，而是替每筆支出找到理由。', '你的金錢態度帶有安全感需求：平常會想保留餘裕，但壓力大時可能用消費換取放鬆。清楚區分需要、想要與情緒支出會很有幫助。'],
-    ['做財務決定時，最需要留意資訊查得太多卻遲遲不行動，或因為人情替別人承擔風險。先設定金額上限、期限與不能退讓的條件。', '要留意看起來很穩的選擇未必真的適合你。涉及合夥、借貸或長期負擔時，先把責任與退出方式寫清楚，不要只靠信任。'],
-    ['你可以合作賺錢，但核心專業與定價最好掌握在自己手上。合作適合用來擴大客源或補足能力，不適合把所有收入都綁在同一個人身上。', '你適合「個人能力打底、合作資源放大」的模式。開始前把出資、分工、分潤與退出方式寫清楚，合作才不會變成人情壓力。'],
-    ['你的優勢是願意比較資訊、評估風險，也能為長期目標延後部分享受。只要規則清楚，你通常比臨時憑感覺更能守住資源。', '你擅長看出一筆支出是否真的有長期價值，也願意為重要目標累積。把這項判斷力用在固定預算上，會比頻繁改策略更有效。'],
-    ['先建立固定儲蓄、日常支出與彈性預算三個區塊，每月只在固定日期檢查一次。這能避免情緒一來就改變整套計畫。', '穩定財務的關鍵不是每天省錢，而是讓收入進來後自動分配。先準備緊急備用金，再逐步安排長期目標與可自由使用的金額。'],
-  ],
-  parents: [
-    ['你和父母或長輩的互動容易出現「彼此關心，但表達方式不一樣」。你可能先配合、自己消化，累積到一定程度才說出真正想法。', '你面對長輩時常會先尊重對方的經驗與立場，但內心仍有自己的判斷。關係順不順，往往取決於雙方能否把期待說清楚。'],
-    ['你比較容易從長輩身上得到經驗、資訊或實際協助，而不一定是直接的情緒安慰。當你主動說明具體需要，支持通常會更明顯。', '長輩能給你的支持偏向提醒方向、提供資源或在關鍵時刻出面。你若只說「沒事」，他們可能不知道該怎麼幫你。'],
-    ['界線要放在「可以聽建議，但決定仍由自己承擔」。先肯定對方的關心，再清楚說明你會怎麼做，比沉默配合後突然反彈更有效。', '面對家人期待時，不需要立刻答應或拒絕。替自己保留思考時間，分清楚哪些是關心、哪些已經影響你的生活選擇。'],
-    ['家人的期待容易讓你在選擇前先考慮會不會讓他們失望，因此可能把真正想要的方向放到後面。重要決定最好先獨立寫下自己的理由。', '你可能把家人的擔心當成必須解決的責任，做決定時因此偏向安全選項。可以理解他們的顧慮，但不需要用放棄自己換取安心。'],
-    ['和長輩溝通時，先說結論，再補上你的安排與風險處理方式。具體說明你已經考慮過什麼，通常比只說「我知道」更容易取得信任。', '你適合在情緒平穩時談重要事情，避免一次翻出所有舊問題。每次只談一個主題，說明事實、需要與下一步，溝通比較不會失焦。'],
-    ['成年後適合保留固定關心，但不必讓家人參與每一個決定。先分清楚哪些資訊願意分享、哪些需要等確定後再說。', '理想距離不是完全疏遠，而是你能維持聯絡，也能自行安排生活。當家人越界時，用一致的做法回應，比每次重新辯論更有效。'],
-  ],
-  children: [
-    ['你和子女、晚輩或學生相處時，容易主動教方法、安排方向，也會希望對方真正學會。要留意幫得太快，反而減少對方自己嘗試的空間。', '你在晚輩面前常是可靠、願意解釋的一方。對方容易把你當作能詢問意見的人，但有時也可能覺得你的標準比較高。'],
-    ['你適合用「示範一次，再讓對方自己做」的方式陪伴。具體肯定努力、清楚說明界線，比一直提醒結果更能建立信任。', '陪伴他人時，你適合先問對方需要建議、協助還是單純被傾聽。這能避免你很用心，對方卻覺得被安排。'],
-    ['你的創作能力適合用在需要規劃、整理與持續修正的作品。比起一次爆發，你更能把零散想法慢慢做成完整成果。', '你適合把觀察到的人事物轉成內容、方法或可以幫助別人的成果。創作卡住時，先完成小版本，比等待完美靈感更有效。'],
-    ['你容易期待晚輩不只完成事情，還要真正理解方法與責任。這份用心是優勢，但不要把自己的成熟速度當成對方的標準。', '你對晚輩的期待偏向穩定、有進步、能為自己負責。比起只看結果，清楚說出階段目標，能減少雙方都覺得不夠好的壓力。'],
-    ['意見不合時，先問對方怎麼理解這件事，再說你的擔心。你適合提供選項與後果，讓對方參與決定，而不是直接替他安排答案。', '和晚輩溝通時，把批評改成可調整的具體行為，例如下次提前告知，會比說對方總是不負責更容易被接受。'],
-    ['需要守住的界線是：你可以提供資源與建議，但不能替對方承擔所有結果。幫忙前先確認對方願意負責哪一部分。', '照顧他人時，不要把對方的進度當成自己的成績。固定保留自己的時間，也允許對方犯小錯，關係反而更能長久。'],
-  ],
-  luck: [
-    ['當你願意走出原本的小圈子、主動交流或學習新東西時，機會比較容易出現。你的好運常不是突然降臨，而是從一次介紹或新嘗試開始。', '你在心態穩定、生活有節奏時最容易看見機會。越焦慮時越容易錯過細節，因此先把自己安頓好，判斷通常會更準。'],
-    ['願意分享資訊、說話直接但尊重人的環境，較容易為你帶來助力。能讓你學到東西、又允許你提出問題的人，通常是重要貴人。', '有經驗、做事穩定、願意給具體建議的人比較能幫到你。比起只給鼓勵，能陪你把下一步說清楚的關係更有價值。'],
-    ['主動讓別人知道你正在做什麼、需要什麼，機會才有入口。每隔一段時間更新作品、近況或目標，比默默等待更容易遇到合作。', '把大目標拆成一個月能完成的小成果，並固定接觸新資訊或新朋友。你越有持續行動，原本看不到的選項越容易浮現。'],
-    ['你最容易忽略的，是看起來只是聊天、介紹或小任務的機會。重要轉折常先以不起眼的邀請出現，不一定一開始就有完整條件。', '你可能只把明確的大機會當成機會，卻低估持續認識人、分享作品與參與小型合作的累積效果。'],
-    ['過度比較、等所有條件完美，或因為怕麻煩而不回應邀請，容易讓你錯過時機。可以先答應進一步了解，再決定是否投入。', '當你忙著處理別人的需求，自己的計畫就容易一直延後。每週保留一段時間推進個人目標，能讓機會真正接得住。'],
-    ['順風時不要只增加承諾，也要把有效方法留下來。記錄機會從哪裡來、哪些合作值得延續，並把成果整理成可再次使用的資產。', '遇到機會後，先確認時間與資源能否承擔，再選一兩項重點投入。完成並建立長期關係，比同時抓住所有選項更有利。'],
-  ],
-  home: [
-    ['你適合安靜、整齊但不過度拘束的空間。家中最好有能獨處與整理思緒的角落，同時保留自然光與可彈性調整的配置。', '你對居住環境的氣氛很敏感，適合採光穩定、收納清楚、聲音不太混亂的地方。空間不一定要大，但需要讓你能真正放鬆。'],
-    ['當家裡雜亂、關係緊張或缺少私人空間時，你的心情和行動力容易一起受影響。把住處整理好，對你不只是美觀，而是恢復穩定感。', '你會透過熟悉的物品、固定作息與可掌握的空間建立安全感。居住環境變動時，需要比別人多一點重新安頓的時間。'],
-    ['搬遷或置產時，除了價格，也要實際確認通勤、噪音、採光與生活機能。不要只因家人期待或短期優惠，就承擔超出能力的長期負擔。', '面對家庭資源時，要先說清楚所有權、付款與未來使用方式。越是親近的人，越需要把責任談清楚，才能避免日後壓力。'],
-    ['你需要有自己的安靜角落，因此即使和家人同住，也要保留能關門、整理物品與獨處的空間。若生活規則差異太大，分開住會比較自在。', '是否同住不只看感情，也要看作息、家務與隱私能不能談清楚。能明確分配公共責任並保有私人空間，同住才比較適合你。'],
-    ['你適合用長期、分階段的方式累積居住資源。先建立備用金與穩定現金流，再考慮搬遷或置產，不必為了跟上別人而過早承擔。', '家庭資源適合透明管理：列出共同支出、個人支出與未來目標。即使是家人提供協助，也要說清楚是贈與、借款還是共同投入。'],
-    ['工作區最好和睡眠、休息區有明顯界線，即使空間不大，也可以用固定桌面、燈光或收納方式區隔。工作結束後要有收尾動作。', '你容易受空間氣氛影響，工作處要減少雜物與干擾，休息處則不要一直看到待辦。把兩種狀態分開，精神比較容易真正下班。'],
-  ],
-  health: [
-    ['壓力累積時，你比較容易先出現睡不好、精神難以放鬆、飲食或作息變亂的情況。表面看起來仍能應付，但耐心和專注力會先下降。', '你在忙碌時容易忽略疲勞，直到情緒煩躁、身體緊繃或做事效率變差才發現。壓力通常不是突然爆發，而是慢慢堆積。'],
-    ['最能幫助你恢復的是規律睡眠、適度活動，以及一段不需要回應任何人的安靜時間。比起偶爾徹底放空，固定的小休息更有效。', '你的恢復關鍵是把刺激降下來：減少過滿行程、睡前停止接收資訊，並用散步、伸展或整理空間讓身體慢慢安定。'],
-    ['你最容易忽略的是「還能撐」不等於真的沒事。當休息後仍持續不舒服，應記錄狀況並尋求專業評估，不要只靠意志力拖過去。', '要留意為了照顧別人或完成責任，一再延後吃飯、睡眠與就醫。先保留基本作息，才能避免小問題累積成長期負擔。'],
-    ['你適合用固定休息點切開忙碌，例如每完成一段任務就離開座位、喝水或走動。不要等所有事情做完才休息，因為待辦通常不會真正清空。', '忙碌時採用「專注一段、短暫恢復」的節奏比較適合你。每天也要保留明確停止工作的時間，讓身體知道可以慢下來。'],
-    ['長時間回應訊息、處理別人的情緒，或行程之間完全沒有空檔，最容易消耗你的精神。需要把沒有明確責任的請求適度往後排。', '持續處在吵雜、資訊過多或要求隨時回應的環境，容易讓你越來越難專注。關閉部分通知並集中處理訊息，會減少耗損。'],
-    ['當你開始睡前仍停不下思考、容易不耐煩、忘東忘西，或原本簡單的事也拖很久，通常就是需要降低負荷的早期訊號。', '可以固定觀察睡眠、食慾、專注與情緒四項變化。若其中兩項持續明顯下降，就先縮減行程；不適持續時應尋求專業協助。'],
-  ],
-  social: [
-    ['你容易吸引能力強、有主見，或做事很有效率的人。彼此一開始可能因欣賞而靠近，但合作久了要特別說清楚誰負責什麼。', '你常遇到表面獨立、其實很需要可靠夥伴的人。對方容易信任你能收拾局面，也可能不自覺把較多責任交給你。'],
-    ['你在人際裡常扮演協調、照顧或替大家想下一步的角色。別人容易覺得你可靠，但你未必會第一時間說出自己的不舒服。', '你通常是先觀察氣氛、再調整說法的人。熟悉之後會願意投入很多，也因此容易成為朋友間被詢問意見的對象。'],
-    ['最重要的界線是不要因為自己做得到，就默認所有事情都由你承擔。答應前先確認時間、責任與對方願意投入多少。', '合作時要把金錢、期限與分工說清楚；交朋友則要觀察對方是否也願意回應你的需要。單方面付出太久，就該調整距離。'],
-    ['別人對你的第一印象多半是好相處、會觀察場合，也願意配合溝通。熟悉後才會發現你其實有清楚的原則與自己的節奏。', '你給人的感覺通常可靠、細心，不會急著搶話。這讓人容易信任你，但也可能誤以為你對所有安排都沒有意見。'],
-    ['衝突後先確認是誤解、分工還是價值不同，不要一次處理所有舊帳。你適合用具體事件和下一步重新建立合作。', '修復關係時，可以先承認對方的感受，但不需要立刻同意所有指責。把彼此責任分開，再決定哪些地方願意調整。'],
-    ['你適合重視互相回應、願意討論差異，而且不靠比較維持地位的朋友圈。能各自發展又固定聯絡的關係最容易長久。', '適合你的圈子不一定熱鬧，但需要成員做事可靠、說話真誠。若總是要猜立場或證明價值，你會很快感到疲憊。'],
-  ],
-  migration: [
-    ['離開熟悉環境後，你一開始會先觀察規則與人際氣氛，等掌握狀況後才明顯展現能力。適應速度不慢，但需要先確認安全感。', '到了新地方，你會變得比平常更主動，也比較容易看見不同選項。只要有基本準備，外在變化反而能帶出你的彈性。'],
-    ['你適合往外發展，但比較適合「有目標的移動」，例如學習、工作計畫或生活體驗，而不是為了逃離問題而突然離開。', '旅行、跨城市或接觸不同圈子通常能打開你的想法。若要長期轉換環境，先確認支持系統與生活成本，發揮會更穩。'],
-    ['到新地方後，先建立固定作息、熟悉交通與找到一兩個可信任的人，再逐步擴大活動範圍。你不需要一開始就逼自己完全融入。', '面對陌生人時，先從具體任務或共同興趣開始互動，比勉強社交更自然。保留觀察時間，同時主動提出一個小問題，就能慢慢站穩。'],
-    ['你適合生活機能清楚、能接觸新資訊，又保留安靜空間的城市。完全封閉或每天過度擁擠的環境，都可能讓你難以長期安定。', '適合你的地方需要有學習與發展機會，也能建立穩定日常。比起只看城市名氣，你更該重視通勤、社群與生活成本是否可持續。'],
-    ['轉換環境時，你容易同時想快速適應又擔心做錯選擇，前期因此耗費很多精神。先處理住宿、交通與固定聯絡人，能減少不必要的焦慮。', '你最容易遇到的問題是表面已經適應，內在卻還沒有歸屬感。不要只忙著完成事情，也要建立固定活動與能說話的關係。'],
-    ['把外地認識的人、學到的方法與完成的成果整理留下來，回到原本環境後仍持續聯絡。經驗只有被轉成作品或合作，才會成為長期機會。', '每次旅行或移動後，選一項最有價值的新方法繼續實行，並主動回訪重要人脈。這能避免經驗只停留在短暫的新鮮感。'],
-  ],
-};
-
 /**
- * 主題答案直接由本盤卡片投影，不再從兩則通用長文中二選一。
- * 六種問題依序偏重：常見情境、優勢、適合做法、修復方式、盲點、長期調整。
- * 固定題庫只決定「問什麼」，結論、情境與建議都由本次命盤內容決定。
+ * 每題先取自己的 Topic Contract，再由本盤卡片建立、過濾與評分證據。
+ * 結論、情境、建議與 AI 複製內容全部共用 buildTopicReport() 的結果。
  */
-function topicIntegratedAnswer(topic, questionIndex, ziweiCard, baziCards) {
-  const selectedBazi = topic.bazi.map((key) => baziCards.find((card) => card.key === key)).filter(Boolean);
-  const primaryBazi = selectedBazi[0];
-  const secondaryBazi = selectedBazi[1];
-  if (!ziweiCard?.summary && !primaryBazi?.summary) return '目前資料不足以判斷這題。';
-
-  const pick = (items, index = 0) => items?.[index % Math.max(items?.length ?? 0, 1)] ?? '';
-  const patterns = [
-    [pick(ziweiCard.lifeExamples, 0), pick(primaryBazi?.lifeExamples, 0)],
-    [pick(ziweiCard.lifeExamples, 1), pick(primaryBazi?.lifeExamples, 1)],
-    [pick(ziweiCard.lifeExamples, 0), pick(primaryBazi?.advice, 0)],
-    [pick(ziweiCard.challenges, 0), pick(ziweiCard.advice, 0)],
-    [pick(ziweiCard.challenges, 0), pick(primaryBazi?.challenges, 0)],
-    [pick(ziweiCard.advice, 0), pick(secondaryBazi?.advice, 0) || pick(primaryBazi?.advice, 1)],
-  ];
-  const details = patterns[questionIndex] ?? patterns[0];
-  const sentences = [
-    details[0] ? `這題最容易從這個情況看出來：${details[0]}。` : '',
-    details[1] ? `${questionIndex >= 2 ? '可以先這樣做' : '另一個可核對的反應'}：${details[1]}。` : '',
-    secondaryBazi?.lifeExamples?.[questionIndex % secondaryBazi.lifeExamples.length]
-      ? `內在還有一層反應：${secondaryBazi.lifeExamples[questionIndex % secondaryBazi.lifeExamples.length]}。`
-      : '',
-  ].filter(Boolean);
-  return sentences.join('');
+function topicReportFor(contract, ziWei, baziCards) {
+  const ziweiCard = R.generatePlainPalaceCard(ziWei, contract.allowedPalaces[0]);
+  return R.buildTopicReport({ contract, ziWei, ziweiCard, baziCards });
 }
 
-/** 這一題底下真正依使用者命盤排出的依據(紫微對應宮位 + 八字對應面向);沒有資料就不硬湊 */
-function topicChartBasisHtml(topic, ziweiCard, baziCards) {
-  const rows = [];
-  if (ziweiCard?.summary) {
-    rows.push(`<li><b>紫微斗數看到的</b><span>${esc(flat(ziweiCard.summary))}</span></li>`);
-  }
-  topic.bazi.map((key) => baziCards.find((card) => card.key === key)).filter(Boolean).slice(0, 2)
-    .forEach((card, index) => rows.push(`<li><b>${index === 0 ? '八字內在反應' : '八字補充條件'}</b><span>${esc(flat(card.summary))}</span></li>`));
-  if (!rows.length) return '';
+/** 依據與正文共用 buildTopicReport() 選出的同一組證據，不再直接印 card.summary。 */
+function topicChartBasisHtml(report) {
+  const rows = report.topicAnalysis.evidence.map((item) =>
+    `<li><b>${esc(item.supportedTarget)}</b><span>${esc(item.label)}</span></li>`);
+  if (!rows.length) return '<p class="card-hint">這部分可使用的命盤訊號較少，不會引用其他主題補滿。</p>';
   return `<section class="topic-answer topic-answer--basis">
-    <b>這個主題在你的命盤裡</b>
+    <b>這一題的命盤依據</b>
     <ul class="topic-basis-list">${rows.join('')}</ul>
-    <small>以上內容由本次命盤的相關宮位與兩項八字條件組成。完整推導放在「重點摘要」的專業依據。複製給 AI 前，資料只會進入剪貼簿，不會由網站上傳。</small>
+    <small>每項依據都已綁定這題的回答目標。複製給 AI 時也只會使用這些內容，不會由網站上傳。</small>
+  </section>`;
+}
+
+function topicDirectAnswerHtml(report) {
+  const answer = report.directAnswer;
+  return `<section class="topic-answer topic-answer--combined">
+    <b>依你的命盤回答</b>
+    <p><strong>直接答案：</strong>${esc(answer.answer)}</p>
+    ${answer.reasons.length ? `<p><strong>為什麼：</strong>${esc(answer.reasons.join(''))}</p>` : ''}
+    ${answer.scenario ? `<p><strong>生活中可能怎麼出現：</strong>${esc(answer.scenario)}</p>` : ''}
+    ${answer.actions.length ? `<p><strong>你可以怎麼判斷或處理：</strong>${esc(answer.actions.join(''))}</p>` : ''}
+  </section>`;
+}
+
+function topicAnalysisHtml(report) {
+  const analysis = report.topicAnalysis;
+  const manifestations = analysis.manifestations.filter((item) => item !== analysis.scenario);
+  return `<section class="topic-answer topic-answer--analysis">
+    <b>主題分析・${esc(analysis.headline)}</b>
+    ${manifestations.length ? `<p><strong>主要表現：</strong>${esc(manifestations.join(''))}</p>` : ''}
+    ${analysis.strength && analysis.strength !== analysis.directConclusion ? `<p><strong>可以發揮的優勢：</strong>${esc(analysis.strength)}</p>` : ''}
+    ${analysis.cost && analysis.cost !== analysis.scenario ? `<p><strong>過度使用的代價：</strong>${esc(analysis.cost)}</p>` : ''}
   </section>`;
 }
 
 function renderTopics() {
-  const { input, ziWei, baZi, zwLuck, bzLuck, elements } = state.data;
-  const topic = TOPIC_ANALYSIS.find((item) => item.key === state.topicKey) ?? TOPIC_ANALYSIS[0];
-  const ziweiCard = R.generatePlainPalaceCard(ziWei, topic.palace);
+  const { ziWei, baZi, bzLuck, elements } = state.data;
+  const topic = R.TOPIC_CATEGORIES.find((item) => item.key === state.topicKey) ?? R.TOPIC_CATEGORIES[0];
   const baziCards = R.generatePlainBaziTopics(baZi, bzLuck, elements);
 
-  const tabs = TOPIC_ANALYSIS.map((item) => `
+  const tabs = R.TOPIC_CATEGORIES.map((item) => `
     <button type="button" class="topic-tab${item.key === topic.key ? ' active' : ''}" data-topic="${item.key}" aria-pressed="${item.key === topic.key}">
       <span>${item.icon}</span>${item.label}
     </button>`).join('');
-  const questions = topic.questions.map((question, index) => {
+  const questions = topic.contracts.map((contract, index) => {
     const open = state.topicQuestion === index;
-    const answer = open ? topicIntegratedAnswer(topic, index, ziweiCard, baziCards) : '';
+    const report = open ? topicReportFor(contract, ziWei, baziCards) : null;
     return `<article class="topic-question-card${open ? ' open' : ''}">
       <button type="button" class="topic-question-head" data-open-topic-question="${index}" aria-expanded="${open}" aria-controls="topic-answer-${index}">
-        <span>Q${index + 1}</span><h3>${esc(question)}</h3><i aria-hidden="true">›</i>
+        <span>Q${index + 1}</span><h3>${esc(contract.question)}</h3><i aria-hidden="true">›</i>
       </button>
       ${open ? `<div class="topic-question-body" id="topic-answer-${index}">
-        <section class="topic-answer topic-answer--combined"><b>依你的命盤回答</b><p>${esc(answer)}</p></section>
+        ${topicDirectAnswerHtml(report)}
+        ${topicAnalysisHtml(report)}
+        ${topicChartBasisHtml(report)}
         <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">複製這題給 AI 深入問</button>
       </div>` : ''}
     </article>`;
@@ -1207,8 +1108,7 @@ function renderTopics() {
   $('#view-topics').innerHTML = `
     <div class="report-intro"><b>先選主題，再點開一個你真正想知道的問題。</b>每題提供紫微與八字的初步綜合方向，也可以把該題與命盤資料複製給 AI 繼續追問。</div>
     <div class="topic-tabs" aria-label="選擇分析主題">${tabs}</div>
-    <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>${esc(palaceMeanings[topic.palace] ?? '')}</p></div></div>
-    ${topicChartBasisHtml(topic, ziweiCard, baziCards)}
+    <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>每題會依自己的 Topic Contract 重新篩選命盤依據。</p></div></div>
     <div class="topic-question-list">${questions}</div>`;
 
   $$('#view-topics [data-topic]').forEach((button) =>
@@ -1222,31 +1122,13 @@ function renderTopics() {
   $$('#view-topics [data-topic-question]').forEach((button) =>
     button.addEventListener('click', async () => {
       const index = Number(button.dataset.topicQuestion);
-      const question = topic.questions[index];
-      const answer = topicIntegratedAnswer(topic, index, ziweiCard, baziCards);
+      const contract = topic.contracts[index];
+      const report = topicReportFor(contract, ziWei, baziCards);
       await ensureModules('formatAi');
-      const chartPacket = mod.formatAi.formatChartForAI({
-        input, ziWei, baZi, zwLuck, bzLuck, elements, includeInstruction: false,
-      });
-      const text = [
-        `【主題分析：${topic.label}】`,
-        `使用者問題：${question}`,
-        `網站依本次命盤投影的初步回答：${answer}`,
-        '',
-        '請先直接回答上面的單一問題，不要先輸出完整命盤總論。',
-        '只使用下方資料包裡實際存在的命盤資料，不重新排盤、不補造星曜、十神或人生事件。',
-        '請把紫微與八字交叉比對：一致處作為較明顯的傾向，分歧處分開說明，不要硬湊。',
-        '請用約500至800個中文字回答：一句結論 → 2至3個具體生活表現 → 1個盲點 → 2個可執行建議 → 最多2句命理依據。',
-        '不要展開其他人生分類，不要逐宮、逐星或逐十神解說；抽象形容詞後必須接具體行為與出現情境。',
-        '使用臺灣繁體中文。直接回答，刪除「值得注意的是、總的來說、深入探討」等空話；少用「不是…而是…」「不僅…更…」與破折號。長句拆開，各段不要用相同方式開頭或收尾。',
-        '不要預測具體對象、疾病、死亡、必然事件或精確發生日期。只回答資料能合理支持的部分；沒有依據的內容直接省略，不要輸出「命盤無法判定」等限制聲明。',
-        '',
-        '--- 完整命盤資料包 ---',
-        chartPacket,
-      ].join('\n');
+      const text = mod.formatAi.formatTopicPromptForAI({ contract, report });
       try {
         await navigator.clipboard.writeText(text);
-        toast(`已複製「${question}」AI 解讀提示`);
+        toast(`已複製「${contract.question}」AI 解讀提示`);
       } catch { toast('複製失敗，請確認瀏覽器剪貼簿權限'); }
     }));
 }
@@ -1472,6 +1354,22 @@ function deepListHtml(title, items, className = '') {
   </section>`;
 }
 
+function longTermAdviceHtml(card) {
+  const items = R.buildLongTermAdvicePlan(card);
+  if (!items.length) return '';
+  return `<section class="deep-section deep-advice">
+    <h4>長期發展建議</h4>
+    <ol>${items.map((item) => `<li>
+      <b>${esc(item.priority)}</b>
+      <p><strong>目前容易卡住：</strong>${esc(item.problem)}</p>
+      <p><strong>何時使用：</strong>${esc(item.trigger)}</p>
+      <p><strong>要做什麼：</strong>${esc(item.action)}</p>
+      <p><strong>怎麼做：</strong>${esc(item.method)}</p>
+      <p><strong>怎麼檢查：</strong>${esc(item.check)}</p>
+    </li>`).join('')}</ol>
+  </section>`;
+}
+
 function deepPatternsHtml(items) {
   const contexts = ['在人際與日常中', '在工作或學習中', '在壓力增加時'];
   const values = [...new Set((items || []).filter(Boolean))].slice(0, 3);
@@ -1515,7 +1413,7 @@ function renderComprehensive() {
         <div class="palace-explain">${plainParagraphs.slice(0, source ? 3 : plainParagraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
         ${source ? deepListHtml('現實中可能怎麼出現', source.lifeExamples, 'deep-strengths') : ''}
         ${source ? deepListHtml('容易反覆出現的課題', source.challenges, 'deep-challenges') : ''}
-        ${source ? deepListHtml('長期發展建議', source.advice, 'deep-advice') : ''}
+        ${source ? longTermAdviceHtml(source) : ''}
         <details class="palace-technical">
           <summary>專業命理依據</summary>
           <div class="analysis-card__panel--technical" style="margin-top:10px">

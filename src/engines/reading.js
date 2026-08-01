@@ -44,3 +44,12 @@ export {
   similarityScore,
   uniqueHeading,
 } from './text-quality.js';
+export {
+  buildLongTermAdvicePlan,
+  buildTopicReport,
+  extractTopicEvidence,
+  selectTopicEvidence,
+  validateLongTermAdvice,
+  validateTopicReport,
+} from './topic-report.js';
+export { TOPIC_CATEGORIES, TOPIC_CONTRACTS, createCustomTopicContract, getTopicContract } from '../data/topic-contracts.js';

@@ -1,0 +1,132 @@
+{
+  "referenceYear": 2026,
+  "cases": [
+    {
+      "chartId": "current-smoke-chart",
+      "input": { "year": 2002, "month": 9, "day": 4, "hour": 13, "gender": "female" }
+    },
+    {
+      "chartId": "seven-kill-life",
+      "input": { "year": 1990, "month": 5, "day": 20, "hour": 9, "gender": "female" }
+    },
+    {
+      "chartId": "wuqu-life-zi-body",
+      "input": { "year": 1978, "month": 11, "day": 3, "hour": 1, "gender": "male" }
+    }
+  ],
+  "scenarios": [
+    {
+      "topicId": "core.personality",
+      "kind": "plainCard",
+      "expectedTargets": ["決策方式", "壓力反應"],
+      "forbiddenTargets": ["必然事件", "醫療診斷"],
+      "expectedEvidenceTypes": ["ziwei_palace"],
+      "forbiddenEvidence": ["rawReason", "internalNote"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 550
+    },
+    {
+      "topicId": "health.stress",
+      "expectedTargets": ["壓力反應", "早期警訊"],
+      "forbiddenTargets": ["疾病診斷", "治療效果"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "官祿宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "career.work-content",
+      "expectedTargets": ["擅長解決的問題", "適合的工作角色"],
+      "forbiddenTargets": ["戀愛對象", "原生家庭"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "子女宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "career.environment",
+      "expectedTargets": ["適合的工作環境", "必要的自主空間"],
+      "forbiddenTargets": ["婚姻互動", "房產"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "田宅宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "money.income",
+      "expectedTargets": ["適合的收入方式", "資源累積節奏"],
+      "forbiddenTargets": ["具體金額", "戀愛對象"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "疾厄宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "love.attraction",
+      "expectedTargets": ["吸引特質", "內在需求"],
+      "forbiddenTargets": ["工作能力", "財務金額"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["官祿宮", "財帛宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "love.partner-pattern",
+      "expectedTargets": ["對象特質", "互動起點"],
+      "forbiddenTargets": ["工作能力", "健康診斷"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["官祿宮", "疾厄宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "social.role",
+      "expectedTargets": ["常見角色", "他人感受"],
+      "forbiddenTargets": ["婚姻互動", "房產"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "田宅宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "parents.authority-boundary",
+      "expectedTargets": ["界線位置", "高壓情境"],
+      "forbiddenTargets": ["戀愛對象", "財務金額"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "財帛宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "career.direction",
+      "kind": "longTerm",
+      "expectedTargets": ["優先累積的能力", "階段行動"],
+      "forbiddenTargets": ["戀愛對象", "原生家庭"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["相信自己", "找到平衡"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 420
+    },
+    {
+      "topicId": "migration.development",
+      "kind": "currentStage",
+      "expectedTargets": ["直接答案", "適合的移動目的"],
+      "forbiddenTargets": ["必然事件", "健康診斷"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_timing", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "財帛宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    },
+    {
+      "topicId": "career.custom",
+      "kind": "custom",
+      "question": "我要怎麼判斷現在的工作是否還值得留下？",
+      "expectedTargets": ["直接答案", "主要原因"],
+      "forbiddenTargets": ["戀愛對象", "原生家庭"],
+      "expectedEvidenceTypes": ["ziwei_palace", "ziwei_transformation", "bazi_profile"],
+      "forbiddenEvidence": ["夫妻宮", "父母宮"],
+      "maxSimilarityWithOtherTopics": 0.95,
+      "maxLength": 450
+    }
+  ]
+}

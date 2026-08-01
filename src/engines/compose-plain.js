@@ -204,12 +204,12 @@ function differentiatedSummary(base, stars, ziWei, palaceName, borrowed) {
   const context = transform
     ? transform.split('，')[0]
     : secondary
-      ? `同宮的${STAR_PROFILES[secondary.name]?.tag ?? secondary.name}反應也會加入`
+      ? `當情境同時需要兩種處理方式時，你會在${STAR_PROFILES[lead?.name]?.tag ?? lead?.name}與${STAR_PROFILES[secondary.name]?.tag ?? secondary.name}之間切換`
       : BRIGHTNESS_DIRECT.has(lead?.brightness)
         ? '這個反應平常就容易被看見'
         : '規則清楚、環境熟悉時，這個反應更明顯';
   const cleanBase = String(base ?? '').replace(/[，,。；;\s]+$/, '');
-  const related = distinct.length ? `。你也可能同時出現${distinct.join('與')}的反應` : '';
+  const related = distinct.length ? `。換到不同人或場合時，別人還可能看到你${distinct.join('與')}的一面` : '';
   return `${context}：${cleanBase}${borrowed ? '。這部分會隨環境改變' : ''}${related}。`;
 }
 

@@ -181,11 +181,12 @@ $$('#view-topics .topic-tab').find((n) => n.dataset.topic === 'love').click();
 check('主題回答來自本次命盤，且整頁只渲染展開題', (() => {
   const text = $('#view-topics').textContent;
   return $$('#view-topics .topic-answer--combined').length === 1
+    && $$('#view-topics .topic-answer--analysis').length === 1
     && $$('#view-topics .topic-answer--basis').length === 1
     && $$('#view-topics .topic-basis-list li').length >= 3
     && $$('#view-topics .topic-question-body').length === 1
     && text.includes('依你的命盤回答')
-    && text.includes('這個主題在你的命盤裡')
+    && text.includes('這一題的命盤依據')
     && !text.includes('這一題的一般方向')
     && (text.match(/不會由網站上傳/g) ?? []).length === 1
     && !text.includes('命盤無法判定') && !text.includes('水多')
@@ -204,13 +205,18 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
 });
 $('#view-topics .topic-ai-btn').click();
 await new Promise((r) => setTimeout(r, 0));
-check('逐題 AI 提示包含問題、綜合初解與完整資料包', copiedTopicPrompt.includes('我適合負責哪些工作內容')
-  && copiedTopicPrompt.includes('網站依本次命盤投影的初步回答')
-  && copiedTopicPrompt.includes('完整命盤資料包'));
-check('主題單題使用精簡輸出規則且不附完整人生報告指令',
-  copiedTopicPrompt.includes('約500至800個中文字')
-  && copiedTopicPrompt.includes('不要展開其他人生分類')
-  && copiedTopicPrompt.includes('抽象形容詞後必須接具體行為與出現情境')
+check('逐題 AI 提示與網站共用已篩選證據', copiedTopicPrompt.includes('我適合負責哪些工作內容')
+  && copiedTopicPrompt.includes('網站已用相同證據生成的直接答案')
+  && copiedTopicPrompt.includes('本題已篩選命盤依據')
+  && copiedTopicPrompt.includes('支持的回答目標'));
+check('主題單題只帶最多三項相關證據且不附完整命盤',
+  copiedTopicPrompt.includes('全文最多 450 個中文字')
+  && copiedTopicPrompt.includes('不得延伸')
+  && copiedTopicPrompt.includes('第一句就回答')
+  && (copiedTopicPrompt.match(/\d+\. 來源：/g) ?? []).length <= 3
+  && !copiedTopicPrompt.includes('◆ 十二宮列表')
+  && !copiedTopicPrompt.includes('◆ 十二宮飛化')
+  && !copiedTopicPrompt.includes('完整命盤資料包')
   && !copiedTopicPrompt.includes('【內部判讀】')
   && !copiedTopicPrompt.includes('【輸出前自檢】')
   && !copiedTopicPrompt.includes('三個最重要的分類詳寫'));
@@ -338,6 +344,17 @@ check('深度解析具備完整內容層級', (() => {
     && text.includes('長期發展建議')
     && text.includes('專業命理依據')
     && !text.includes('與其他人生主題的關聯');
+})());
+check('長期發展建議含優先順序、時機、動作、方法與檢查', (() => {
+  const advice = $('#view-comprehensive .deep-advice');
+  const text = advice?.textContent ?? '';
+  return !!advice
+    && advice.querySelectorAll('ol > li').length <= 3
+    && text.includes('現在優先處理')
+    && text.includes('何時使用')
+    && text.includes('要做什麼')
+    && text.includes('怎麼做')
+    && text.includes('怎麼檢查');
 })());
 
 // 地支關係/神煞屬於補充細節,預設收合(acc-item 沒有 open class,內文不渲染),點開才展開
