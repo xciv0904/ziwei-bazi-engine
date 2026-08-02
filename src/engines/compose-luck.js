@@ -1,7 +1,7 @@
 // src/engines/compose-luck.js — 大運/流年疊加解讀
-// 紫微:當前大限(或流年)落在哪一宮 → 套該宮位×主星基礎解釋 → 疊時間框架句
-// 八字:大運/流年天干對日主的十神 → 歸類五大運別 → 先比對大運類別與流年類別是否相同
-//       → 相同時合併成一段(避免完整類別解讀重複輸出兩次),不同時用對比句銜接
+// 紫微：當前大限（或流年）落在哪一宮 → 套該宮位×主星基礎解釋 → 疊時間框架句
+// 八字：大運/流年天干對日主的十神 → 歸類五大運別 → 先比對大運類別與流年類別是否相同
+//       → 相同時合併成一段（避免完整類別解讀重複輸出兩次），不同時用對比句銜接
 import overlays from '../data/luck-cycle-overlays.json' with { type: 'json' };
 import tenGodsDb from '../data/ten-gods-meanings.json' with { type: 'json' };
 import { composePalaceReading } from './compose.js';
@@ -16,7 +16,7 @@ const oppositeBranch = (b) => BRANCHES[(BRANCHES.indexOf(b) + 6) % 12];
 const yearGanZhi = (y) => STEMS[(y - 4) % 10] + BRANCHES[(y - 4) % 12];
 const fill = (tpl, vars) => tpl.replace(/\{(.+?)\}/g, (_, k) => vars[k] ?? `{${k}}`);
 
-// ---------- 十神推算(大運/流年天干 vs 日主) ----------
+// ---------- 十神推算（大運/流年天干 vs 日主） ----------
 const STEM_INFO = {
   甲: { e: '木', yang: true }, 乙: { e: '木', yang: false },
   丙: { e: '火', yang: true }, 丁: { e: '火', yang: false },
@@ -40,9 +40,9 @@ export function tenGodOf(dayStem, otherStem) {
 
 /**
  * 五大運別的白話別名。
- * 「食傷運」「比劫運」「印運」這些名字對沒學過八字的人完全無法解讀,
- * 但它們在畫面上出現得非常頻繁(命盤總覽、深度解析、每日運勢都會用到)。
- * 大眾版一律顯示白話名,專業命盤模式才顯示原本的術語名。
+ * 「食傷運」「比劫運」「印運」這些名字對沒學過八字的人完全無法解讀，
+ * 但它們在畫面上出現得非常頻繁（命盤總覽、深度解析、每日運勢都會用到）。
+ * 大眾版一律顯示白話名，專業命盤模式才顯示原本的術語名。
  */
 export const CATEGORY_PLAIN = {
   比劫運: '同儕與競爭運',
@@ -58,7 +58,7 @@ export const categoryLabel = (category, mode = 'public') =>
 export const categoryOf = (god) =>
   Object.entries(BZ['類別對應']).find(([, gods]) => gods.includes(god))?.[0] ?? null;
 
-// ---------- 紫微:大限 / 流年 ----------
+// ---------- 紫微：大限 / 流年 ----------
 function palaceMaps(ziWei, mode = 'public') {
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
   const readingAt = (branch) =>
@@ -68,21 +68,21 @@ function palaceMaps(ziWei, mode = 'public') {
 
 /**
  * 紫微大限 + 流年疊加
- * 大限宮位與流年宮位偶爾會剛好相同(同宮),此時先比對再決定要不要合併,
- * 避免像舊版一樣大限、流年各自完整輸出一次同一段星曜解讀,造成重複段落。
+ * 大限宮位與流年宮位偶爾會剛好相同（同宮），此時先比對再決定要不要合併，
+ * 避免像舊版一樣大限、流年各自完整輸出一次同一段星曜解讀，造成重複段落。
  * @param {object} ziWei  convertToZiWei() 輸出
  * @param {object} [opts] { age = ziWei.age, year = 當年, mode = 'public' | 'study' }
  */
 export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().getFullYear(), mode = 'public' } = {}) {
   const { readingAt } = palaceMaps(ziWei, mode);
 
-  // 大限:找 age 落在哪個區間 → 該干支地支即大限宮位
+  // 大限：找 age 落在哪個區間 → 該干支地支即大限宮位
   const limit = ziWei.majorLimits.find((l) => {
     const [a, b] = l.ageRange.split('~').map(Number);
     return age >= a && age <= b;
   });
 
-  // 流年:該年地支即流年宮位
+  // 流年：該年地支即流年宮位
   const gz = yearGanZhi(year);
   const annualReading = readingAt(gz[1]);
 
@@ -120,7 +120,7 @@ export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().get
         };
   }
 
-  // 已經合併進 decadal 的話,annual 不再獨立輸出,避免呼叫端([decadal?.text, annual?.text].join)
+  // 已經合併進 decadal 的話,annual 不再獨立輸出，避免呼叫端（[decadal?.text, annual?.text].join）
   // 把同一段星曜解讀再接一次
   const annual = merged
     ? null
@@ -138,11 +138,11 @@ export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().get
   return { decadal, annual };
 }
 
-// ---------- 八字:大運 / 流年類別疊加(先比對是否重複,再決定合併或對比) ----------
+// ---------- 八字：大運 / 流年類別疊加（先比對是否重複，再決定合併或對比） ----------
 
 /**
- * 依大運類別與流年類別是否相同,組出合併版/對比版/僅流年版的疊加文字。
- * 抽成共用函式,comprehensive.js 的八字第3段也呼叫同一份邏輯,避免兩處各自實作、
+ * 依大運類別與流年類別是否相同，組出合併版/對比版/僅流年版的疊加文字。
+ * 抽成共用函式,comprehensive.js 的八字第3段也呼叫同一份邏輯，避免兩處各自實作、
  * 各自忘記做重複檢查。
  * @param {{ganZhi, ageRange, category, god}|null} decadalInfo
  * @param {{ganZhi, year, category, god}|null} annualInfo
@@ -150,7 +150,7 @@ export function composeZiWeiLuck(ziWei, { age = ziWei.age, year = new Date().get
  */
 export function composeBaZiCycleOverlay(decadalInfo, annualInfo, { mode = 'public' } = {}) {
   if (!decadalInfo && !annualInfo) return null;
-  // 類別名稱在大眾版一律換成白話別名(食傷運→表達與才華運…),術語版留給專業命盤模式
+  // 類別名稱在大眾版一律換成白話別名（食傷運→表達與才華運…），術語版留給專業命盤模式
   const cat = (c) => categoryLabel(c, mode);
 
   if (decadalInfo && annualInfo) {
@@ -186,7 +186,7 @@ export function composeBaZiCycleOverlay(decadalInfo, annualInfo, { mode = 'publi
     };
   }
 
-  // 只有大運沒有流年,理論上不會發生(流年一定存在),保留容錯
+  // 只有大運沒有流年，理論上不會發生（流年一定存在），保留容錯
   const [startAge, endAge] = decadalInfo.ageRange.split('~');
   return {
     merged: false,
@@ -195,8 +195,8 @@ export function composeBaZiCycleOverlay(decadalInfo, annualInfo, { mode = 'publi
 }
 
 /**
- * 八字大運 + 流年疊加(供「解讀報告」大運概況區塊使用)
- * mode = 'public'(預設):只留類別結論句;mode = 'study':額外附上「細節上,{十神}——{完整解釋}」的依據句。
+ * 八字大運 + 流年疊加（供「解讀報告」大運概況區塊使用）
+ * mode = 'public'（預設）：只留類別結論句;mode = 'study':額外附上「細節上,{十神}——{完整解釋}」的依據句。
  * @param {object} baZi  convertToBaZi() 輸出
  * @param {object} [opts] { year = 當年, mode = 'public' | 'study' }
  */
@@ -226,7 +226,7 @@ export function composeBaZiLuck(baZi, { year = new Date().getFullYear(), mode = 
   const overlay = composeBaZiCycleOverlay(decadalInfo, annualInfo, { mode });
   if (!overlay) return { decadal: null, annual: null };
 
-  const detailLine = (info) => `細節上,${info.god}——${tenGodsDb['十神核心意義'][info.god].core}`;
+  const detailLine = (info) => `細節上，${info.god}——${tenGodsDb['十神核心意義'][info.god].core}`;
   const detailLines = [];
   if (mode === 'study') {
     if (decadalInfo) detailLines.push(detailLine(decadalInfo));
@@ -237,8 +237,8 @@ export function composeBaZiLuck(baZi, { year = new Date().getFullYear(), mode = 
 
   const fullText = [overlay.text, ...detailLines].join('\n');
 
-  // 大運與流年的類別敘述已經合併/對比成同一段文字,只掛在其中一個欄位上,
-  // 避免呼叫端(main.js)用 [decadal?.text, annual?.text] 相接時,把同一段內容再疊一次。
+  // 大運與流年的類別敘述已經合併/對比成同一段文字，只掛在其中一個欄位上，
+  // 避免呼叫端（main.js）用 [decadal?.text, annual?.text] 相接時，把同一段內容再疊一次。
   if (decadalInfo) {
     return { decadal: { ...decadalInfo, text: fullText }, annual: null };
   }

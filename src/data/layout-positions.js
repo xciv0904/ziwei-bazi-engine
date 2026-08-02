@@ -1,5 +1,5 @@
-// src/data/layout-positions.js — 12 宮 → 4×4 井字盤固定座標(row/col 皆 1 起算)
-// 標準命盤排法:巳午未申在頂列、寅丑子亥在底列、中央 2×2 留給基本資訊面板
+// src/data/layout-positions.js — 12 宮 → 4×4 井字盤固定座標（row/col 皆 1 起算）
+// 標準命盤排法：巳午未申在頂列、寅丑子亥在底列、中央 2×2 留給基本資訊面板
 //
 //   巳 │ 午 │ 未 │ 申
 //   ───┼────────┼───
@@ -24,11 +24,11 @@ export const LAYOUT_POSITIONS = {
   亥: { row: 4, col: 4 },
 };
 
-/** 中央資訊面板佔的格子(可放四柱、五行局、命主身主) */
+/** 中央資訊面板佔的格子（可放四柱、五行局、命主身主） */
 export const CENTER_PANEL = { rowStart: 2, colStart: 2, rowSpan: 2, colSpan: 2 };
 
 /**
- * 把 convertToZiWei() 的 palaces 掛上座標,直接供 UI grid 渲染
+ * 把 convertToZiWei() 的 palaces 掛上座標，直接供 UI grid 渲染
  * @param {Array} palaces  ziWei.palaces
  * @returns {Array<{branch, row, col, palace}>}
  */

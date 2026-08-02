@@ -1,6 +1,6 @@
 // scripts/screenshot.mjs — 真瀏覽器全站截圖健檢
-// 用 Playwright + Chromium 以手機/桌機視窗跑完整流程,輸出各分頁全頁截圖。
-// 用法:先 `npx vite preview --outDir dist --port 4173`,再 `node scripts/screenshot.mjs [outDir]`
+// 用 Playwright + Chromium 以手機/桌機視窗跑完整流程，輸出各分頁全頁截圖。
+// 用法：先 `npx vite preview --outDir dist --port 4173`,再 `node scripts/screenshot.mjs [outDir]`
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 

@@ -1,5 +1,5 @@
 // src/data/transformation-meanings.js — 四化基本義
-// iztro 的 mutagen 只給單字(祿/權/科/忌),兩種 key 都支援
+// iztro 的 mutagen 只給單字（祿/權/科/忌），兩種 key 都支援
 
 export const transformationMeanings = {
   化祿: '順遂、財氣、人緣加分',

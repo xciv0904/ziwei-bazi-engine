@@ -1,4 +1,4 @@
-// interpret-demo.js — 用測試命例跑一遍:排盤 → 座標 → 解讀
+// interpret-demo.js — 用測試命例跑一遍：排盤 → 座標 → 解讀
 import { convertToZiWei } from './src/engines/ziwei.js';
 import { interpretChart } from './src/engines/interpret.js';
 import { buildGrid } from './src/data/layout-positions.js';

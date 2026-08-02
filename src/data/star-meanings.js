@@ -1,4 +1,4 @@
-// src/data/star-meanings.js — 星曜基本義(種子資料,可持續擴充)
+// src/data/star-meanings.js — 星曜基本義（種子資料，可持續擴充）
 
 /** 十四主星 */
 export const starMeanings = {
@@ -38,7 +38,7 @@ export const maleficStars = {
   地劫: { core: '劫財、起伏、反潮流', keywords: ['劫'] },
 };
 
-/** 綜合查詢:主星 → 吉星 → 煞星 */
+/** 綜合查詢：主星 → 吉星 → 煞星 */
 export function lookupStar(name) {
   return starMeanings[name] ?? auspiciousStars[name] ?? maleficStars[name] ?? null;
 }

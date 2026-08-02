@@ -1,4 +1,4 @@
-// test.js — 驗證入口:呼叫引擎模組,與 expected-chart-data.json 逐項比對
+// test.js — 驗證入口：呼叫引擎模組，與 expected-chart-data.json 逐項比對
 import { readFileSync, writeFileSync } from 'node:fs';
 import { convertToBaZi } from './src/engines/bazi.js';
 import { convertToZiWei } from './src/engines/ziwei.js';
@@ -8,7 +8,7 @@ const input = { year: 2002, month: 9, day: 4, hour: 14, minute: 11, gender: 'fem
 const baZi = convertToBaZi(input);
 const ziWei = convertToZiWei(input);
 
-// 完整輸出存檔,方便肉眼核對整份 schema
+// 完整輸出存檔，方便肉眼核對整份 schema
 const actual = {
   input: { birthDate: '2002-09-04', birthTime: '14:11', gender: input.gender, age: ziWei.age },
   baZi,

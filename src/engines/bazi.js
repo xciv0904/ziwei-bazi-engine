@@ -1,4 +1,4 @@
-// src/engines/bazi.js — 八字排盤引擎(lunar-javascript)
+// src/engines/bazi.js — 八字排盤引擎（lunar-javascript）
 // convertToBaZi(input) → 統一 schema 的 baZi 物件
 import lunarPkg from 'lunar-javascript';
 
@@ -16,39 +16,39 @@ const BRANCH_ELEMENT = {
   午: 'fire', 未: 'earth', 申: 'metal', 酉: 'metal', 戌: 'earth', 亥: 'water',
 };
 
-// 三合十二神煞(劫煞起於三合絕位,順行)
+// 三合十二神煞（劫煞起於三合絕位，順行）
 const SHENSHA_ORDER = ['劫煞', '災煞', '天煞', '地煞', '年煞', '月煞', '亡神', '將星', '攀鞍', '驛馬', '六害', '華蓋'];
-// 三合局(branchIndex % 4)→ 劫煞所在地支 index:申子辰→巳、巳酉丑→寅、寅午戌→亥、亥卯未→申
+// 三合局（branchIndex % 4）→ 劫煞所在地支 index:申子辰→巳、巳酉丑→寅、寅午戌→亥、亥卯未→申
 const JIESHA_START = { 0: 5, 1: 2, 2: 11, 3: 8 };
 
 const LIU_HE = [['子', '丑'], ['寅', '亥'], ['卯', '戌'], ['辰', '酉'], ['巳', '申'], ['午', '未']];
 const LIU_HAI = [['子', '未'], ['丑', '午'], ['寅', '巳'], ['卯', '辰'], ['申', '亥'], ['酉', '戌']];
 const LIU_CHONG = [['子', '午'], ['丑', '未'], ['寅', '申'], ['卯', '酉'], ['辰', '戌'], ['巳', '亥']];
-// 三刑(寅巳申、丑戌未)與子卯相刑;辰午酉亥自刑僅在重複出現時成立,此處不列
+// 三刑（寅巳申、丑戌未）與子卯相刑；辰午酉亥自刑僅在重複出現時成立，此處不列
 const XING = [['寅', '巳'], ['巳', '申'], ['申', '寅'], ['丑', '戌'], ['戌', '未'], ['未', '丑'], ['子', '卯']];
-// 相破(六破)
+// 相破（六破）
 const XIANG_PO = [['子', '酉'], ['卯', '午'], ['辰', '丑'], ['戌', '未'], ['寅', '亥'], ['巳', '申']];
-// 暗合(採信度最高的「通合」組合,另加通祿合中同樣有多來源佐證的巳酉;
-//  「子巳」等孤證組合因來源不一致,不列入,避免誤判)
+// 暗合(採信度最高的「通合」組合，另加通祿合中同樣有多來源佐證的巳酉；
+//  「子巳」等孤證組合因來源不一致，不列入，避免誤判)
 const AN_HE = [['寅', '丑'], ['午', '亥'], ['卯', '申'], ['巳', '酉']];
-// 半合(三合局中含帝旺/中神的相鄰兩支)
+// 半合（三合局中含帝旺/中神的相鄰兩支）
 const BAN_HE = [
-  ['申', '子'], ['子', '辰'], // 三合水局(申子辰)
-  ['巳', '酉'], ['酉', '丑'], // 三合金局(巳酉丑)
-  ['寅', '午'], ['午', '戌'], // 三合火局(寅午戌)
-  ['亥', '卯'], ['卯', '未'], // 三合木局(亥卯未)
+  ['申', '子'], ['子', '辰'], // 三合水局（申子辰）
+  ['巳', '酉'], ['酉', '丑'], // 三合金局（巳酉丑）
+  ['寅', '午'], ['午', '戌'], // 三合火局（寅午戌）
+  ['亥', '卯'], ['卯', '未'], // 三合木局（亥卯未）
 ];
-// 拱(三合局中缺中神的兩端外支)
+// 拱（三合局中缺中神的兩端外支）
 const GONG = [['申', '辰'], ['巳', '丑'], ['寅', '戌'], ['亥', '未']];
-// 半會(三會方局任兩支)
+// 半會（三會方局任兩支）
 const BAN_HUI = [
-  ['寅', '卯'], ['卯', '辰'], ['寅', '辰'], // 三會木方(寅卯辰)
-  ['巳', '午'], ['午', '未'], ['巳', '未'], // 三會火方(巳午未)
-  ['申', '酉'], ['酉', '戌'], ['申', '戌'], // 三會金方(申酉戌)
-  ['亥', '子'], ['子', '丑'], ['亥', '丑'], // 三會水方(亥子丑)
+  ['寅', '卯'], ['卯', '辰'], ['寅', '辰'], // 三會木方（寅卯辰）
+  ['巳', '午'], ['午', '未'], ['巳', '未'], // 三會火方（巳午未）
+  ['申', '酉'], ['酉', '戌'], ['申', '戌'], // 三會金方（申酉戌）
+  ['亥', '子'], ['子', '丑'], ['亥', '丑'], // 三會水方（亥子丑）
 ];
 
-// 月令司令分野(人元用事):節入後第 N 天由哪個藏干司令
+// 月令司令分野（人元用事）：節入後第 N 天由哪個藏干司令
 const MONTH_COMMANDER = {
   寅: [['戊', 7], ['丙', 7], ['甲', 16]],
   卯: [['甲', 10], ['乙', 20]],
@@ -65,10 +65,10 @@ const MONTH_COMMANDER = {
 };
 
 // ---------------------------------------------------------------------------
-// 十八神煞查表邏輯(除既有 12 運神煞外的 16 種,均以「日干/年支/月支/日柱」為錨點查表)
+// 十八神煞查表邏輯（除既有 12 運神煞外的 16 種，均以「日干/年支/月支/日柱」為錨點查表）
 // ---------------------------------------------------------------------------
 
-// 以日干為錨點 → 目標地支(可能不只一個),四柱地支逐一比對
+// 以日干為錨點 → 目標地支（可能不只一個），四柱地支逐一比對
 const DAY_STEM_TARGET_BRANCH = {
   天乙貴人: {
     甲: ['丑', '未'], 戊: ['丑', '未'], 庚: ['丑', '未'],
@@ -96,7 +96,7 @@ const DAY_STEM_TARGET_BRANCH = {
   },
 };
 
-// 以月支為錨點 → 目標(可能是天干或地支),四柱天干或地支逐一比對
+// 以月支為錨點 → 目標（可能是天干或地支），四柱天干或地支逐一比對
 const MONTH_BRANCH_TARGET = {
   月德貴人: {
     寅: { type: 'stem', value: '丙' }, 午: { type: 'stem', value: '丙' }, 戌: { type: 'stem', value: '丙' },
@@ -118,21 +118,21 @@ const MONTH_BRANCH_TARGET = {
   },
 };
 
-// 以年支為錨點(年支所屬三合組)→ 孤辰目標地支
+// 以年支為錨點（年支所屬三合組）→ 孤辰目標地支
 const GU_CHEN_GROUP = [
   { group: ['亥', '子', '丑'], target: '寅' },
   { group: ['寅', '卯', '辰'], target: '巳' },
   { group: ['巳', '午', '未'], target: '申' },
   { group: ['申', '酉', '戌'], target: '亥' },
 ];
-// 喪門:年支順行第 2 位
+// 喪門：年支順行第 2 位
 const SANG_MEN = { 子: '寅', 丑: '卯', 寅: '辰', 卯: '巳', 辰: '午', 巳: '未', 午: '申', 未: '酉', 申: '戌', 酉: '亥', 戌: '子', 亥: '丑' };
 // 元辰
 const YUAN_CHEN = { 子: '未', 丑: '午', 寅: '酉', 卯: '申', 辰: '亥', 巳: '戌', 午: '丑', 未: '子', 申: '卯', 酉: '寅', 戌: '巳', 亥: '辰' };
-// 十靈日(固定日柱干支組合)
+// 十靈日（固定日柱干支組合）
 const SHI_LING_DAYS = ['甲辰', '乙亥', '丙辰', '丁酉', '戊午', '庚寅', '庚戌', '辛亥', '壬寅', '癸未'];
 
-// lunar-javascript 輸出為簡體,轉為繁體(僅涵蓋十神/納音/十二長生會用到的字)
+// lunar-javascript 輸出為簡體，轉為繁體（僅涵蓋十神/納音/十二長生會用到的字）
 const S2T = {
   财: '財', 杀: '殺', 伤: '傷', 杨: '楊', 驿: '驛', 长: '長', 头: '頭',
   炉: '爐', 剑: '劍', 锋: '鋒', 涧: '澗', 蜡: '蠟', 雳: '靂', 灯: '燈',
@@ -140,13 +140,13 @@ const S2T = {
 };
 const t = (s) => [...s].map((c) => S2T[c] ?? c).join('');
 
-/** 以 anchor 支起三合十二神煞,查 target 支的神煞名 */
+/** 以 anchor 支起三合十二神煞，查 target 支的神煞名 */
 function shenShaOf(anchorBranch, targetBranch) {
   const start = JIESHA_START[BRANCHES.indexOf(anchorBranch) % 4];
   return SHENSHA_ORDER[(BRANCHES.indexOf(targetBranch) - start + 12) % 12];
 }
 
-/** 年干支(以節氣立春為界無關,整年干支查 7/1 必安全) */
+/** 年干支（以節氣立春為界無關，整年干支查 7/1 必安全） */
 function yearGanZhi(y) {
   return Solar.fromYmd(y, 7, 1).getLunar().getYearInGanZhi();
 }
@@ -161,7 +161,7 @@ function pillar(ganZhi) {
 }
 
 /**
- * 計算完整十八神煞:回傳每柱出現的所有神煞名稱陣列(含既有 12 運神煞)
+ * 計算完整十八神煞：回傳每柱出現的所有神煞名稱陣列（含既有 12 運神煞）
  * @param {{yearPillar:{stem,branch}, monthPillar:{stem,branch}, dayPillar:{stem,branch}, hourPillar:{stem,branch}}} pillars
  * @param {{yearPillar:string, monthPillar:string, dayPillar:string, hourPillar:string}} cycleShensha 既有12運神煞
  */
@@ -169,14 +169,14 @@ function computeShenShaList(pillars, cycleShensha) {
   const keys = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar'];
   const list = { yearPillar: [], monthPillar: [], dayPillar: [], hourPillar: [] };
 
-  // 1. 併入既有 12 運神煞(劫煞/災煞/.../將星/.../華蓋)
+  // 1. 併入既有 12 運神煞（劫煞/災煞/.../將星/.../華蓋）
   for (const k of keys) list[k].push(cycleShensha[k]);
 
   const dayStem = pillars.dayPillar.stem;
   const monthBranch = pillars.monthPillar.branch;
   const yearBranch = pillars.yearPillar.branch;
 
-  // 2. 以日干為錨點的貴人/煞星(四柱地支逐一比對,含日柱本身地支)
+  // 2. 以日干為錨點的貴人/煞星（四柱地支逐一比對，含日柱本身地支）
   for (const [name, table] of Object.entries(DAY_STEM_TARGET_BRANCH)) {
     const targets = table[dayStem];
     if (!targets) continue;
@@ -185,7 +185,7 @@ function computeShenShaList(pillars, cycleShensha) {
     }
   }
 
-  // 3. 以月支為錨點的貴人(四柱天干或地支逐一比對)
+  // 3. 以月支為錨點的貴人（四柱天干或地支逐一比對）
   for (const [name, table] of Object.entries(MONTH_BRANCH_TARGET)) {
     const target = table[monthBranch];
     if (!target) continue;
@@ -195,7 +195,7 @@ function computeShenShaList(pillars, cycleShensha) {
     }
   }
 
-  // 4. 以年支為錨點的煞星(孤辰/喪門/元辰),檢查其餘三柱地支(排除年柱自身)
+  // 4. 以年支為錨點的煞星（孤辰/喪門/元辰），檢查其餘三柱地支（排除年柱自身）
   const guChen = GU_CHEN_GROUP.find((g) => g.group.includes(yearBranch))?.target;
   const sangMen = SANG_MEN[yearBranch];
   const yuanChen = YUAN_CHEN[yearBranch];
@@ -207,7 +207,7 @@ function computeShenShaList(pillars, cycleShensha) {
     if (yuanChen && b === yuanChen) list[k].push('元辰');
   }
 
-  // 5. 十靈日(固定日柱干支組合,僅日柱可能命中)
+  // 5. 十靈日（固定日柱干支組合，僅日柱可能命中）
   if (SHI_LING_DAYS.includes(pillars.dayPillar.stem + pillars.dayPillar.branch)) {
     list.dayPillar.push('十靈');
   }
@@ -215,7 +215,7 @@ function computeShenShaList(pillars, cycleShensha) {
   return list;
 }
 
-/** 空亡(旬空):以年柱/日柱各自的旬空地支,檢查其餘三柱地支是否落空 */
+/** 空亡（旬空）：以年柱/日柱各自的旬空地支，檢查其餘三柱地支是否落空 */
 function computeVoidHits(pillars, voidBranches) {
   const keys = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar'];
   const hits = { yearPillar: false, monthPillar: false, dayPillar: false, hourPillar: false };
@@ -230,7 +230,7 @@ function computeVoidHits(pillars, voidBranches) {
   return hits;
 }
 
-/** 地支關係總表:六合/害/沖/刑 + 相破/暗合/半合/拱/半會,回傳每組關係(含合併多重關係) */
+/** 地支關係總表：六合/害/沖/刑 + 相破/暗合/半合/拱/半會，回傳每組關係（含合併多重關係） */
 function computeBranchRelations(branches) {
   const keys = ['yearBranch', 'monthBranch', 'dayBranch', 'hourBranch'];
   const tables = [
@@ -256,9 +256,9 @@ function computeBranchRelations(branches) {
 /**
  * @param {object} input
  * @param {number} input.year   西元年
- * @param {number} input.month  月(1-12)
+ * @param {number} input.month  月（1-12）
  * @param {number} input.day    日
- * @param {number} input.hour   時(0-23)
+ * @param {number} input.hour   時（0-23）
  * @param {number} [input.minute=0]
  * @param {'male'|'female'} input.gender
  * @param {Date}   [input.refDate=new Date()]  流年/流月的基準日
@@ -275,7 +275,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
     hourBranch: ec.getTimeZhi(),
   };
 
-  // --- 神煞(既有12運):年柱以日支起,其餘各柱以年支起 ---
+  // --- 神煞（既有12運）：年柱以日支起，其餘各柱以年支起 ---
   const shensha = {
     yearPillar: shenShaOf(branches.dayBranch, branches.yearBranch),
     monthPillar: shenShaOf(branches.yearBranch, branches.monthBranch),
@@ -290,7 +290,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
     hourPillar: pillar(ec.getTime()),
   };
 
-  // --- 完整十八神煞(每柱可能多個) ---
+  // --- 完整十八神煞（每柱可能多個） ---
   const shenshaList = computeShenShaList(fourPillars, shensha);
 
   const voidBranches = { year: ec.getYearXunKong(), day: ec.getDayXunKong() };
@@ -300,15 +300,15 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
     if (voidHits[k]) shenshaList[k].push('空亡');
   }
 
-  // --- 地支關係(六合/害/沖/刑 + 相破/暗合/半合/拱/半會) ---
+  // --- 地支關係（六合/害/沖/刑 + 相破/暗合/半合/拱/半會） ---
   const branchRelations = computeBranchRelations(branches);
 
-  // --- 五行分布(四干四支共八字) ---
+  // --- 五行分布（四干四支共八字） ---
   const dist = { wood: 0, fire: 0, earth: 0, metal: 0, water: 0 };
   for (const g of [ec.getYearGan(), ec.getMonthGan(), ec.getDayGan(), ec.getTimeGan()]) dist[STEM_ELEMENT[g]]++;
   for (const z of Object.values(branches)) dist[BRANCH_ELEMENT[z]]++;
 
-  // --- 大運(年齡以「起運年 − 出生年」計,與參考排盤一致) ---
+  // --- 大運（年齡以「起運年 − 出生年」計，與參考排盤一致） ---
   const yun = ec.getYun(gender === 'male' ? 1 : 0);
   const daYun = yun.getDaYun().slice(1, 10); // [0] 為起運前
   const greatLuckCycles = daYun.map((d, i) => {
@@ -321,7 +321,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
     };
   });
 
-  // --- 流年(基準年 -5 ~ +6)/ 流月(基準年 1-12 月,取每月 15 日必落在該節氣月) ---
+  // --- 流年（基準年 -5 ~ +6）/ 流月（基準年 1-12 月，取每月 15 日必落在該節氣月） ---
   const annualPillars = {};
   for (let y = refYear - 5; y <= refYear + 6; y++) annualPillars[y] = yearGanZhi(y);
   const monthlyPillars = {};
@@ -368,7 +368,7 @@ export function convertToBaZi({ year, month, day, hour, minute = 0, gender, refD
   };
 }
 
-/** 月令司令:依節入天數查分野表,失敗時退回月支本氣 */
+/** 月令司令：依節入天數查分野表，失敗時退回月支本氣 */
 function commanderOf(lunar, solar, monthBranch, fallback) {
   try {
     const jie = lunar.getPrevJie(true).getSolar();
