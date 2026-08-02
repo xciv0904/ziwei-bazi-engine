@@ -1,15 +1,15 @@
 // src/engines/reading.js — 解讀組裝層的統一出入口
 //
-// 為什麼需要這一層:
+// 為什麼需要這一層：
 // 下面這幾支 compose-*.js 連同各自的解讀資料庫(plain-star-profiles、plain-bazi-profiles、
 // palace-star-meanings、ten-gods-meanings、luck-cycle-overlays…)合計超過 100KB,
 // 但它們全部都是「排盤之後才用得到」的東西——歡迎頁一個字都不需要。
 //
-// 過去 main.js 是靜態 import 這些模組,打包器只能把它們併進入口 bundle,
+// 過去 main.js 是靜態 import 這些模組，打包器只能把它們併進入口 bundle,
 // 結果是「只是進站看一眼、沒按排盤」的訪客也得先下載整套解讀資料。
-// 現在改由 main.js 的 loadEngines() 動態 import 這支彙整檔,
-// 讓它和排盤引擎(iztro / lunar-javascript)在同一時機、同一批平行載入:
-// 使用者按下「排盤」本來就要等引擎,這些資料剛好搭同一班車,不會增加任何可感知的等待。
+// 現在改由 main.js 的 loadEngines() 動態 import 這支彙整檔，
+// 讓它和排盤引擎（iztro / lunar-javascript）在同一時機、同一批平行載入：
+// 使用者按下「排盤」本來就要等引擎，這些資料剛好搭同一班車，不會增加任何可感知的等待。
 //
 // 這裡只做 re-export,不放任何邏輯——要改解讀規則請直接改對應的 compose-*.js。
 
@@ -35,6 +35,18 @@ export {
   computeLaiyinPalace,
 } from './compose-annual.js';
 export { composeYongShenReading, computeYongShen } from './compose-yongshen.js';
+export { PALACE_ORDER, buildPalaceLesson, buildPalaceQuiz, triadOf } from './learning-palace.js';
+export {
+  LEARNING_PROGRESS_KEY,
+  chartKeyOf,
+  isPalaceComplete,
+  loadProgress,
+  markStepRead,
+  nextPalaceToLearn,
+  progressSummary,
+  recordQuizAnswer,
+  resetProgress,
+} from './learning-progress.js';
 export {
   inspectAiTone,
   inspectCardQuality,

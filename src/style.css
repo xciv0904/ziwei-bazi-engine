@@ -106,7 +106,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 }
 .submit-btn:hover { filter: brightness(1.08); }
 .submit-btn:disabled, .mini-btn:disabled, .compare-run-btn:disabled { opacity: .6; cursor: progress; filter: none; }
-/* 送出後的小小儀式感:按鈕本身多一個轉圈,而不是文字換一下就沒了 */
+/* 送出後的小小儀式感：按鈕本身多一個轉圈，而不是文字換一下就沒了 */
 .submit-btn:disabled { position: relative; padding-left: 34px; }
 .submit-btn:disabled::before {
   content: ''; position: absolute; left: 12px; top: 50%; width: 14px; height: 14px;
@@ -126,7 +126,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.9); }
 }
 .nav-item.active { background: var(--red); color: var(--cream); font-weight: 600; }
 /* 兩個解讀分頁光看名稱分不出差別(都是「解讀」),所以在導覽上直接標出「怎麼讀、要多久」。
-   副標平常壓低存在感,選中時才提高對比,避免側欄變得吵雜。 */
+   副標平常壓低存在感，選中時才提高對比，避免側欄變得吵雜。 */
 .nav-item--timed { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; }
 .nav-item--timed small { font: 400 10.5px/1.3 var(--sans); color: var(--cream-40); }
 .nav-item--timed.active small { color: rgba(244, 237, 224, .72); }
@@ -159,7 +159,7 @@ body:not(.has-chart) .side-nav { display: none; }
 
 /* ============ 主內容 ============ */
 .main { flex: 1; padding: 34px clamp(24px, 4vw, 56px); display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-/* 排盤完成的小小揭曉感,取代結果無聲直接切換出現 */
+/* 排盤完成的小小揭曉感，取代結果無聲直接切換出現 */
 .main.reveal-in { animation: reveal-fade .5s ease; }
 @keyframes reveal-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .main.reveal-in { animation: none; } }
@@ -264,8 +264,8 @@ body:not(.has-chart) .side-nav { display: none; }
 .reading-line .lead { font: 600 12px/1 var(--serif); }
 .lead.gold { color: var(--gold); }
 .lead.red { color: var(--red); }
-/* 命盤總覽的宮位卡片(命盤小教室):三層結構——宮位主題(短句)/一句話重點/簡短解釋,
-   底下的「專業資料」用 details/summary 收合,key-value 陳列,不把星曜資料串成一整段長句 */
+/* 命盤總覽的宮位卡片(命盤小教室):三層結構——宮位主題(短句)/一句話重點/簡短解釋，
+   底下的「專業資料」用 details/summary 收合,key-value 陳列，不把星曜資料串成一整段長句 */
 .palace-brief { gap: 4px; }
 .palace-topic { font: 600 11.5px/1 var(--sans); color: var(--gold); letter-spacing: .04em; }
 .palace-takeaway {
@@ -333,7 +333,7 @@ body:not(.has-chart) .side-nav { display: none; }
 .acc-subtle { font: 400 11.5px/1.3 var(--sans); color: var(--ink-40); margin-left: 8px; }
 .acc-body { padding: 0 20px 18px 58px; font: 400 13.5px/2 var(--sans); color: rgba(43, 38, 33, .62); white-space: pre-line; }
 
-/* ---------- 重點解讀:快速摘要卡片 ---------- */
+/* ---------- 重點解讀：快速摘要卡片 ---------- */
 .analysis-card-list { display: flex; flex-direction: column; gap: 12px; }
 .analysis-card {
   background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
@@ -373,7 +373,7 @@ body:not(.has-chart) .side-nav { display: none; }
   display: block; font: 600 11.5px/1 var(--sans); color: var(--gold); letter-spacing: .06em; margin-bottom: 6px;
 }
 
-/* ---------- 深度解析:完整人生主題層級 ---------- */
+/* ---------- 深度解析：完整人生主題層級 ---------- */
 .comp-section { white-space: normal; }
 .deep-section { margin-top: 18px; }
 .deep-section h4 {
@@ -415,9 +415,9 @@ body:not(.has-chart) .side-nav { display: none; }
   margin: 16px 0 0; padding: 11px 13px; border-left: 3px solid var(--gold);
   background: rgba(138, 109, 59, .06); font: 400 13px/1.75 var(--sans); color: var(--ink-60);
 }
-/* 白話／專業依據面板:由頁首「白話摘要／專業依據」按鈕整組切換(見 renderReport 的 hidden 屬性),
-   不再是巢狀在卡片內容裡、預設收合的 <details>——這是修正按鈕沒有可見作用的關鍵改動,
-   確保只要卡片本身是展開的,切換按鈕就一定會讓看得到的內容整組替換,而不是只多一個可以再點開的摺疊區塊。 */
+/* 白話／專業依據面板：由頁首「白話摘要／專業依據」按鈕整組切換(見 renderReport 的 hidden 屬性),
+   不再是巢狀在卡片內容裡、預設收合的 <details>——這是修正按鈕沒有可見作用的關鍵改動，
+   確保只要卡片本身是展開的，切換按鈕就一定會讓看得到的內容整組替換，而不是只多一個可以再點開的摺疊區塊。 */
 .analysis-card__panel--technical { padding-top: 4px; display: flex; flex-direction: column; gap: 12px; }
 .tech-block b {
   display: block; font: 600 11.5px/1 var(--sans); color: var(--ink-45); letter-spacing: .04em; margin-bottom: 4px;
@@ -426,7 +426,7 @@ body:not(.has-chart) .side-nav { display: none; }
 .tech-block ul { padding-left: 18px; }
 .tech-block ul li { margin-bottom: 4px; }
 /* 頁面頂部定位說明裡的可點擊跳轉字(命盤總覽/重點解讀/深度解析互相導引用),
-   刻意做成行內文字連結而不是按鈕外觀,融入句子閱讀,不搶白話內容的視覺重量 */
+   刻意做成行內文字連結而不是按鈕外觀，融入句子閱讀，不搶白話內容的視覺重量 */
 .link-jump {
   background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--red);
   text-decoration: underline; text-underline-offset: 2px; cursor: pointer; display: inline;
@@ -728,9 +728,9 @@ button:not(:disabled):active, .nav-item:not(:disabled):active, .welcome-cta:acti
 .result-path small { color: var(--ink-45); font: 400 11.5px/1.65 var(--sans); }
 .result-path--primary { background: var(--red); color: var(--cream); border-color: var(--red); }
 .result-path--primary span, .result-path--primary small { color: rgba(255,255,255,.75); }
-/* 「先看命盤本身」原本是三選一裡的第三張卡,但它跟另外兩條路的性質不同——
-   那兩條是「讀解讀」,這條是「查資料」。放成同等大小的卡片會讓新手誤以為三者是平行選項,
-   降級成一行文字連結,既保留入口,也讓真正該先點的兩條路更明確。 */
+/* 「先看命盤本身」原本是三選一裡的第三張卡，但它跟另外兩條路的性質不同——
+   那兩條是「讀解讀」,這條是「查資料」。放成同等大小的卡片會讓新手誤以為三者是平行選項，
+   降級成一行文字連結，既保留入口，也讓真正該先點的兩條路更明確。 */
 .result-path-more {
   display: block; width: 100%; margin-top: 12px; padding: 12px;
   border: 1px dashed rgba(43,38,33,.22); border-radius: 8px; background: transparent;
@@ -791,7 +791,7 @@ button:not(:disabled):active, .nav-item:not(:disabled):active, .welcome-cta:acti
 .wuge-num { font: 700 17px/1 var(--serif); color: var(--ink); }
 .wuge-el { font-size: 10.5px; color: var(--gold); margin-top: 3px; }
 
-/* ---------- 流年運勢提醒卡(歡迎畫面,已有存檔命盤時的回訪入口) ---------- */
+/* ---------- 流年運勢提醒卡(歡迎畫面，已有存檔命盤時的回訪入口) ---------- */
 .reminder-card { max-width: 560px; border-color: var(--gold); }
 .reminder-list { display: flex; flex-direction: column; gap: 8px; }
 .reminder-row {
@@ -815,7 +815,7 @@ a.nav-item { display: block; text-decoration: none; }
 .syn-form input, .syn-form select {
   padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
   background: #fff; font: 400 13px/1.2 var(--sans); color: var(--ink);
-  min-width: 0; width: 100%; /* 日期等欄位有固有寬度,必須允許在 grid 內收縮,否則手機版會爆版 */
+  min-width: 0; width: 100%; /* 日期等欄位有固有寬度，必須允許在 grid 內收縮，否則手機版會爆版 */
 }
 .syn-submit { margin-top: 0; width: auto; padding: 9px 22px; }
 .syn-form .date-parts { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
@@ -823,14 +823,14 @@ a.nav-item { display: block; text-decoration: none; }
 .syn-form .field-error { grid-column: 1 / -1; }
 @media (max-width: 700px) {
   .syn-form { grid-template-columns: 1fr 1fr; }
-  #syn-name, .syn-form .date-parts, .syn-submit { grid-column: 1 / -1; } /* 姓名、日期、按鈕各占整行,時辰+性別並排 */
+  #syn-name, .syn-form .date-parts, .syn-submit { grid-column: 1 / -1; } /* 姓名、日期、按鈕各占整行，時辰+性別並排 */
 }
 .syn-score-card {
   margin-top: 14px; text-align: center; padding: 22px 16px;
   background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
 }
 .syn-names { font: 600 13px/1 var(--serif); color: var(--ink-60); margin-bottom: 10px; }
-/* 全站唯一用到 900 的地方;為了它多載一整份 CJK 字檔不划算,改用 700(視覺差異在 44px 下極小) */
+/* 全站唯一用到 900 的地方；為了它多載一整份 CJK 字檔不划算，改用 700(視覺差異在 44px 下極小) */
 .syn-score { font: 700 44px/1 var(--serif); color: var(--red); }
 .syn-score small { font-size: 16px; color: var(--ink-40); font-weight: 400; }
 .syn-tier { font: 700 15px/1 var(--serif); color: var(--gold); margin: 10px 0 12px; }
@@ -945,13 +945,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 
 @media (max-width: 900px) {
-  /* 手機:縮成圓形小按鈕只留 AI 圖示,避免蓋住 QR code、合盤分數等內容(截圖健檢發現) */
+  /* 手機：縮成圓形小按鈕只留 AI 圖示，避免蓋住 QR code、合盤分數等內容(截圖健檢發現) */
   .copy-ai-btn { right: 14px; bottom: 14px; padding: 12px; border-radius: 50%; font-size: 0; gap: 0; }
   .copy-ai-btn .copy-ai-icon { width: 22px; height: 22px; font-size: 10px; }
-  .main { padding-bottom: 72px; } /* 底部預留浮動按鈕的空間,最後一張卡不被壓到 */
+  .main { padding-bottom: 72px; } /* 底部預留浮動按鈕的空間，最後一張卡不被壓到 */
 }
 
-/* ---------- 手機版:紫微/八字卡切換鈕 ---------- */
+/* ---------- 手機版：紫微/八字卡切換鈕 ---------- */
 .chart-tabs { display: none; gap: 8px; }
 .chart-tab {
   flex: 1; text-align: center; padding: 10px 0; border-radius: 20px;
@@ -984,7 +984,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .result-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .welcome-steps { grid-template-columns: 1fr; }
 
-  /* 一次只顯示一張卡,靠切換鈕選擇 */
+  /* 一次只顯示一張卡，靠切換鈕選擇 */
   .chart-tabs { display: flex; }
   .chart-area .ziwei-card, .chart-area .bazi-card { min-width: 0; width: 100%; flex: 1 1 100%; }
   .chart-area.show-ziwei .bazi-card { display: none; }
@@ -1004,7 +1004,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .classroom-hint { margin-left: 0; line-height: 1.6; }
   .reading-line { font-size: 13px; line-height: 1.9; }
   .acc-body { padding: 0 16px 18px; font-size: 14px; line-height: 1.9; }
-  /* 白話摘要卡片:手機版加大行距與觸控區域,標題與內文都不縮小字級,避免造成閱讀壓力 */
+  /* 白話摘要卡片：手機版加大行距與觸控區域，標題與內文都不縮小字級，避免造成閱讀壓力 */
   .analysis-card__header { padding: 14px; gap: 12px; }
   .analysis-card__content { padding: 0 14px 18px; }
   .analysis-card__title { font-size: 14.5px; }
@@ -1029,7 +1029,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .meta-choices { grid-template-columns: 1fr 1fr; }
   .meta-intro { grid-template-columns: 1fr; gap: 14px; }
 
-  /* 生涯時間軸:手機版預設只顯示兩行預覽,點「展開全部內容」再看完整段落, 避免十個大限一次攤開變成一長串文字牆 */
+  /* 生涯時間軸：手機版預設只顯示兩行預覽，點「展開全部內容」再看完整段落, 避免十個大限一次攤開變成一長串文字牆 */
   .tl-body {
     max-height: 3em; overflow: hidden; position: relative;
     -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
@@ -1072,9 +1072,168 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .meta-choices { grid-template-columns: 1fr; }
 }
 
-/* 主題分析:「你的命盤依據」——與通用方向視覺上明確區隔,讓使用者一眼看出哪段是為他排的 */
+/* 主題分析:「你的命盤依據」——與通用方向視覺上明確區隔，讓使用者一眼看出哪段是為他排的 */
 .topic-answer--basis { border-left: 3px solid var(--red); padding-left: 12px; }
 .topic-basis-list { list-style: none; margin: 8px 0 6px; padding: 0; display: grid; gap: 8px; }
 .topic-basis-list li { display: grid; gap: 2px; }
 .topic-basis-list b { font: 600 12px/1.4 var(--sans); color: var(--red); }
 .topic-basis-list span { font: 400 13px/1.7 var(--sans); }
+
+/* ============ 學習模式：逐步判讀 ============
+   沿用現有卡片語言(var(--card-bg) 底、14px 圓角、紅色小標),只新增這一區需要的排版。
+   資訊層級：預設只展開目前這一步，其餘收合；專業原始資料一律放在最底層的收合區。 */
+.learn-card { display: flex; flex-direction: column; gap: 16px; }
+.learn-head { display: flex; gap: 12px; align-items: flex-start; }
+.learn-head-text { display: flex; flex-direction: column; gap: 4px; }
+.learn-head-text b { font: 700 15px/1.4 var(--serif); color: var(--ink); }
+.learn-head-text small { font: 400 12px/1.7 var(--sans); color: var(--ink-45); }
+.learn-badge {
+  display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 10px;
+  font: 600 11px/1.6 var(--sans); color: var(--gold); background: rgba(138, 109, 59, .12);
+}
+.learn-badge.empty { color: var(--red); background: rgba(166, 61, 47, .1); }
+
+/* 進度列 */
+.learn-progress { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font: 500 12.5px/1.6 var(--sans); color: var(--ink-60); }
+.learn-progress-bar { flex: 1 1 120px; height: 6px; min-width: 90px; border-radius: 3px; background: rgba(43, 38, 33, .1); overflow: hidden; }
+.learn-progress-bar i { display: block; height: 100%; background: var(--red); transition: width .25s ease; }
+.learn-progress small { color: var(--ink-45); font-weight: 400; }
+
+/* 五個步驟：漸進式揭露 */
+.learn-steps { display: flex; flex-direction: column; gap: 8px; }
+.learn-step { border: 1px solid var(--border); border-radius: 10px; background: rgba(244, 237, 224, .5); overflow: hidden; }
+.learn-step.open { border-color: rgba(166, 61, 47, .35); background: var(--card-bg); }
+.learn-step-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left; }
+.learn-step-no {
+  flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font: 700 12px/1 var(--sans);
+  background: rgba(43, 38, 33, .1); color: var(--ink-60);
+}
+.learn-step.open .learn-step-no, .learn-step.done .learn-step-no { background: var(--red); color: var(--cream); }
+.learn-step-title { display: flex; flex-direction: column; gap: 3px; flex: 1; font: 600 13.5px/1.4 var(--sans); }
+.learn-step-title small { font: 400 11.5px/1.6 var(--sans); color: var(--ink-45); }
+.learn-step-head i { font-style: normal; color: var(--red); font-size: 16px; }
+.learn-step-body { padding: 4px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+/* 盤面資料：標籤 + 值，跟「判讀規則」「推導」「結論」在視覺上分開 */
+.learn-fact { display: flex; gap: 10px; font: 400 13px/1.8 var(--sans); border-bottom: 1px dashed var(--border); padding-bottom: 4px; }
+.learn-fact span { flex: 0 0 84px; color: var(--ink-45); }
+.learn-fact b { font-weight: 600; flex: 1; }
+.learn-note { background: rgba(138, 109, 59, .07); border-radius: 8px; padding: 10px 12px; }
+.learn-note b { display: block; font: 600 12px/1.6 var(--sans); color: var(--gold); margin-bottom: 4px; }
+.learn-note p, .learn-note li { margin: 0 0 4px; font: 400 13px/1.85 var(--sans); color: var(--ink-60); }
+.learn-note ul, .learn-note ol { margin: 0; padding-left: 18px; }
+.learn-note--limit { background: rgba(43, 38, 33, .05); }
+.learn-hint { margin: 0; font: 400 11.5px/1.7 var(--sans); color: var(--ink-40); }
+.learn-empty { margin: 0; font: 400 12.5px/1.7 var(--sans); color: var(--ink-40); }
+.learn-caution { margin: 6px 0 0; font: 400 12.5px/1.8 var(--sans); color: var(--red); }
+
+/* 三方四正與空宮參考表 */
+.learn-table-wrap { overflow-x: auto; }
+.learn-table { width: 100%; border-collapse: collapse; font: 400 12.5px/1.7 var(--sans); }
+.learn-table th, .learn-table td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.learn-table thead th { font-weight: 600; color: var(--ink-45); white-space: nowrap; }
+.learn-table tbody th { font-weight: 600; color: var(--gold); white-space: nowrap; }
+
+/* 四化：每一層分開列，避免初學者把本命/大限/流年混為一談 */
+.learn-mut-group { border-left: 3px solid rgba(138, 109, 59, .3); padding-left: 10px; }
+.learn-mut-group > b { display: block; font: 600 12.5px/1.7 var(--sans); color: var(--ink); }
+.learn-mut-group ul { margin: 4px 0 0; padding-left: 16px; }
+.learn-mut-group li { font: 400 13px/1.85 var(--sans); color: var(--ink-60); }
+.learn-mut-basics { list-style: none; padding: 0; display: grid; gap: 6px; }
+.learn-mut-basics li { display: flex; gap: 8px; align-items: baseline; }
+.mut-chip { flex: 0 0 auto; padding: 1px 8px; border-radius: 9px; font: 600 12px/1.7 var(--sans); color: var(--cream); }
+.mut-chip.lu { background: var(--el-wood); }
+.mut-chip.quan { background: var(--el-earth); }
+.mut-chip.ke { background: var(--el-water); }
+.mut-chip.ji { background: var(--red); }
+
+/* 證據鏈 */
+.learn-evi-group { }
+.learn-evi-group > b { display: block; font: 600 12.5px/1.7 var(--sans); color: var(--red); }
+.learn-evi-group ul { margin: 4px 0 10px; padding-left: 16px; }
+.learn-evi-group li { font: 400 13px/1.85 var(--sans); color: var(--ink-60); margin-bottom: 4px; }
+.evi-kind {
+  display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 8px;
+  font: 600 11px/1.7 var(--sans); background: rgba(43, 38, 33, .08); color: var(--ink-60);
+}
+.learn-conclusion { display: grid; gap: 10px; }
+.learn-conclusion > div { border-left: 3px solid var(--red); padding-left: 10px; }
+.learn-conclusion span { display: block; font: 600 12px/1.7 var(--sans); color: var(--red); }
+.learn-conclusion p { margin: 2px 0 0; font: 400 13.5px/1.9 var(--sans); }
+
+/* 空宮專屬教學 */
+.learn-empty-guide { border: 1px solid rgba(166, 61, 47, .3); border-radius: 10px; padding: 12px 14px; background: rgba(166, 61, 47, .05); display: flex; flex-direction: column; gap: 8px; }
+.learn-empty-guide > b { font: 700 13.5px/1.5 var(--sans); color: var(--red); }
+.learn-empty-guide p { margin: 0; font: 400 13px/1.9 var(--sans); color: var(--ink-60); }
+.learn-empty-correct { font-weight: 600; color: var(--ink) !important; }
+.learn-empty-steps { margin: 0; padding-left: 20px; font: 400 13px/1.9 var(--sans); color: var(--ink-60); }
+
+/* 先自己判斷 */
+.learn-quiz { border-top: 1px dashed var(--border); padding-top: 12px; }
+.learn-quiz > summary { cursor: pointer; list-style: none; font: 600 13px/1.6 var(--sans); color: var(--gold); display: flex; align-items: center; gap: 6px; }
+.learn-quiz > summary::-webkit-details-marker { display: none; }
+.learn-quiz > summary::before { content: '▸'; font-size: 10px; transition: transform .15s; }
+.learn-quiz[open] > summary::before { transform: rotate(90deg); }
+.quiz-item { margin-top: 12px; }
+.quiz-prompt { margin: 0 0 6px; font: 600 13.5px/1.8 var(--sans); }
+.quiz-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.quiz-option {
+  padding: 8px 14px; border-radius: 16px; border: 1px solid var(--border);
+  background: var(--card-bg); font: 400 13px/1.4 var(--sans); color: var(--ink);
+  min-height: 38px;
+}
+.quiz-option:disabled { cursor: default; }
+.quiz-option.chosen { border-color: var(--ink-45); }
+.quiz-option.correct { border-color: var(--el-wood); background: rgba(63, 125, 74, .12); color: var(--el-wood); font-weight: 600; }
+.quiz-option.wrong { border-color: var(--red); background: rgba(166, 61, 47, .1); color: var(--red); }
+.quiz-feedback { margin: 8px 0 0; font: 400 12.5px/1.85 var(--sans); color: var(--ink-60); }
+.quiz-feedback.ok { color: var(--el-wood); }
+.quiz-feedback.no { color: var(--red); }
+
+/* 名詞小百科 */
+.learn-glossary { border-top: 1px dashed var(--border); padding-top: 12px; }
+.learn-glossary > b { display: block; font: 600 12.5px/1.7 var(--sans); color: var(--ink); margin-bottom: 6px; }
+.learn-glossary small { display: block; margin-top: 6px; font: 400 11.5px/1.7 var(--sans); color: var(--ink-40); }
+.learn-glossary-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.glossary-tip {
+  padding: 4px 10px; border-radius: 12px; border: 1px dashed rgba(138, 109, 59, .5);
+  font: 400 12px/1.5 var(--sans); color: var(--gold); background: rgba(138, 109, 59, .06);
+  min-height: 30px;
+}
+.glossary-tip span { margin-left: 3px; font-size: 10px; opacity: .7; }
+
+/* 「為什麼這樣判斷」:收合樣式與 .palace-technical 一致，但獨立一個 class,
+   避免和命盤小教室的「專業資料」搶同一個選擇器 */
+.learn-why { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.learn-why > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+  font: 600 12.5px/1.6 var(--sans); color: var(--red);
+}
+.learn-why > summary::-webkit-details-marker { display: none; }
+.learn-why > summary::before { content: '▸'; font-size: 10px; transition: transform .15s; }
+.learn-why[open] > summary::before { transform: rotate(90deg); }
+.learn-why .tech-block ul { padding-left: 16px; }
+.learn-why .tech-block li { margin-bottom: 6px; }
+.learn-why .tech-block li b { display: inline-block; margin-right: 6px; color: var(--gold); }
+
+/* 桌面版：命盤與逐步判讀並排，手機版維持直向卡片(預設就是直向，不必另外覆寫) */
+@media (min-width: 1180px) {
+  .dashboard-details__body .learn-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 24px; align-items: start; }
+  .dashboard-details__body .learn-card > .learn-head,
+  .dashboard-details__body .learn-card > .learn-progress { grid-column: 1 / -1; }
+  .dashboard-details__body .learn-card > .learn-empty-guide { grid-column: 1 / -1; }
+  .dashboard-details__body .learn-card > .learn-steps { grid-column: 1; }
+  .dashboard-details__body .learn-card > .learn-quiz,
+  .dashboard-details__body .learn-card > .learn-glossary { grid-column: 2; }
+}
+
+@media (max-width: 700px) {
+  .learn-fact { flex-direction: column; gap: 0; }
+  .learn-fact span { flex-basis: auto; font-size: 11.5px; }
+  .learn-step-head { padding: 12px 10px; gap: 9px; }
+  .learn-step-body { padding: 4px 10px 14px; }
+  .quiz-option { flex: 1 1 100%; text-align: left; }
+  .reading-mode-toggle { flex-wrap: wrap; }
+  .mode-pill { padding: 6px 11px; font-size: 11.5px; }
+}

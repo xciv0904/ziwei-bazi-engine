@@ -19,11 +19,15 @@ Calculations run in the browser.
 | `src/engines/interpret.js` | Interpretation orchestration |
 | `src/engines/format-ai.js` | AI-copy formatting |
 | `src/data/*.json`, `*.js` | Meanings, rules, profiles, Question Library content |
+| `src/engines/learning-palace.js` | Learning mode: five-step palace lesson, evidence chain, quiz |
+| `src/engines/learning-progress.js` | Learning mode: per-chart progress in localStorage |
+| `src/data/learning-mode.js` | Palace axis relations, mutagen primer, glossary, empty-palace guide |
 | `src/main.js` | UI orchestration and rendering |
 | `test.js` | Core expected-chart regression |
 | `cross-test.mjs` | Zi Wei independent-reference comparison |
 | `cross-test-bazi.mjs` | Bazi independent-reference comparison |
 | `smoke.mjs` | happy-dom UI flow smoke test |
+| `tests/learning-mode.mjs` | Learning mode vs calculation engine consistency |
 
 ## Confirmed dependencies and conventions
 
@@ -64,6 +68,7 @@ palaces, stars, transformations, or limits.
 - `npm run build`: wiki generation and production bundle
 - `node cross-test.mjs`: Zi Wei reference comparison
 - `node cross-test-bazi.mjs`: Bazi reference comparison
+- `npm run learning-mode`: learning mode lessons, evidence chain and progress storage
 
 ## Durable decisions
 
@@ -71,4 +76,7 @@ palaces, stars, transformations, or limits.
 |---|---|---|
 | 2026-07-27 | Preserve Vite + Vanilla JS architecture | Matches current deployment and tests |
 | 2026-07-27 | Calculation baseline changes require provenance and review | Multiple schools can yield different results |
+| 2026-08-03 | Reading mode is a single three-value state (`public`/`learn`/`study`) | A second parallel toggle would let plain and study text drift apart |
+| 2026-08-03 | Learning mode derives every fact from existing engine output | Teaching content must never introduce a chart fact the engines did not produce |
+| 2026-08-03 | Full-width punctuation for prose; fixtures and engine format strings excluded | Fixture punctuation is an expected value, not prose |
 

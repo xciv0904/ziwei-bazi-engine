@@ -35,6 +35,28 @@ Out of scope:
 
 Shared calendar utilities require both systems' regression and cross-tests.
 
+## Punctuation policy (Traditional Chinese)
+
+Chinese prose uses full-width punctuation: `，。；：？！（）「」`. Half-width
+`,` `;` `:` `?` `!` `(` `)` inside a Chinese sentence are treated as defects.
+
+Three places must keep half-width punctuation, because there the characters are
+syntax or data rather than prose:
+
+- **Code syntax** — object keys written in Chinese (`{ 甲: '木' }`), regular
+  expression groups (`([一-龥]{2,4})`), and character classes (`[(（]`). Any
+  bulk conversion must re-run `node --check` on every `.js`/`.mjs` afterwards.
+- **Chart fixtures** — `expected-chart-data.json`, `actual-chart-data.json`,
+  `tests/golden/cases/*.json`, and `cross-test*.mjs` hold values produced by the
+  calculation engines or copied from external reference sites. Rewriting their
+  punctuation is the same as editing an expected value, which is forbidden above.
+- **Engine output format** — `formatStar()` in `ziwei.js` emits `名(亮度)` with
+  half-width brackets and the fixtures depend on it. Changing it is a breaking
+  change to a protected contract, not a punctuation fix.
+
+When matching text that may carry either width, write the character class both
+ways (`[,，]`) instead of normalising the source.
+
 ## Golden baseline policy
 
 When a result differs, first identify whether the cause is input normalization,

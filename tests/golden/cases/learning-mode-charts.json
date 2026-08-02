@@ -1,0 +1,41 @@
+{
+  "note": "學習模式（逐步判讀）的回歸案例。全部是為了涵蓋判讀分支而挑選的合成生辰，不是任何真實個人資料。挑選條件記在每一筆的 covers 欄位；若之後排盤引擎版本變動導致某一筆不再符合條件，測試會直接指出，不要改期望值來讓測試通過。",
+  "cases": [
+    {
+      "id": "life-with-stars",
+      "covers": ["命宮有主星", "身宮落在其他宮位", "有向心自化", "有離心自化"],
+      "input": { "year": 1978, "month": 2, "day": 21, "hour": 3, "gender": "female" },
+      "year": 2026
+    },
+    {
+      "id": "life-empty-with-self-mutagen",
+      "covers": ["命宮無主星（空宮）", "身宮落在其他宮位", "有向心自化", "有離心自化"],
+      "input": { "year": 1978, "month": 2, "day": 7, "hour": 3, "gender": "female" },
+      "year": 2029
+    },
+    {
+      "id": "life-empty",
+      "covers": ["命宮無主星（空宮）", "空宮借對宮參看"],
+      "input": { "year": 2002, "month": 9, "day": 4, "hour": 13, "gender": "female" },
+      "year": 2026
+    },
+    {
+      "id": "body-same-as-life",
+      "covers": ["身宮與命宮同宮"],
+      "input": { "year": 1978, "month": 2, "day": 7, "hour": 11, "gender": "female" },
+      "year": 2027
+    },
+    {
+      "id": "empty-and-body-same",
+      "covers": ["命宮無主星且身宮與命宮同宮"],
+      "input": { "year": 1981, "month": 2, "day": 21, "hour": 11, "gender": "female" },
+      "year": 2026
+    },
+    {
+      "id": "male-chart",
+      "covers": ["男命", "命宮雙主星"],
+      "input": { "year": 1998, "month": 6, "day": 21, "hour": 19, "gender": "male" },
+      "year": 2030
+    }
+  ]
+}

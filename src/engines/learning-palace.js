@@ -1,0 +1,636 @@
+// src/engines/learning-palace.js — 紫微「學習模式」的逐步判讀與證據鏈組裝
+//
+// 這支只做一件事:把既有排盤結果(convertToZiWei 輸出)重新整理成「初學者可以照著讀一遍」的五個步驟,
+// 並把每一步用到的資料標成主要依據/輔助依據,最後收斂成一段可以追溯來源的白話結論。
+//
+// 嚴格遵守的界線:
+//   1. 不重新排盤、不自己算宮位星曜四化。對宮/三合/自化/飛化/來因宮全部沿用既有函式:
+//      compose-annual.js 的 computeSelfTransformations / flyingOfStem / computeLaiyinPalace,
+//      三方四正沿用「地支 +4/+6/+8」這條在 compose-plain.js 與 main.js 已經在用的同一條規則。
+//   2. 不新增命理結論。所有敘述只能引用步驟一到四已經列出來的盤面資料,
+//      措辭一律用「可能、較容易、可理解為」,不寫成確定會發生的事。
+//   3. 不寫死任何一張命盤的答案。星名、宮名、四化落點全部從傳入的 ziWei 取得。
+
+import {
+  AUSPICIOUS_MINOR,
+  BRIGHTNESS_NOTE,
+  EMPTY_PALACE_GUIDE,
+  GLOSSARY,
+  LESSON_STEPS,
+  MALEFIC_MINOR,
+  MUTAGEN_BASICS,
+  MUTAGEN_CAUTION,
+  MUTAGEN_LAYERS,
+  PALACE_AXES,
+  SELF_MUTAGEN_NOTE,
+  TRIAD_NOTE,
+} from '../data/learning-mode.js';
+import { palaceMeanings } from '../data/palace-meanings.js';
+import { starMeanings } from '../data/star-meanings.js';
+import { computeLaiyinPalace, computeSelfTransformations, flyingOfStem } from './compose-annual.js';
+
+const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+
+/** 十二宮固定順序(練習題選項與進度計算共用) */
+export const PALACE_ORDER = [
+  '命宮', '兄弟宮', '夫妻宮', '子女宮', '財帛宮', '疾厄宮',
+  '遷移宮', '僕役宮', '官祿宮', '田宅宮', '福德宮', '父母宮',
+];
+
+const offsetBranch = (branch, offset) => BRANCHES[(BRANCHES.indexOf(branch) + offset) % 12];
+
+/** 輔星欄位存的是「名稱(亮度)」格式化字串,取回純星名 */
+const bareStarName = (formatted) => String(formatted).replace(/[(（].*$/, '').trim();
+
+const byBranchOf = (ziWei) => Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
+
+const palaceOf = (ziWei, palaceName) => ziWei.palaces.find((p) => p.name === palaceName) ?? null;
+
+const starLabel = (star) => {
+  const tags = [star.brightness, star.transformation ? `生年化${star.transformation}` : ''].filter(Boolean);
+  return tags.length ? `${star.name}（${tags.join('、')}）` : star.name;
+};
+
+const starNamesOf = (palace) => (palace?.majorStars ?? []).map((s) => s.name);
+
+/** 把宮位的雜曜依六吉/六煞/其餘分三類,讓初學者知道哪些要先看 */
+function classifyMinorStars(palace) {
+  const auspicious = [];
+  const malefic = [];
+  const others = [];
+  for (const raw of palace.minorStars ?? []) {
+    const name = bareStarName(raw);
+    if (AUSPICIOUS_MINOR.has(name)) auspicious.push(raw);
+    else if (MALEFIC_MINOR.has(name)) malefic.push(raw);
+    else others.push(raw);
+  }
+  return { auspicious, malefic, others };
+}
+
+/**
+ * 三方四正:本宮 + 對宮(+6) + 三合兩宮(+4、+8)。
+ * 與 compose-plain.js trianglePalacesOf()、main.js renderZiWeiCard() 用的是同一條位移規則,
+ * 不另外算一套,以免盤面高亮和教學內容對不起來。
+ */
+export function triadOf(ziWei, palaceName) {
+  const palace = palaceOf(ziWei, palaceName);
+  if (!palace) return null;
+  const byBranch = byBranchOf(ziWei);
+  const branch = palace.position[1];
+  const pick = (offset, role) => {
+    const target = byBranch[offsetBranch(branch, offset)];
+    if (!target) return null;
+    return {
+      role,
+      name: target.name,
+      position: target.position,
+      branch: target.position[1],
+      stars: starNamesOf(target),
+      isEmpty: target.majorStars.length === 0,
+    };
+  };
+  const self = { role: 'self', name: palace.name, position: palace.position, branch, stars: starNamesOf(palace), isEmpty: palace.majorStars.length === 0 };
+  const members = [self, pick(6, 'opposite'), pick(4, 'triad'), pick(8, 'triad')].filter(Boolean);
+  return { members, branches: members.map((m) => m.branch) };
+}
+
+/** 生年四化:本宮主星身上帶的 transformation(iztro 已算好,這裡只挑出來) */
+function birthMutagensOf(palace) {
+  return (palace.majorStars ?? [])
+    .filter((s) => s.transformation)
+    .map((s) => ({
+      layer: 'birth',
+      star: s.name,
+      mutagen: String(s.transformation).replace(/^化/, ''),
+      fromLabel: '出生年天干',
+      landing: palace.name,
+    }));
+}
+
+/**
+ * 某一層天干的四化,只保留「落入本宮」與「由本宮飛出」兩種跟這一宮有關的線索,
+ * 其餘 48 條飛化不在這一頁列出——初學者一次看四十幾條只會放棄。
+ */
+function layerFlights(ziWei, stem, layer, fromLabel, palaceName) {
+  if (!stem) return [];
+  return flyingOfStem(ziWei, stem).map((f) => ({
+    layer,
+    star: f.star,
+    mutagen: f.mutagen,
+    fromLabel,
+    landing: f.palaceName,
+    landsHere: f.palaceName === palaceName,
+  }));
+}
+
+/** 一條四化線索的完整句子:從哪裡出發、哪顆星、哪一種四化、落入哪一宮 */
+export function describeFlight(flight) {
+  const layer = MUTAGEN_LAYERS[flight.layer];
+  const scope = layer ? `${layer.label}（${layer.scope}）` : '四化';
+  return `${scope}：${flight.fromLabel}使${flight.star}化${flight.mutagen}，落入${flight.landing}。`;
+}
+
+/** 建立一筆證據,key 用來去重,避免同一份資料在主要與輔助依據各算一次 */
+const evidenceItem = (key, kind, text) => ({ key, kind, text });
+
+/**
+ * 逐步判讀主函式。
+ *
+ * @param {object}   args
+ * @param {object}   args.ziWei        convertToZiWei() 輸出
+ * @param {string}   args.palaceName   要研究的宮位(十二宮之一)
+ * @param {number}   [args.year]       目前正在看的流年西元年(有給才產生流年那一層)
+ * @param {object}   [args.majorLimit] ziWei.majorLimits 的元素(有給才產生大限那一層)
+ * @returns {object|null}
+ */
+export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit = null }) {
+  const palace = palaceOf(ziWei, palaceName);
+  if (!palace) return null;
+
+  const branch = palace.position[1];
+  const stem = palace.position[0];
+  const byBranch = byBranchOf(ziWei);
+  const opposite = byBranch[offsetBranch(branch, 6)] ?? null;
+  const isEmpty = palace.majorStars.length === 0;
+  const axis = PALACE_AXES[palaceName] ?? null;
+  const minor = classifyMinorStars(palace);
+  const laiyin = computeLaiyinPalace(ziWei);
+  const isLaiyin = laiyin?.palaceName === palaceName;
+  const selfT = computeSelfTransformations(ziWei).find((r) => r.palaceName === palaceName) ?? null;
+  const triad = triadOf(ziWei, palaceName);
+
+  // ---- 第一步:本宮 ----
+  const brightnessNotes = (palace.majorStars ?? [])
+    .filter((s) => s.brightness && BRIGHTNESS_NOTE[s.brightness])
+    .map((s) => `${s.name}在${branch}為「${s.brightness}」：${BRIGHTNESS_NOTE[s.brightness]}`);
+  const birthMutagens = birthMutagensOf(palace);
+  const stepSelf = {
+    id: 'self',
+    palaceName,
+    topic: palaceMeanings[palaceName] ?? '',
+    position: palace.position,
+    stem,
+    branch,
+    majorStars: (palace.majorStars ?? []).map(starLabel),
+    majorStarFunctions: (palace.majorStars ?? []).map((s) => ({
+      name: s.name,
+      core: starMeanings[s.name]?.core ?? '',
+      keywords: starMeanings[s.name]?.keywords ?? [],
+    })),
+    auspiciousStars: minor.auspicious,
+    maleficStars: minor.malefic,
+    otherStars: minor.others,
+    brightnessNotes,
+    birthMutagens,
+    selfMutagens: {
+      outgoing: (selfT?.outgoing ?? []).map((x) => `${x.star}化${x.mutagen}`),
+      incoming: (selfT?.incoming ?? []).map((x) => `${x.star}化${x.mutagen}`),
+    },
+    isBodyPalace: Boolean(palace.isBodyPalace),
+    isLaiyin,
+    isEmpty,
+  };
+
+  // ---- 第二步:對宮 ----
+  const stepOpposite = opposite ? {
+    id: 'opposite',
+    name: opposite.name,
+    position: opposite.position,
+    stars: starNamesOf(opposite).map((n) => n),
+    starLabels: (opposite.majorStars ?? []).map(starLabel),
+    isEmpty: opposite.majorStars.length === 0,
+    axis: axis?.axis ?? '',
+    axisMeaning: axis?.axisMeaning ?? '',
+    why: axis?.why ?? '',
+  } : null;
+
+  // ---- 第三步:三方四正 ----
+  const stepTriad = {
+    id: 'triad',
+    ...TRIAD_NOTE,
+    members: triad?.members ?? [],
+    branches: triad?.branches ?? [],
+  };
+
+  // ---- 第四步:四化與自化 ----
+  const annualStem = year ? stemOfYear(year) : null;
+  const decadalStem = majorLimit?.ganZhi?.[0] ?? null;
+  const palaceFlights = layerFlights(ziWei, stem, 'palace', `${palaceName}宮干${stem}`, palaceName);
+  const decadalFlights = layerFlights(ziWei, decadalStem, 'decadal', `大限${majorLimit?.ganZhi ?? ''}天干${decadalStem ?? ''}`, palaceName);
+  const annualFlights = layerFlights(ziWei, annualStem, 'annual', `${year}年天干${annualStem ?? ''}`, palaceName);
+  const stepMutagen = {
+    id: 'mutagen',
+    basics: MUTAGEN_BASICS,
+    caution: MUTAGEN_CAUTION,
+    layers: MUTAGEN_LAYERS,
+    selfNote: SELF_MUTAGEN_NOTE,
+    birth: birthMutagens.map((f) => ({ ...f, sentence: `生年四化（一輩子）：出生年天干使${f.star}化${f.mutagen}，就坐在${palaceName}。` })),
+    palace: palaceFlights.map((f) => ({ ...f, sentence: describeFlight(f) })),
+    selfOutgoing: (selfT?.outgoing ?? []).map((x) => ({
+      star: x.star, mutagen: x.mutagen,
+      sentence: `離心自化↓：${palaceName}宮干${stem}使${x.star}化${x.mutagen}，而${x.star}就在${palaceName}，能量往外散。`,
+    })),
+    selfIncoming: (selfT?.incoming ?? []).map((x) => ({
+      star: x.star, mutagen: x.mutagen,
+      sentence: `向心自化↑：對宮${opposite?.name ?? ''}宮干${opposite?.position?.[0] ?? ''}使${x.star}化${x.mutagen}，而${x.star}在${palaceName}，能量由對宮灌入。`,
+    })),
+    decadal: decadalFlights.map((f) => ({ ...f, sentence: describeFlight(f) })),
+    annual: annualFlights.map((f) => ({ ...f, sentence: describeFlight(f) })),
+  };
+
+  // ---- 第五步:整合(證據鏈) ----
+  const evidence = buildEvidenceChain({
+    palaceName, palace, opposite, isEmpty, stepSelf, stepTriad, stepMutagen, year, majorLimit,
+  });
+
+  const emptyGuide = isEmpty ? buildEmptyGuide({ palaceName, opposite, triad, stepSelf }) : null;
+
+  return {
+    palaceName,
+    position: palace.position,
+    stem,
+    branch,
+    isEmpty,
+    isBodyPalace: Boolean(palace.isBodyPalace),
+    isLaiyin,
+    axis,
+    steps: LESSON_STEPS.map((meta) => ({
+      ...meta,
+      data: { self: stepSelf, opposite: stepOpposite, triad: stepTriad, mutagen: stepMutagen, synthesis: evidence }[meta.id],
+    })),
+    highlightBranches: stepTriad.branches,
+    evidence,
+    emptyGuide,
+    glossary: glossaryTermsFor({ isEmpty, stepSelf, stepMutagen }),
+  };
+}
+
+const YEAR_STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+const stemOfYear = (y) => YEAR_STEMS[(y - 4) % 10];
+
+/** 這一頁實際出現過的名詞才給小百科,不要每次都塞十五條 */
+function glossaryTermsFor({ isEmpty, stepSelf, stepMutagen }) {
+  const wanted = new Set(['對宮', '三方四正', '宮干', '生年四化', '飛化', '大限', '流年', '廟旺利陷']);
+  if (isEmpty) wanted.add('空宮');
+  if (stepSelf.isBodyPalace) wanted.add('身宮');
+  if (stepSelf.isLaiyin) wanted.add('來因宮');
+  if (stepMutagen.selfOutgoing.length) wanted.add('離心自化');
+  if (stepMutagen.selfIncoming.length) wanted.add('向心自化');
+  if (stepSelf.palaceName === '命宮') wanted.add('命宮');
+  return [...wanted].filter((term) => GLOSSARY[term]).map((term) => ({ term, text: GLOSSARY[term] }));
+}
+
+/** 空宮專屬教學:順序固定,參考對象由本盤填入 */
+function buildEmptyGuide({ palaceName, opposite, triad, stepSelf }) {
+  const triadOnly = (triad?.members ?? []).filter((m) => m.role === 'triad');
+  const ownMarks = [
+    stepSelf.auspiciousStars.length ? `輔星${stepSelf.auspiciousStars.join('、')}` : '',
+    stepSelf.maleficStars.length ? `煞曜${stepSelf.maleficStars.join('、')}` : '',
+    `宮干${stepSelf.stem}`,
+    stepSelf.isBodyPalace ? '身宮' : '',
+    stepSelf.isLaiyin ? '來因宮' : '',
+    stepSelf.birthMutagens.length ? stepSelf.birthMutagens.map((f) => `生年${f.star}化${f.mutagen}`).join('、') : '',
+  ].filter(Boolean);
+  return {
+    ...EMPTY_PALACE_GUIDE,
+    headline: `${palaceName}本身沒有十四主星，稱為空宮。`,
+    lead: `${palaceName}本身無十四主星，不代表沒有內容。請共同參考${palaceName}本身、對宮${opposite?.name ?? ''}，以及三合的${triadOnly.map((m) => m.name).join('與')}。`,
+    ownMarks,
+    references: [
+      { label: `本宮 ${palaceName}`, detail: ownMarks.join('；') || '目前沒有可用的輔星或特殊標記' },
+      { label: `對宮 ${opposite?.name ?? ''}`, detail: starNamesOf(opposite).join('、') || '對宮同樣沒有主星，需再往三合宮找' },
+      ...triadOnly.map((m, i) => ({
+        label: `第${i + 1}個三合宮 ${m.name}`,
+        detail: m.stars.join('、') || '此宮同樣為空宮',
+      })),
+    ],
+  };
+}
+
+/**
+ * 證據鏈:把前四步已經列出來的資料分成主要依據、輔助依據、暫時不採用,
+ * 再組一段可以逐句對回資料的白話結論。
+ *
+ * 去重規則:同一份資料只會出現在一個清單裡(以 key 判斷),避免同一個訊號被算兩次。
+ */
+export function buildEvidenceChain({ palaceName, palace, opposite, isEmpty, stepSelf, stepTriad, stepMutagen, year, majorLimit }) {
+  const used = new Set();
+  const primary = [];
+  const supporting = [];
+  const unused = [];
+  const push = (list, item) => {
+    if (!item || used.has(item.key)) return;
+    used.add(item.key);
+    list.push(item);
+  };
+
+  // --- 主要依據:直接決定這一宮怎麼讀的資料 ---
+  if (isEmpty) {
+    for (const name of starNamesOf(opposite)) {
+      push(primary, evidenceItem(`star:${name}`, '對宮主星（空宮借看）',
+        `${palaceName}無主星，對宮${opposite?.name ?? ''}的${name}是目前最主要的參考來源。`));
+    }
+  } else {
+    for (const star of palace.majorStars) {
+      const core = starMeanings[star.name]?.core ?? '';
+      const bright = star.brightness ? `亮度${star.brightness}` : '';
+      push(primary, evidenceItem(`star:${star.name}`, '本宮主星',
+        `${palaceName}坐${star.name}${bright ? `（${bright}）` : ''}${core ? `，這顆星主要在講${core}` : ''}。`));
+    }
+  }
+  for (const f of stepMutagen.birth) {
+    push(primary, evidenceItem(`birth:${f.star}${f.mutagen}`, '生年四化',
+      `${f.star}帶生年化${f.mutagen}坐在${palaceName}，${MUTAGEN_BASICS[f.mutagen]?.plain ?? ''}`));
+  }
+  for (const x of stepMutagen.selfOutgoing) {
+    push(primary, evidenceItem(`selfout:${x.star}${x.mutagen}`, '離心自化', x.sentence));
+  }
+  for (const x of stepMutagen.selfIncoming) {
+    push(primary, evidenceItem(`selfin:${x.star}${x.mutagen}`, '向心自化', x.sentence));
+  }
+  for (const f of stepMutagen.palace.filter((item) => item.landsHere)) {
+    push(primary, evidenceItem(`palacefly:${f.star}${f.mutagen}`, '宮干飛化（落回本宮）', f.sentence));
+  }
+
+  // --- 輔助依據:補充脈絡,但不足以單獨下結論 ---
+  if (!isEmpty && opposite) {
+    const oppStars = starNamesOf(opposite);
+    push(supporting, evidenceItem(`opp:${opposite.name}`, '對宮',
+      oppStars.length
+        ? `對宮${opposite.name}見${oppStars.join('、')}，這條軸線是${stepSelf.topic ? `${palaceName}與${opposite.name}` : '本宮與對宮'}互相牽動的部分。`
+        : `對宮${opposite.name}為空宮，這條軸線的另一端比較沒有固定模式。`));
+  }
+  for (const m of stepTriad.members.filter((item) => item.role === 'triad')) {
+    push(supporting, evidenceItem(`triad:${m.name}`, '三合宮',
+      m.stars.length
+        ? `三合的${m.name}見${m.stars.join('、')}，代表這個主題也會出現在${palaceMeanings[m.name] ?? m.name}這個場景。`
+        : `三合的${m.name}為空宮，這個方向的表現比較隨環境變動。`));
+  }
+  if (stepSelf.isBodyPalace) {
+    push(supporting, evidenceItem('body', '身宮', `${palaceName}同時是身宮，中年之後這個領域的感受通常會比年輕時更明顯。`));
+  }
+  if (stepSelf.isLaiyin) {
+    push(supporting, evidenceItem('laiyin', '來因宮', `${palaceName}是來因宮（宮干與出生年天干相同），飛星派把它視為一生課題的起點。`));
+  }
+  for (const f of stepMutagen.decadal.filter((item) => item.landsHere)) {
+    push(supporting, evidenceItem(`decadal:${f.star}${f.mutagen}`, `大限四化（${majorLimit?.ageRange ?? ''}歲）`, f.sentence));
+  }
+  for (const f of stepMutagen.annual.filter((item) => item.landsHere)) {
+    push(supporting, evidenceItem(`annual:${f.star}${f.mutagen}`, `流年四化（${year ?? ''}年）`, f.sentence));
+  }
+
+  // --- 暫時不採用:有列出來但這次沒拿來當理由,說清楚為什麼 ---
+  if (stepSelf.otherStars.length) {
+    unused.push(evidenceItem('minor:other', '雜曜',
+      `${stepSelf.otherStars.join('、')}這一類雜曜先不列入判斷，它們通常只做細節修飾，需要主星與四化的結構先成立。`));
+  }
+  const outboundPalace = stepMutagen.palace.filter((item) => !item.landsHere);
+  if (outboundPalace.length) {
+    unused.push(evidenceItem('palacefly:out', '本宮飛出去的四化',
+      `${outboundPalace.map((f) => `${f.star}化${f.mutagen}→${f.landing}`).join('、')}是${palaceName}往其他宮位送出的能量，屬於宮位之間的關係，判斷${palaceName}本身時先不納入。`));
+  }
+  const otherDecadal = stepMutagen.decadal.filter((item) => !item.landsHere);
+  if (otherDecadal.length) {
+    unused.push(evidenceItem('decadal:other', '沒有落到本宮的大限四化',
+      `${otherDecadal.map((f) => `化${f.mutagen}→${f.landing}`).join('、')}這幾條這次沒有落到${palaceName}，屬於其他宮位這十年的重點。`));
+  }
+  const otherAnnual = stepMutagen.annual.filter((item) => !item.landsHere);
+  if (otherAnnual.length) {
+    unused.push(evidenceItem('annual:other', '沒有落到本宮的流年四化',
+      `${otherAnnual.map((f) => `化${f.mutagen}→${f.landing}`).join('、')}這幾條落在別的宮位，看${palaceName}時不必算進來。`));
+  }
+
+  return {
+    primary,
+    supporting,
+    unused,
+    conclusion: buildConclusion({ palaceName, isEmpty, opposite, stepSelf, stepTriad, stepMutagen, primary, supporting, year, majorLimit }),
+    limits: buildLimits({ palaceName, isEmpty, stepMutagen, year, majorLimit }),
+  };
+}
+
+/**
+ * 四段式結論:盤面看到什麼 → 資料之間怎麼互相影響 → 可能出現在什麼行為或情境 → 還需要什麼才能確認。
+ * 每一句都只引用上面已列出的證據,不引入新的命理判斷。
+ */
+function buildConclusion({ palaceName, isEmpty, opposite, stepSelf, stepTriad, stepMutagen, primary, supporting, year, majorLimit }) {
+  const topic = palaceMeanings[palaceName] ?? palaceName;
+  const mainStars = isEmpty ? starNamesOf(opposite) : stepSelf.majorStarFunctions.map((s) => s.name);
+  const cores = (isEmpty ? starNamesOf(opposite) : mainStars)
+    .map((n) => starMeanings[n]?.core).filter(Boolean);
+  const keywords = (isEmpty ? starNamesOf(opposite) : mainStars)
+    .flatMap((n) => starMeanings[n]?.keywords ?? []).slice(0, 3);
+
+  const observedParts = [
+    `${palaceName}在${stepSelf.branch}，宮干${stepSelf.stem}`,
+    isEmpty
+      ? `本宮無主星，對宮${opposite?.name ?? ''}見${mainStars.join('、') || '亦無主星'}`
+      : `坐${stepSelf.majorStars.join('、')}`,
+  ];
+  if (stepSelf.maleficStars.length) observedParts.push(`同宮見煞曜${stepSelf.maleficStars.join('、')}`);
+  if (stepSelf.auspiciousStars.length) observedParts.push(`同宮見輔星${stepSelf.auspiciousStars.join('、')}`);
+  if (stepSelf.isBodyPalace) observedParts.push('此宮同時是身宮');
+  const observed = `${observedParts.join('，')}。`;
+
+  const interactionParts = [];
+  const birthList = stepMutagen.birth;
+  if (birthList.length) {
+    interactionParts.push(`${birthList.map((f) => `${f.star}帶生年化${f.mutagen}`).join('、')}，${birthList.map((f) => MUTAGEN_BASICS[f.mutagen]?.keywords).filter(Boolean).join('；')}這幾種傾向會一直附著在${palaceName}上`);
+  }
+  if (stepMutagen.selfOutgoing.length) {
+    interactionParts.push(`同時有離心自化，${palaceName}的能量比較留不住，容易做了就過去、需要重新再來一次`);
+  }
+  if (stepMutagen.selfIncoming.length) {
+    interactionParts.push(`有向心自化，${palaceName}的狀態較受對宮${opposite?.name ?? ''}牽動`);
+  }
+  if (isEmpty) {
+    interactionParts.push(`因為本宮沒有主星，這個領域的表現主要跟著對宮與三合宮走，也就比較會隨環境與經驗改變`);
+  } else if (opposite) {
+    interactionParts.push(`對宮${opposite.name}是同一條軸線的另一端，${palaceName}的判斷要連著它一起看，不能只取一邊`);
+  }
+  const triadNames = stepTriad.members.filter((m) => m.role === 'triad').map((m) => m.name);
+  if (triadNames.length) {
+    interactionParts.push(`三合的${triadNames.join('與')}再把這個主題延伸到其他生活場景`);
+  }
+  const interaction = interactionParts.length ? `${interactionParts.join('；')}。` : '這一宮目前的資料之間沒有特別強的互相牽動。';
+
+  const behaviorLead = cores.length
+    ? `把上面幾項合起來看，${topic}這個部分可能較容易出現${cores.join('、')}這一類的反應`
+    : `把上面幾項合起來看，${topic}這個部分目前沒有特別突出的固定模式`;
+  const behaviorTail = keywords.length ? `具體一點說，遇到跟${keywords.join('、')}有關的情況時，這些傾向會比平常明顯。` : '';
+  const behavior = `${behaviorLead}。${behaviorTail}`;
+
+  const pendingParts = [];
+  if (isEmpty) pendingParts.push(`空宮的判斷一定要把對宮與兩個三合宮一起看完，只憑對宮主星就下定論容易失準`);
+  if (!stepMutagen.decadal.some((f) => f.landsHere)) pendingParts.push(`目前的大限${majorLimit?.ganZhi ? `（${majorLimit.ganZhi}）` : ''}四化沒有落到${palaceName}，這十年的推力要另外從落點宮位判斷`);
+  if (!stepMutagen.annual.some((f) => f.landsHere) && year) pendingParts.push(`${year}年的流年四化也沒有落到${palaceName}，當年度的變化需要看其他宮位`);
+  if (supporting.length === 0) pendingParts.push('目前可用的輔助資料偏少，建議再對照其他宮位');
+  pendingParts.push('以上是依盤面資料整理出的可能傾向，不是必然會發生的事');
+  const pending = `${pendingParts.join('；')}。`;
+
+  return { observed, interaction, behavior, pending };
+}
+
+function buildLimits({ palaceName, isEmpty, stepMutagen, year, majorLimit }) {
+  const limits = [
+    '這一頁只用到單一宮位與它的三方四正，完整判讀仍需綜合十二宮與大限流年交叉參看。',
+    MUTAGEN_CAUTION,
+  ];
+  if (isEmpty) limits.push('空宮借對宮主星只是參看，不能把對宮的個性整段當成本宮坐命的主星。');
+  if (!majorLimit) limits.push('目前沒有選定大限，缺少十年這一層的資料。');
+  if (!year) limits.push('目前沒有選定流年，缺少當年度這一層的資料。');
+  if (!stepMutagen.birth.length) limits.push(`${palaceName}沒有生年四化，一生固定的著力點要從其他宮位找。`);
+  return limits;
+}
+
+// ---------- 「先自己判斷」練習題 ----------
+
+const shuffleWithSeed = (items, seed) => {
+  // 固定種子的洗牌:同一張命盤、同一宮位每次產生的選項順序一致,
+  // 使用者答完再回來看時不會因為選項跳動而困惑,也讓測試可以重複驗證。
+  const arr = [...items];
+  let s = seed;
+  for (let i = arr.length - 1; i > 0; i--) {
+    s = (s * 1103515245 + 12345) % 2147483648;
+    const j = s % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
+const seedOf = (text) => [...String(text)].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 2147483647, 7);
+
+function choiceQuestion({ id, prompt, answer, distractors, explain, seed }) {
+  const pool = [...new Set([answer, ...distractors])].slice(0, 4);
+  if (pool.length < 2) return null;
+  return { id, prompt, options: shuffleWithSeed(pool, seed), answer, explain };
+}
+
+/**
+ * 依當前命盤動態產生選擇題。
+ * 只出「可以由盤面資料直接驗證」的題目:不考流派爭議,也不考模糊的命理解釋。
+ *
+ * @param {object} lesson buildPalaceLesson() 的輸出
+ * @param {object} ziWei  convertToZiWei() 輸出(取其他宮位當誘答選項)
+ */
+export function buildPalaceQuiz(lesson, ziWei) {
+  if (!lesson) return [];
+  const seed = seedOf(`${lesson.palaceName}${lesson.position}`);
+  const otherPalaces = PALACE_ORDER.filter((n) => n !== lesson.palaceName);
+  const allStars = [...new Set(ziWei.palaces.flatMap((p) => p.majorStars.map((s) => s.name)))];
+  const self = lesson.steps.find((s) => s.id === 'self').data;
+  const opposite = lesson.steps.find((s) => s.id === 'opposite').data;
+  const triad = lesson.steps.find((s) => s.id === 'triad').data;
+  const mutagen = lesson.steps.find((s) => s.id === 'mutagen').data;
+  const triadNames = triad.members.filter((m) => m.role === 'triad').map((m) => m.name);
+
+  const questions = [];
+
+  // 1) 本宮主星
+  const selfStarAnswer = self.majorStars.length ? self.majorStars.map((s) => s.split('（')[0]).join('、') : '無主星（空宮）';
+  questions.push(choiceQuestion({
+    id: 'self-stars',
+    prompt: `${lesson.palaceName}本身的主星是什麼？`,
+    answer: selfStarAnswer,
+    distractors: [
+      '無主星（空宮）',
+      ...allStars.filter((n) => !selfStarAnswer.includes(n)).slice(0, 3),
+    ].filter((x) => x !== selfStarAnswer),
+    explain: self.majorStars.length
+      ? `${lesson.palaceName}位於${lesson.position}，盤面上這一宮列的主星是${selfStarAnswer}。`
+      : `${lesson.palaceName}位於${lesson.position}，這一宮沒有十四主星，屬於空宮。`,
+    seed,
+  }));
+
+  // 2) 對宮是哪一宮
+  if (opposite) {
+    questions.push(choiceQuestion({
+      id: 'opposite',
+      prompt: `${lesson.palaceName}的對宮是哪一宮？`,
+      answer: opposite.name,
+      distractors: otherPalaces.filter((n) => n !== opposite.name).slice(0, 3),
+      explain: `對宮是地支相隔六位的宮位。${lesson.palaceName}在${lesson.branch}，往後數六位是${opposite.position?.[1] ?? ''}，也就是${opposite.name}。`,
+      seed: seed + 1,
+    }));
+  }
+
+  // 3) 三合宮
+  if (triadNames.length === 2) {
+    const answer = triadNames.join('、');
+    const wrongPool = otherPalaces
+      .filter((n) => !triadNames.includes(n) && n !== opposite?.name)
+      .slice(0, 6);
+    questions.push(choiceQuestion({
+      id: 'triad',
+      prompt: `${lesson.palaceName}的兩個三合宮是哪兩宮？`,
+      answer,
+      distractors: [
+        `${wrongPool[0]}、${wrongPool[1]}`,
+        `${wrongPool[2]}、${wrongPool[3]}`,
+        `${opposite?.name ?? wrongPool[4]}、${wrongPool[4]}`,
+      ].filter(Boolean),
+      explain: `三合宮是地支相隔四位與八位的兩宮。${lesson.palaceName}在${lesson.branch}，對應到的是${answer}。`,
+      seed: seed + 2,
+    }));
+  }
+
+  // 4) 是否為空宮
+  questions.push(choiceQuestion({
+    id: 'is-empty',
+    prompt: `${lesson.palaceName}是不是空宮？`,
+    answer: lesson.isEmpty ? '是，沒有十四主星' : '不是，有十四主星坐守',
+    distractors: [lesson.isEmpty ? '不是，有十四主星坐守' : '是，沒有十四主星'],
+    explain: lesson.isEmpty
+      ? `${lesson.palaceName}沒有任何一顆十四主星，判定為空宮。空宮不代表不好，只是這個領域比較沒有固定的預設模式。`
+      : `${lesson.palaceName}坐${selfStarAnswer}，有主星就不是空宮。`,
+    seed: seed + 3,
+  }));
+
+  // 5) 生年四化(有才出題)
+  if (mutagen.birth.length) {
+    const answer = mutagen.birth.map((f) => `${f.star}化${f.mutagen}`).join('、');
+    const fakes = mutagen.palace.filter((f) => !f.landsHere).slice(0, 2).map((f) => `${f.star}化${f.mutagen}`);
+    questions.push(choiceQuestion({
+      id: 'birth-mutagen',
+      prompt: `${lesson.palaceName}裡，哪一項是「生年四化」？`,
+      answer,
+      distractors: [...fakes, '這一宮沒有生年四化'].filter((x) => x !== answer),
+      explain: `生年四化是出生年天干決定的，會直接標在星曜上。${lesson.palaceName}的${answer}就是生年四化，一輩子都在。`,
+      seed: seed + 4,
+    }));
+  }
+
+  // 6) 流年四化(有落到本宮才出題,否則問層次概念)
+  const annualHere = mutagen.annual.filter((f) => f.landsHere);
+  if (annualHere.length) {
+    const answer = annualHere.map((f) => `${f.star}化${f.mutagen}`).join('、');
+    questions.push(choiceQuestion({
+      id: 'annual-mutagen',
+      prompt: `這一年落到${lesson.palaceName}的流年四化是哪一項？`,
+      answer,
+      distractors: [
+        ...mutagen.birth.map((f) => `${f.star}化${f.mutagen}`),
+        ...mutagen.annual.filter((f) => !f.landsHere).slice(0, 2).map((f) => `${f.star}化${f.mutagen}`),
+      ].filter((x) => x !== answer),
+      explain: `流年四化由流年天干引動，只影響當年。${answer}落在${lesson.palaceName}，跟一輩子都在的生年四化是不同層次。`,
+      seed: seed + 5,
+    }));
+  }
+
+  // 7) 主要證據
+  const primaryTop = lesson.evidence.primary[0];
+  if (primaryTop) {
+    const supportingTop = lesson.evidence.supporting.slice(0, 2).map((e) => e.kind);
+    const unusedTop = lesson.evidence.unused.slice(0, 1).map((e) => e.kind);
+    questions.push(choiceQuestion({
+      id: 'primary-evidence',
+      prompt: `判讀${lesson.palaceName}時，下面哪一項最可能是「主要依據」？`,
+      answer: primaryTop.kind,
+      distractors: [...supportingTop, ...unusedTop].filter((x) => x !== primaryTop.kind),
+      explain: `主要依據是直接決定這一宮怎麼讀的資料，也就是${primaryTop.kind}；三合宮、身宮、大限流年這些屬於補充脈絡的輔助依據。`,
+      seed: seed + 6,
+    }));
+  }
+
+  return questions.filter(Boolean);
+}

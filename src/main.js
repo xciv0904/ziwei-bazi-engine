@@ -5,15 +5,15 @@ import { palaceMeanings } from './data/palace-meanings.js';
 import { lookupTransformation } from './data/transformation-meanings.js';
 import { toTrueSolarTime } from './engines/true-solar-time.js';
 
-// 排盤引擎(iztro、lunar-javascript 合計約 700KB)改為動態載入:
-// 訪客進站先看到歡迎頁,不需要馬上載排盤庫;第一次按「排盤」時才抓,之後快取重用。
-// qrcode / html-to-image 也一樣,只在分享命卡用到時才載。
+// 排盤引擎（iztro、lunar-javascript 合計約 700KB）改為動態載入：
+// 訪客進站先看到歡迎頁，不需要馬上載排盤庫；第一次按「排盤」時才抓，之後快取重用。
+// qrcode / html-to-image 也一樣，只在分享命卡用到時才載。
 let enginesPromise = null;
 let birthDateCtl = null; // 主表單年/月/日輸入控制器,setupControls() 內建立
 /**
- * 解讀組裝層(compose-*.js 及其資料庫,合計 100KB 以上)。
- * 全部都是排盤之後才用得到,所以跟排盤引擎一起動態載入、平行下載——
- * 使用者按「排盤」本來就要等 iztro/lunar,這些資料搭同一班車,不增加可感知的等待,
+ * 解讀組裝層（compose-*.js 及其資料庫，合計 100KB 以上）。
+ * 全部都是排盤之後才用得到，所以跟排盤引擎一起動態載入、平行下載——
+ * 使用者按「排盤」本來就要等 iztro/lunar,這些資料搭同一班車，不增加可感知的等待，
  * 卻能讓「只是進站看一眼」的訪客完全不必下載。載入完成後掛到 R,呼叫點一律寫 R.xxx()。
  */
 const R = {};
@@ -38,27 +38,27 @@ function loadEngines() {
 }
 
 // ---------- 分頁專屬引擎的動態載入 ----------
-// 下面這幾支只有單一分頁(或某顆按鈕)用得到,合計連同各自的 JSON 資料庫超過 100KB。
-// 全部靜態 import 的話,一個只想排盤看命宮的訪客,也得先下載深度解析的組裝表、
+// 下面這幾支只有單一分頁（或某顆按鈕）用得到，合計連同各自的 JSON 資料庫超過 100KB。
+// 全部靜態 import 的話，一個只想排盤看命宮的訪客，也得先下載深度解析的組裝表、
 // 姓名學的 44KB 字庫和奇門遁甲的排盤邏輯才能看到第一個畫面。
-// 改成用到才載:切到該分頁(或按下該顆 AI 按鈕)時 import,載過一次就進模組快取。
-// 另外在排盤完成後會於瀏覽器閒置時段先偷偷預載(見 preloadViewEngines),
-// 所以實際點過去時通常已經在記憶體裡,不會有可感知的延遲。
+// 改成用到才載：切到該分頁（或按下該顆 AI 按鈕）時 import,載過一次就進模組快取。
+// 另外在排盤完成後會於瀏覽器閒置時段先偷偷預載（見 preloadViewEngines）,
+// 所以實際點過去時通常已經在記憶體裡，不會有可感知的延遲。
 const LAZY_LOADERS = {
   comprehensive: () => import('./engines/comprehensive.js'),  // 深度解析
   synastry: () => import('./engines/compose-synastry.js'),    // 雙人合盤
-  naming: () => import('./engines/naming.js'),                // 姓名學(含 name-characters.json)
-  divination: () => import('./engines/divination.js'),        // 進階玄學:易經/梅花/奇門
+  naming: () => import('./engines/naming.js'),                // 姓名學（含 name-characters.json）
+  divination: () => import('./engines/divination.js'),        // 進階玄學：易經/梅花/奇門
   formatAi: () => import('./engines/format-ai.js'),           // 所有「複製給 AI」提示詞
 };
-/** 已載入的模組;渲染函式一律先 await ensureModules() 再從這裡取用,避免到處寫 await import */
+/** 已載入的模組；渲染函式一律先 await ensureModules() 再從這裡取用，避免到處寫 await import */
 const mod = {};
 const modPromises = {};
 function ensureModules(...keys) {
   return Promise.all(keys.map((k) => (modPromises[k] ??= LAZY_LOADERS[k]().then((m) => (mod[k] = m)))));
 }
 
-/** 各分頁在渲染前必須先備妥的模組(點擊型的 AI 按鈕不列在這,由各自的 handler 自行 await) */
+/** 各分頁在渲染前必須先備妥的模組（點擊型的 AI 按鈕不列在這，由各自的 handler 自行 await） */
 const VIEW_MODULES = {
   comprehensive: ['comprehensive'],
   synastry: ['synastry'],
@@ -67,9 +67,9 @@ const VIEW_MODULES = {
 };
 
 /**
- * 排盤完成後,趁瀏覽器閒置把上面幾支分頁引擎先抓回來。
- * 這不影響首屏(排盤畫面早就顯示完了),但能讓之後點側欄分頁幾乎感覺不到載入。
- * 失敗一律忽略——真的點過去時 ensureModules 會再試一次,那時才需要讓使用者知道。
+ * 排盤完成後，趁瀏覽器閒置把上面幾支分頁引擎先抓回來。
+ * 這不影響首屏（排盤畫面早就顯示完了），但能讓之後點側欄分頁幾乎感覺不到載入。
+ * 失敗一律忽略——真的點過去時 ensureModules 會再試一次，那時才需要讓使用者知道。
  */
 function preloadViewEngines() {
   const run = () => ensureModules(...Object.keys(LAZY_LOADERS)).catch(() => {});
@@ -77,21 +77,22 @@ function preloadViewEngines() {
   else setTimeout(run, 1200);
 }
 
-// index.html 把 Google Fonts 的 <link> 以 media="print" 掛載,讓它不擋首次繪製;
-// 這支模組是 type=module(自帶 defer),執行時 HTML 已解析完、首屏已可繪製,這時再切回 all。
+// index.html 把 Google Fonts 的 <link> 以 media="print" 掛載，讓它不擋首次繪製；
+// 這支模組是 type=module(自帶 defer),執行時 HTML 已解析完、首屏已可繪製，這時再切回 all。
 document.getElementById('font-css')?.setAttribute('media', 'all');
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const flat = (s) => String(s).replace(/\n+/g, ' '); // 多行解讀 → 單段落
-const trad = (s) => String(s).replace(/[动开会亲纳采订盟医药猎机械坏垣]/g, (c) => ({ 动:'動', 开:'開', 会:'會', 亲:'親', 纳:'納', 采:'採', 订:'訂', 盟:'盟', 医:'醫', 药:'藥', 猎:'獵', 机:'機', 械:'械', 坏:'壞', 垣:'垣' }[c] ?? c));
+// 注意：這裡的冒號是物件字面值的語法，不是中文標點，不要跟著全形化。
+const trad = (s) => String(s).replace(/[动开会亲纳采订盟医药猎机械坏垣]/g, (c) => ({ 动: '動', 开: '開', 会: '會', 亲: '親', 纳: '納', 采: '採', 订: '訂', 盟: '盟', 医: '醫', 药: '藥', 猎: '獵', 机: '機', 械: '械', 坏: '壞', 垣: '垣' }[c] ?? c));
 
-// ---------- 出生日期輸入(年/月/日三欄,取代原生 date input——
-// 原生 date input 分段輸入時,年份欄位打超過4碼或按方向鍵切換欄位方式不直覺,
-// 打錯會讓 .value 變成空字串且畫面完全沒有任何提示,使用者會以為排盤按鈕壞了。
-// 改成年份用文字輸入(限4碼數字)+ 月/日用下拉選單,月日下拉的選項本身就排除了不存在的日期組合(如2月30日),
-// 只剩年份範圍需要驗證,錯誤時就地顯示原因。) ----------
+// ---------- 出生日期輸入(年/月/日三欄，取代原生 date input——
+// 原生 date input 分段輸入時，年份欄位打超過4碼或按方向鍵切換欄位方式不直覺，
+// 打錯會讓 .value 變成空字串且畫面完全沒有任何提示，使用者會以為排盤按鈕壞了。
+// 改成年份用文字輸入（限4碼數字）+ 月/日用下拉選單，月日下拉的選項本身就排除了不存在的日期組合（如2月30日）,
+// 只剩年份範圍需要驗證，錯誤時就地顯示原因。) ----------
 const daysInMonth = (year, month) => new Date(year || 2001, month, 0).getDate(); // month為1-12;year缺省時用非閏年估算
 function fillMonthOptions(sel) {
   sel.innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${i + 1}月</option>`).join('');
@@ -125,7 +126,7 @@ function wireDateParts({ yearId, monthId, dayId, errorId, nextId = null }) {
   return {
     read() {
       const yStr = yearEl.value;
-      if (!yStr || yStr.length !== 4) { showError('請輸入 4 碼西元年份,例如 1990'); yearEl.focus(); return null; }
+      if (!yStr || yStr.length !== 4) { showError('請輸入 4 碼西元年份，例如 1990'); yearEl.focus(); return null; }
       const y = Number(yStr);
       if (y < 1900 || y > 2100) { showError('目前支援 1900–2100 年之間的生日'); yearEl.focus(); return null; }
       clearError();
@@ -144,7 +145,7 @@ function wireDateParts({ yearId, monthId, dayId, errorId, nextId = null }) {
   };
 }
 
-/** 按鈕 loading 狀態:計算期間停用按鈕並換字樣,避免使用者以為沒反應而重複點擊 */
+/** 按鈕 loading 狀態：計算期間停用按鈕並換字樣，避免使用者以為沒反應而重複點擊 */
 async function withLoading(btn, loadingLabel, fn) {
   if (!btn) return fn();
   const original = btn.textContent;
@@ -165,8 +166,8 @@ const BRANCH_EL = { 子: '水', 丑: '土', 寅: '木', 卯: '木', 辰: '土', 
 const EL_KEY = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 
 /**
- * 五行分佈雷達圖(SVG,不依賴外部套件):五個軸對應木火土金水,
- * 描出分佈輪廓,取代單純的橫條——雷達圖的「形狀」比長度更能一眼看出偏旺/偏弱的整體平衡感。
+ * 五行分佈雷達圖（SVG,不依賴外部套件）：五個軸對應木火土金水，
+ * 描出分佈輪廓，取代單純的橫條——雷達圖的「形狀」比長度更能一眼看出偏旺/偏弱的整體平衡感。
  */
 function fiveElementRadarSVG(distribution) {
   const order = ['wood', 'fire', 'earth', 'metal', 'water'];
@@ -206,7 +207,7 @@ const SHICHEN = [
   { name: '戌時', hour: 19, label: '戌時（19–21）' }, { name: '亥時', hour: 21, label: '亥時（21–23）' },
 ];
 // 時辰欄位的合法值白名單:12 個時辰的起始小時 + 「不確定時辰」。
-// 分享連結與匯入檔都是外部輸入,一律拿這份白名單比對,避免不合法的值靜默變成子時。
+// 分享連結與匯入檔都是外部輸入，一律拿這份白名單比對，避免不合法的值靜默變成子時。
 const VALID_HOURS = new Set([...SHICHEN.map((x) => String(x.hour)), 'unknown']);
 
 const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -217,34 +218,44 @@ const yearGanZhi = (y) => STEMS[(y - 4) % 10] + BRANCHES[(y - 4) % 12];
 const state = {
   view: 'dashboard',
   reportTab: 'ziwei',
-  chartTab: 'ziwei', // 手機版:命盤總覽一次只顯示一張卡
+  chartTab: 'ziwei', // 手機版：命盤總覽一次只顯示一張卡
   cal: 'solar',
   gender: 'female',
-  readingMode: 'public', // 'public'(大眾版,預設)| 'study'(學習版):控制解讀文字要不要附上亮度/四化/十神/五行的完整依據
+  // 閱讀模式（單一狀態，三段式）:
+  //   'public' 白話模式——只給結論與生活化說明（預設）
+  //   'learn'  學習模式——白話文字不變，另外展開「逐步判讀」教學區，說明結論是怎麼從盤面推出來的
+  //   'study'  專業模式——解讀文字附上亮度/四化/十神/五行的完整依據
+  // 'learn' 在組裝解讀文字時等同 'public'(見 composerMode()),差別只在畫面多出教學區塊，
+  // 這樣才不會為了學習模式再長出第二套跟白話/專業互相衝突的文案。
+  readingMode: 'public',
   selectedPalace: '命宮',
+  // 學習模式：目前展開到第幾步、練習題作答狀況（答案本身不進 localStorage,只存對錯）
+  learning: { openStep: 'self', quizOpen: false, answers: {} },
+  // 目前這張命盤的學習進度（由 localStorage 讀入，依命盤識別碼分開存）
+  learningProgress: { palaces: {}, lastPalace: null },
   limitIdx: 0,
   yearIdx: 0,
-  expandedZiwei: ['ming'], // 重點解讀:白話摘要卡片各自獨立展開/收合,用陣列存已展開的 key(可同時展開多張)
+  expandedZiwei: ['ming'], // 重點解讀：白話摘要卡片各自獨立展開/收合，用陣列存已展開的 key(可同時展開多張)
   expandedBazi: ['zhu'],
-  // 重點解讀頁的「白話摘要／專業依據」切換:紫微/八字分頁各自獨立記住自己的模式,
-  // 跟命盤總覽/深度解析共用的 state.readingMode 分開,互不影響(見 currentReadingMode()/setReadingMode())
-  reportViewMode: { ziwei: 'public', bazi: 'public' }, // 沿用跟 readingMode 一樣的值域('public'/'study'),對應按鈕 data-mode
-  // 深度解析(綜合報告)裡,地支關係/神煞屬於補充細節,預設收合,點開才展開(避免資訊量過載);
-  // 用 Set 存已展開的段落標題,彼此獨立(可同時展開兩個),跟主要 4 段區隔開來
+  // 重點解讀頁的「白話摘要／專業依據」切換：紫微/八字分頁各自獨立記住自己的模式，
+  // 跟命盤總覽/深度解析共用的 state.readingMode 分開，互不影響（見 currentReadingMode()/setReadingMode()）
+  reportViewMode: { ziwei: 'public', bazi: 'public' }, // 沿用跟 readingMode 一樣的值域（'public'/'study'），對應按鈕 data-mode
+  // 深度解析（綜合報告）裡，地支關係/神煞屬於補充細節，預設收合，點開才展開（避免資訊量過載）;
+  // 用 Set 存已展開的段落標題，彼此獨立（可同時展開兩個），跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
   topicKey: 'love',
   topicQuestion: 0,
   // 命盤總覽會在切換宮位、大限、流年與流月時整區重繪；原生 details 若不另存狀態，
   // 每次重繪都會回到預設收合。集中保存所有總覽折疊狀態，讓內部互動不再把使用者彈出去。
   dashboardOpenDetails: new Set(),
-  // 雙人合盤:乙方表單值、關係型態與已排好的乙方命盤
+  // 雙人合盤：乙方表單值、關係型態與已排好的乙方命盤
   synastry: { form: { name: '', date: '', hour: '0', gender: 'female', rel: '戀人' }, b: null },
-  monthIdx: null, // 流月瀏覽(null = 未展開)
-  shareCard: 'life', // 分享命卡:'life' 本命卡 | 'annual' 流年卡
-  compareSelected: new Set(), // 命盤比對:目前勾選的已存命盤 index
-  naming: { surname: '', given: '' }, // 姓名學:姓/名輸入值(獨立分頁,不依賴目前命盤)
+  monthIdx: null, // 流月瀏覽（null = 未展開）
+  shareCard: 'life', // 分享命卡：'life' 本命卡 | 'annual' 流年卡
+  compareSelected: new Set(), // 命盤比對：目前勾選的已存命盤 index
+  naming: { surname: '', given: '' }, // 姓名學：姓/名輸入值（獨立分頁，不依賴目前命盤）
   metaphysicsTab: 'daily',
-  metaGuideExpanded: false, // 進階玄學「不知道從哪開始」導覽卡:預設只顯示今天適合的幾個,其餘收合
+  metaGuideExpanded: false, // 進階玄學「不知道從哪開始」導覽卡：預設只顯示今天適合的幾個，其餘收合
   data: null, // { name, input, ziWei, baZi, readings, elements, zwLuck, bzLuck, tenGods, byBranch }
 };
 
@@ -255,7 +266,7 @@ async function computeAll() {
   try {
     return await computeAllInner(parsed);
   } catch (err) {
-    console.error('computeAll 失敗:', err);
+    console.error('computeAll 失敗：', err);
     toast('排盤時發生錯誤，請確認出生資料後再試一次；若重複發生請回報這組生辰資料。');
     return false;
   }
@@ -264,15 +275,15 @@ async function computeAll() {
 async function computeAllInner(parsed) {
   const { convertToZiWei, convertToBaZi, Solar, Lunar } = await loadEngines();
   const name = $('#name-input').value.trim() || '命主';
-  // 「不確定時辰」:以午時(11時)暫排,並在畫面明確標示僅供參考
+  // 「不確定時辰」：以午時（11時）暫排，並在畫面明確標示僅供參考
   const hourRaw = $('#birth-hour').value;
   const hourUnknown = hourRaw === 'unknown';
   let { y, m, d } = parsed;
-  // 日期合法性驗證:月/日下拉的選項本身已排除不存在的組合,但分享連結的 ?date= 參數是直接塞值進欄位,
-  // 仍可能帶入不存在的日期(例如 1949-02-29),引擎不會報錯、會靜默排出錯的盤,這裡再保險檢查一次
+  // 日期合法性驗證：月/日下拉的選項本身已排除不存在的組合，但分享連結的 ?date= 參數是直接塞值進欄位，
+  // 仍可能帶入不存在的日期（例如 1949-02-29），引擎不會報錯、會靜默排出錯的盤，這裡再保險檢查一次
   const probe = new Date(y, m - 1, d);
   if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) {
-    toast('這個日期不存在,請重新選擇');
+    toast('這個日期不存在，請重新選擇');
     return false;
   }
   let hour = hourUnknown ? 11 : Number(hourRaw);
@@ -305,19 +316,23 @@ async function computeAllInner(parsed) {
   const baZi = convertToBaZi(input);
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
 
-  // 頁首的農曆日期字串在這裡先算好(renderHead 不再依賴 lunar 套件,方便動態載入)
+  // 頁首的農曆日期字串在這裡先算好（renderHead 不再依賴 lunar 套件，方便動態載入）
   const lunarDate = Solar.fromYmd(y, m, d).getLunar();
   const lunarDateStr = `${lunarDate.getMonthInChinese()}月${lunarDate.getDayInChinese()}`;
 
   state.data = {
     name, input, ziWei, baZi, byBranch, lunarDateStr, hourUnknown,
-    elements: R.composeElementAnalysis(baZi.fiveElementDistribution), // 兩版本共用同一份,顯示時再依mode選summary/text
+    elements: R.composeElementAnalysis(baZi.fiveElementDistribution), // 兩版本共用同一份，顯示時再依mode選summary/text
   };
   state.monthIdx = null;
   state.dashboardOpenDetails.clear();
   state.shareCard = 'life';
-  // 姓名學分頁帶入目前排盤的姓名(使用者若在姓名學頁另外手動改過,下次重新排盤/切換命盤時仍會被目前這筆姓名蓋過——
-  // 這是預期行為,「帶入」的意思就是跟著目前排盤的人走)
+  // 換命盤就換一組學習進度與作答紀錄：進度依命盤識別碼分開存，
+  // 不清乾淨的話會出現「換了一張盤卻沿用上一張的答對紀錄」
+  state.learning = { openStep: 'self', quizOpen: false, answers: {} };
+  state.learningProgress = R.loadProgress(safeLocalStorage(), R.chartKeyOf(input));
+  // 姓名學分頁帶入目前排盤的姓名(使用者若在姓名學頁另外手動改過，下次重新排盤/切換命盤時仍會被目前這筆姓名蓋過——
+  // 這是預期行為，「帶入」的意思就是跟著目前排盤的人走)
   state.naming = splitSurnameGiven(name);
   applyReadingMode();
 
@@ -335,10 +350,19 @@ async function computeAllInner(parsed) {
 }
 
 // 依目前 state.readingMode 重新組裝所有「會受大眾版/學習版影響」的解讀資料。
-// 排盤完成後呼叫一次;之後使用者切換大眾版/學習版開關時,不用重新排盤,只要重跑這個函式再重繪畫面。
+// 排盤完成後呼叫一次；之後使用者切換大眾版/學習版開關時，不用重新排盤，只要重跑這個函式再重繪畫面。
+/**
+ * 解讀組裝層只認得 'public' / 'study' 兩種詳略程度。
+ * 學習模式刻意沿用白話文案（教學內容另外由 learning-palace.js 產生）,
+ * 所以這裡把 'learn' 對應回 'public',避免每個 compose 函式都要多認一種模式。
+ */
+function composerMode(mode = state.readingMode) {
+  return mode === 'study' ? 'study' : 'public';
+}
+
 function applyReadingMode() {
   const { ziWei, baZi } = state.data;
-  const mode = state.readingMode;
+  const mode = composerMode();
   Object.assign(state.data, {
     readings: R.composeChartReading(ziWei, { mode }),
     zwLuck: R.composeZiWeiLuck(ziWei, { mode }),
@@ -351,9 +375,9 @@ const readingOf = (palaceName) =>
   state.data.readings.palaces.find((p) => p.palaceName === palaceName);
 
 // ---------- 頁首「白話摘要／專業依據」切換的模式讀寫 ----------
-// 命盤總覽、深度解析沒有紫微/八字分頁的概念(兩套資料同時呈現在同一頁),沿用原本單一的
-// state.readingMode;重點解讀有紫微斗數/八字兩個分頁,各自需要記住自己選的是白話還是專業,
-// 所以另外用 state.reportViewMode 分開存,由這兩個函式決定「現在這顆按鈕實際在改哪個值」。
+// 命盤總覽、深度解析沒有紫微/八字分頁的概念（兩套資料同時呈現在同一頁），沿用原本單一的
+// state.readingMode;重點解讀有紫微斗數/八字兩個分頁，各自需要記住自己選的是白話還是專業，
+// 所以另外用 state.reportViewMode 分開存，由這兩個函式決定「現在這顆按鈕實際在改哪個值」。
 function currentReadingMode() {
   return state.view === 'report' ? state.reportViewMode[state.reportTab] : state.readingMode;
 }
@@ -361,19 +385,29 @@ function setReadingMode(mode) {
   if (state.view === 'report') state.reportViewMode[state.reportTab] = mode;
   else state.readingMode = mode;
 }
-/** 依目前頁面/分頁決定的模式,同步「白話摘要／專業依據」按鈕的 active 樣式與無障礙屬性 */
+// 三段式閱讀模式的按鈕定義（標籤與說明集中一份，不要在各 renderer 各寫一次）
+const READING_MODES = [
+  { mode: 'public', label: '白話模式', hint: '只看結論與生活化說明' },
+  { mode: 'learn', label: '學習模式', hint: '加上逐步判讀，看結論怎麼從盤面推出來' },
+  { mode: 'study', label: '專業模式', hint: '解讀文字附上完整命盤依據' },
+];
+
+/** 哪幾頁需要這組切換：命盤總覽（逐步判讀在這裡）、重點解讀與完整報告 */
+const MODE_TOGGLE_VIEWS = new Set(['dashboard', 'report', 'comprehensive']);
+
+/** 依目前頁面/分頁決定的模式，重建三顆模式按鈕並同步 active 樣式與無障礙屬性 */
 function syncModeToggleUI() {
+  const toggle = $('#reading-mode-toggle');
   const mode = currentReadingMode();
-  $('#reading-mode-toggle').hidden = state.view !== 'report';
-  $$('#reading-mode-toggle .mode-pill').forEach((p) => {
-    const active = p.dataset.mode === mode;
-    p.classList.toggle('active', active);
-    p.setAttribute('aria-pressed', String(active));
-  });
-  $('#reading-mode-toggle').setAttribute('aria-controls', `view-${state.view}`);
+  toggle.hidden = !state.data || !MODE_TOGGLE_VIEWS.has(state.view);
+  toggle.innerHTML = READING_MODES.map((item) => {
+    const active = item.mode === mode;
+    return `<button type="button" class="mode-pill${active ? ' active' : ''}" data-mode="${item.mode}" aria-pressed="${active}" title="${esc(item.hint)}">${esc(item.label)}</button>`;
+  }).join('');
+  toggle.setAttribute('aria-controls', `view-${state.view}`);
 }
 
-/** 大限流年瀏覽目前選中的大限與西元年(命盤高亮、四化、提示詞共用) */
+/** 大限流年瀏覽目前選中的大限與西元年（命盤高亮、四化、提示詞共用） */
 function currentLuckSelection() {
   const { ziWei, input } = state.data;
   const limit = ziWei.majorLimits[state.limitIdx];
@@ -381,8 +415,22 @@ function currentLuckSelection() {
   return { limit, year: input.year + startAge + state.yearIdx - 1 };
 }
 
-// ---------- 命盤收藏(localStorage) ----------
+// ---------- 命盤收藏（localStorage） ----------
 const SAVED_KEY = 'zwbz-saved-charts';
+
+/**
+ * 取得可用的 localStorage。
+ * 無痕模式或停用儲存的瀏覽器連存取 localStorage 這個屬性本身都會丟例外，
+ * 學習進度存不存得起來不該讓整個學習模式壞掉，所以取不到時回傳一個什麼都不做的替身。
+ */
+const NULL_STORAGE = { getItem: () => null, setItem: () => {} };
+function safeLocalStorage() {
+  try {
+    return window.localStorage ?? NULL_STORAGE;
+  } catch {
+    return NULL_STORAGE;
+  }
+}
 
 function loadSavedCharts() {
   try { return JSON.parse(localStorage.getItem(SAVED_KEY)) ?? []; } catch { return []; }
@@ -391,7 +439,7 @@ function persistSavedCharts(list) {
   try { localStorage.setItem(SAVED_KEY, JSON.stringify(list.slice(0, 20))); } catch { /* 無痕模式等 */ }
 }
 
-/** 從已存命盤載入一筆(側欄清單、流年提醒卡共用):填回表單值 → 排盤 → 重繪畫面 */
+/** 從已存命盤載入一筆（側欄清單、流年提醒卡共用）：填回表單值 → 排盤 → 重繪畫面 */
 async function loadSavedEntry(c) {
   $('#name-input').value = c.name;
   const [cy, cm, cd] = c.date.split('-').map(Number);
@@ -415,7 +463,7 @@ function renderSavedList() {
   const list = loadSavedCharts();
   $('#saved-section').hidden = list.length === 0;
   // 合盤頁的「從已存命盤帶入」列表、命盤比對頁的勾選清單與側欄收藏同步
-  // (延遲渲染:只有正在看的那一頁需要立刻重畫,另一頁等切過去時再補)
+  // (延遲渲染：只有正在看的那一頁需要立刻重畫，另一頁等切過去時再補)
   invalidateViews('synastry', 'compare');
   $('#saved-list').innerHTML = list.map((c, i) => `
     <div class="saved-chip" data-load="${i}">
@@ -439,7 +487,7 @@ function renderSavedList() {
     }));
 }
 
-// 匯出/匯入收藏(localStorage 不跨裝置,提供 JSON 檔搬家)
+// 匯出/匯入收藏（localStorage 不跨裝置，提供 JSON 檔搬家）
 function exportSavedCharts() {
   const list = loadSavedCharts();
   if (!list.length) return toast('目前沒有已存的命盤');
@@ -453,12 +501,12 @@ function exportSavedCharts() {
 }
 
 /**
- * 匯入檔是使用者可以任意編輯的外部輸入,先前只檢查欄位「有沒有值」,
- * 因此像 date: "去年" 或 hour: 99 這種值會被原封不動存進收藏,
- * 等到之後點開那筆命盤才在排盤階段炸開(而且錯誤訊息完全對不上原因)。
- * 現在改成逐筆嚴格驗證,壞掉的資料在匯入當下就被擋下並告知筆數。
+ * 匯入檔是使用者可以任意編輯的外部輸入，先前只檢查欄位「有沒有值」,
+ * 因此像 date: "去年" 或 hour: 99 這種值會被原封不動存進收藏，
+ * 等到之後點開那筆命盤才在排盤階段炸開（而且錯誤訊息完全對不上原因）。
+ * 現在改成逐筆嚴格驗證，壞掉的資料在匯入當下就被擋下並告知筆數。
  */
-const MAX_IMPORT_BYTES = 1 * 1024 * 1024; // 20 筆命盤約數 KB,1MB 已極度寬鬆;更大者視為非本站檔案
+const MAX_IMPORT_BYTES = 1 * 1024 * 1024; // 20 筆命盤約數 KB,1MB 已極度寬鬆；更大者視為非本站檔案
 
 function isValidChartEntry(c) {
   if (!c || typeof c !== 'object') return false;
@@ -479,9 +527,9 @@ function isValidChartEntry(c) {
 }
 
 function importSavedCharts(file) {
-  if (file.size > MAX_IMPORT_BYTES) return toast('匯入失敗:檔案過大,請確認是本站匯出的命盤收藏');
+  if (file.size > MAX_IMPORT_BYTES) return toast('匯入失敗：檔案過大，請確認是本站匯出的命盤收藏');
   const reader = new FileReader();
-  reader.onerror = () => toast('匯入失敗:無法讀取這個檔案');
+  reader.onerror = () => toast('匯入失敗：無法讀取這個檔案');
   reader.onload = () => {
     try {
       const incoming = JSON.parse(reader.result);
@@ -500,9 +548,9 @@ function importSavedCharts(file) {
       }
       persistSavedCharts(list);
       renderSavedList();
-      const tail = skipped ? `(略過 ${skipped} 筆格式不正確的資料)` : '';
-      toast((added ? `已匯入 ${added} 筆命盤` : '沒有新的命盤(皆已存在或格式不正確)') + tail);
-    } catch { toast('匯入失敗:檔案格式不正確'); }
+      const tail = skipped ? `（略過 ${skipped} 筆格式不正確的資料）` : '';
+      toast((added ? `已匯入 ${added} 筆命盤` : '沒有新的命盤（皆已存在或格式不正確）') + tail);
+    } catch { toast('匯入失敗：檔案格式不正確'); }
   };
   reader.readAsText(file);
 }
@@ -513,9 +561,9 @@ function saveCurrentChart() {
   const entry = {
     name,
     date: `${input.year}-${String(input.month).padStart(2, '0')}-${String(input.day).padStart(2, '0')}`,
-    hour: state.data.hourUnknown ? 'unknown' : input.hour, // 時辰未知照實記錄,載入時維持「不確定」
+    hour: state.data.hourUnknown ? 'unknown' : input.hour, // 時辰未知照實記錄，載入時維持「不確定」
     gender: input.gender,
-    cal: 'solar', // computeAll 已把農曆轉成陽曆,存陽曆版本最不易混淆
+    cal: 'solar', // computeAll 已把農曆轉成陽曆，存陽曆版本最不易混淆
   };
   if (input.solarTime) {
     const { civil } = input.solarTime;
@@ -548,7 +596,7 @@ function renderHead() {
   const solarMark = input.solarTime
     ? `真太陽時${String(input.hour).padStart(2, '0')}:${String(input.solarTime.corrected.minute).padStart(2, '0')}・`
     : '';
-  const shichenLabel = state.data.hourUnknown ? '時辰未知(暫以午時排)' : `${solarMark}${shichen.name}`;
+  const shichenLabel = state.data.hourUnknown ? '時辰未知（暫以午時排）' : `${solarMark}${shichen.name}`;
   $('#birth-summary').textContent =
     `${baZi.fourPillars.yearPillar.stem}${baZi.fourPillars.yearPillar.branch}年` +
     `${lunarDateStr}　${shichenLabel}　` +
@@ -599,7 +647,7 @@ function renderResultSummary() {
   </section>`;
 }
 
-// ---------- 分頁一:命盤總覽 ----------
+// ---------- 分頁一：命盤總覽 ----------
 function elDot(char, isDay) {
   const el = STEM_EL[char] ?? BRANCH_EL[char];
   const textColor = isDay ? 'var(--cream)' : EL_COLOR[el];
@@ -611,7 +659,7 @@ const MUT_CLASS = { 祿: 'lu', 權: 'quan', 科: 'ke', 忌: 'ji' };
 function renderZiWeiCard() {
   const { ziWei, name } = state.data;
 
-  // 盤面連動:大限宮位、流年命宮、流年四化落點、所選宮位的三方四正
+  // 盤面連動：大限宮位、流年命宮、流年四化落點、所選宮位的三方四正
   const { limit, year } = currentLuckSelection();
   const decadalBranch = limit.ganZhi[1];
   const annualBranch = yearGanZhi(year)[1];
@@ -638,14 +686,14 @@ function renderZiWeiCard() {
     ].join(' ');
     const luckTags = [
       branch === decadalBranch ? `<span class="luck-tag decadal" title="目前所在的十年大限落在這一宮">限</span>` : '',
-      branch === annualBranch ? `<span class="luck-tag annual" title="${year} 年(流年)命宮落在這一宮">年</span>` : '',
+      branch === annualBranch ? `<span class="luck-tag annual" title="${year} 年（流年）命宮落在這一宮">年</span>` : '',
     ].join('');
     const mutMarks = (sihuaByPalace[p.name] ?? [])
       .map((m) => `<span class="flow-mut ${MUT_CLASS[m]}" title="${year}年流年化${m}：${esc(lookupTransformation(m) ?? '')}">${m}</span>`).join('');
     const elAccent = EL_COLOR[BRANCH_EL[branch]];
     return `<button type="button" class="${cls}" data-palace="${esc(p.name)}"
       style="grid-row:${pos.row};grid-column:${pos.col};border-left-color:${elAccent}">
-      <div class="p-name">${esc(p.name)} ${esc(branch)}${p.isBodyPalace ? `<span class="body-mark" title="身宮:與命宮並列,影響後天際遇與行為傾向">・身</span>` : ''}${luckTags}</div>
+      <div class="p-name">${esc(p.name)} ${esc(branch)}${p.isBodyPalace ? `<span class="body-mark" title="身宮：與命宮並列，影響後天際遇與行為傾向">・身</span>` : ''}${luckTags}</div>
       <div class="p-stars">${stars || ''}${mutMarks}</div>
       <div class="p-minor">${p.minorStars.slice(0, 4).map((s) => esc(s.replace(/\(.*?\)/, ''))).join(' ')}</div>
     </button>`;
@@ -693,7 +741,7 @@ function renderBaZiCard() {
     const el = EL_KEY[key];
     return `<div class="el-legend-item"><span class="dot" style="background:${EL_COLOR[el]}"></span><span style="color:${EL_COLOR[el]}">${el}</span><b>${count}</b></div>`;
   }).join('');
-  const note = `${elements.dominant.join('、')}偏旺,${elements.weak.join('、')}偏弱,可透過後天培養補強平衡。`;
+  const note = `${elements.dominant.join('、')}偏旺，${elements.weak.join('、')}偏弱，可透過後天培養補強平衡。`;
 
   return `<div class="card bazi-card">
     <div class="card-label">八字・四柱</div>
@@ -719,7 +767,7 @@ function renderClassroom() {
     ? palace.majorStars.map((s) => s.name).join('・')
     : `（無主星，借對宮${opposite.name}）`;
 
-  // 學習版:附上飛星資訊(自化與來因宮,已用文墨天機命盤交叉驗證)
+  // 學習版：附上飛星資訊（自化與來因宮，已用文墨天機命盤交叉驗證）
   let advancedLine = '';
   if (state.readingMode === 'study') {
     const selfT = R.computeSelfTransformations(state.data.ziWei).find((r) => r.palaceName === state.selectedPalace);
@@ -727,18 +775,18 @@ function renderClassroom() {
     const parts = [];
     if (selfT) {
       parts.push([
-        ...selfT.outgoing.map((x) => `${x.star}↓${x.mutagen}(離心自化,能量向外流)`),
-        ...selfT.incoming.map((x) => `${x.star}↑${x.mutagen}(向心自化,由對宮化入)`),
+        ...selfT.outgoing.map((x) => `${x.star}↓${x.mutagen}(離心自化，能量向外流)`),
+        ...selfT.incoming.map((x) => `${x.star}↑${x.mutagen}(向心自化，由對宮化入)`),
       ].join('、'));
     }
-    if (laiyin?.palaceName === state.selectedPalace) parts.push('此宮為來因宮(生年天干所落之宮,一生課題的起點)');
+    if (laiyin?.palaceName === state.selectedPalace) parts.push('此宮為來因宮（生年天干所落之宮，一生課題的起點）');
     if (parts.length) {
       advancedLine = `<div class="tech-block"><b>飛星資訊</b><p>${esc(parts.join(';'))}</p></div>`;
     }
   }
 
-  // 命盤總覽偏向「查資料」,不放完整7段式人生分析(那是重點解讀/深度解析的事)——
-  // 只取白話卡片裡最前面兩層:一句話重點 + 簡短解釋,專業資料則完整列出(這裡本來就是給想看細節的人用的)
+  // 命盤總覽偏向「查資料」，不放完整7段式人生分析（那是重點解讀/深度解析的事）——
+  // 只取白話卡片裡最前面兩層：一句話重點 + 簡短解釋，專業資料則完整列出（這裡本來就是給想看細節的人用的）
   const card = R.generatePlainPalaceCard(state.data.ziWei, state.selectedPalace);
   const explanationHtml = card.explanation.slice(0, 2).map((p) => `<p>${esc(p)}</p>`).join('');
 
@@ -753,6 +801,7 @@ function renderClassroom() {
       <div class="palace-topic">${esc(palaceMeanings[state.selectedPalace] ?? '')}</div>
       <p class="palace-takeaway">${esc(card.summary)}</p>
       <div class="palace-explain">${explanationHtml}</div>
+      ${whyPanelHtml(state.readingMode === 'learn' ? null : currentLesson())}
       <details class="palace-technical" data-dashboard-detail="classroom-technical"${state.dashboardOpenDetails.has('classroom-technical') ? ' open' : ''}>
         <summary>專業資料</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
@@ -764,6 +813,294 @@ function renderClassroom() {
       </details>
     </div>
   </div>`;
+}
+
+// ---------- 學習模式：逐步判讀 ----------
+// 資料全部來自 learning-palace.js(它只重新整理既有排盤結果，不重算任何命盤事實),
+// 這一段只負責把它排版成漸進式揭露的卡片：預設只展開目前這一步，其餘可點開。
+
+/** 目前這張命盤的進度儲存識別碼（由生辰算出的短雜湊，不含可讀的出生資料） */
+function learningChartKey() {
+  return R.chartKeyOf(state.data?.input);
+}
+
+function currentLesson() {
+  const { ziWei } = state.data;
+  const { limit, year } = currentLuckSelection();
+  return R.buildPalaceLesson({ ziWei, palaceName: state.selectedPalace, year, majorLimit: limit });
+}
+
+const glossaryTip = (term, text) =>
+  `<button type="button" class="glossary-tip" data-glossary="${esc(term)}" title="${esc(text)}">${esc(term)}<span aria-hidden="true">？</span></button>`;
+
+function learningFactRow(label, value) {
+  if (!value) return '';
+  return `<div class="learn-fact"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+}
+
+function learningStepSelfHtml(data) {
+  const marks = [
+    data.isBodyPalace ? '身宮' : '',
+    data.isLaiyin ? '來因宮' : '',
+    data.isEmpty ? '空宮' : '',
+  ].filter(Boolean).join('、');
+  return `
+    ${learningFactRow('宮位主題', data.topic)}
+    ${learningFactRow('宮干地支', data.position)}
+    ${learningFactRow('主星', data.majorStars.join('、') || '無主星')}
+    ${learningFactRow('輔星（六吉）', data.auspiciousStars.join('、') || '無')}
+    ${learningFactRow('煞曜（六煞）', data.maleficStars.join('、') || '無')}
+    ${learningFactRow('其他雜曜', data.otherStars.join('、') || '無')}
+    ${learningFactRow('生年四化', data.birthMutagens.map((f) => `${f.star}化${f.mutagen}`).join('、') || '此宮沒有生年四化')}
+    ${learningFactRow('自化', [
+      ...data.selfMutagens.outgoing.map((x) => `${x}（離心↓）`),
+      ...data.selfMutagens.incoming.map((x) => `${x}（向心↑）`),
+    ].join('、') || '此宮沒有自化')}
+    ${learningFactRow('特殊標記', marks || '無')}
+    ${data.brightnessNotes.length ? `<div class="learn-note"><b>廟旺利陷</b><ul>${data.brightnessNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
+    ${data.majorStarFunctions.length ? `<div class="learn-note"><b>主星功能</b><ul>${data.majorStarFunctions.map((s) => `<li>${esc(s.name)}：${esc(s.core)}</li>`).join('')}</ul></div>` : ''}`;
+}
+
+function learningStepOppositeHtml(data) {
+  if (!data) return '<p class="learn-empty">找不到對宮資料。</p>';
+  return `
+    ${learningFactRow('對宮', `${data.name}（${data.position}）`)}
+    ${learningFactRow('對宮主星', data.starLabels.join('、') || '對宮同樣是空宮')}
+    ${learningFactRow('這條軸線', data.axis)}
+    <div class="learn-note"><b>兩宮的關係</b><p>${esc(data.axisMeaning)}</p><p>${esc(data.why)}</p></div>`;
+}
+
+function learningStepTriadHtml(data) {
+  const rows = data.members.map((m) => {
+    const role = { self: '本宮', opposite: '對宮', triad: '三合宮' }[m.role] ?? m.role;
+    return `<tr><th>${esc(role)}</th><td>${esc(m.name)}（${esc(m.position)}）</td><td>${esc(m.stars.join('、') || '空宮')}</td></tr>`;
+  }).join('');
+  return `
+    <div class="learn-note"><p>${esc(data.what)}</p><p>${esc(data.why)}</p><p>${esc(data.how)}</p></div>
+    <div class="learn-table-wrap"><table class="learn-table"><thead><tr><th>角色</th><th>宮位</th><th>主星</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="learn-hint">左側命盤已用虛線框同步標出這四個宮位。</p>`;
+}
+
+function learningMutagenGroup(title, items, emptyText) {
+  if (!items.length) return `<div class="learn-mut-group"><b>${esc(title)}</b><p class="learn-empty">${esc(emptyText)}</p></div>`;
+  return `<div class="learn-mut-group"><b>${esc(title)}</b><ul>${items.map((x) => `<li>${esc(x.sentence)}</li>`).join('')}</ul></div>`;
+}
+
+function learningStepMutagenHtml(data) {
+  const basics = Object.entries(data.basics)
+    .map(([key, v]) => `<li><span class="mut-chip ${MUT_CLASS[key]}">${esc(key)}</span>${esc(v.keywords)}——${esc(v.plain)}</li>`).join('');
+  return `
+    <div class="learn-note"><b>先認識四化在講什麼</b><ul class="learn-mut-basics">${basics}</ul><p class="learn-caution">${esc(data.caution)}</p></div>
+    ${learningMutagenGroup('生年四化（一輩子）', data.birth, '這一宮沒有生年四化。')}
+    ${learningMutagenGroup('宮干飛化（本宮飛出去）', data.palace, '這一宮沒有可對應的宮干飛化。')}
+    ${learningMutagenGroup('向心自化（由對宮化入）', data.selfIncoming, '這一宮沒有向心自化。')}
+    ${learningMutagenGroup('離心自化（能量往外散）', data.selfOutgoing, '這一宮沒有離心自化。')}
+    ${learningMutagenGroup('大限四化（這十年）', data.decadal, '目前大限沒有可對應的四化。')}
+    ${learningMutagenGroup('流年四化（這一年）', data.annual, '目前流年沒有可對應的四化。')}
+    <p class="learn-hint">上面每一條都標了層次：生年是一輩子、大限是這十年、流年只有這一年，判讀時不要混在一起。</p>`;
+}
+
+function learningEvidenceListHtml(title, items, emptyText) {
+  if (!items.length) return `<div class="learn-evi-group"><b>${esc(title)}</b><p class="learn-empty">${esc(emptyText)}</p></div>`;
+  return `<div class="learn-evi-group"><b>${esc(title)}</b><ul>${items.map((e) =>
+    `<li><span class="evi-kind">${esc(e.kind)}</span>${esc(e.text)}</li>`).join('')}</ul></div>`;
+}
+
+function learningStepSynthesisHtml(evidence) {
+  const c = evidence.conclusion;
+  return `
+    ${learningEvidenceListHtml('主要依據', evidence.primary, '這一宮目前沒有可作為主要依據的資料。')}
+    ${learningEvidenceListHtml('輔助依據', evidence.supporting, '目前沒有補充用的輔助依據。')}
+    ${learningEvidenceListHtml('暫時不採用', evidence.unused, '沒有被排除的資料。')}
+    <div class="learn-conclusion">
+      <div><span>1. 盤面看到什麼</span><p>${esc(c.observed)}</p></div>
+      <div><span>2. 這些資料怎麼互相影響</span><p>${esc(c.interaction)}</p></div>
+      <div><span>3. 可能出現在什麼情況</span><p>${esc(c.behavior)}</p></div>
+      <div><span>4. 還需要什麼才能確認</span><p>${esc(c.pending)}</p></div>
+    </div>
+    <div class="learn-note learn-note--limit"><b>判讀限制</b><ul>${evidence.limits.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
+}
+
+function learningEmptyGuideHtml(guide) {
+  if (!guide) return '';
+  return `<div class="learn-empty-guide">
+    <b>${esc(guide.headline)}</b>
+    <p class="learn-empty-correct">${esc(guide.correction)}</p>
+    <p>${esc(guide.lead)}</p>
+    <ol class="learn-empty-steps">${guide.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+    <div class="learn-table-wrap"><table class="learn-table"><tbody>${guide.references.map((r) =>
+      `<tr><th>${esc(r.label)}</th><td>${esc(r.detail)}</td></tr>`).join('')}</tbody></table></div>
+    <p class="learn-caution">${esc(guide.caution)}</p>
+  </div>`;
+}
+
+function learningQuizHtml(lesson, questions) {
+  if (!questions.length) return '';
+  const answers = state.learning.answers[lesson.palaceName] ?? {};
+  const body = questions.map((q) => {
+    const picked = answers[q.id];
+    const options = q.options.map((opt) => {
+      const chosen = picked === opt;
+      const cls = ['quiz-option', chosen ? 'chosen' : '', picked && opt === q.answer ? 'correct' : '',
+        chosen && opt !== q.answer ? 'wrong' : ''].filter(Boolean).join(' ');
+      return `<button type="button" class="${cls}" data-quiz="${esc(q.id)}" data-quiz-option="${esc(opt)}"${picked ? ' disabled' : ''}>${esc(opt)}</button>`;
+    }).join('');
+    const feedback = picked
+      ? `<p class="quiz-feedback ${picked === q.answer ? 'ok' : 'no'}">${picked === q.answer ? '答對了。' : `再看一次：正確答案是「${esc(q.answer)}」。`}${esc(q.explain)}</p>`
+      : '';
+    return `<div class="quiz-item"><p class="quiz-prompt">${esc(q.prompt)}</p><div class="quiz-options">${options}</div>${feedback}</div>`;
+  }).join('');
+  return `<details class="learn-quiz" data-dashboard-detail="learn-quiz"${state.dashboardOpenDetails.has('learn-quiz') ? ' open' : ''}>
+    <summary>先自己判斷（${questions.length} 題，答完才看答案）</summary>
+    <p class="learn-hint">這些題目都可以直接從上面的盤面資料查證，不考流派爭議，也不考模糊的命理解釋。</p>
+    ${body}
+    <button type="button" class="mini-btn" id="learn-quiz-reset">重做這一宮的練習</button>
+  </details>`;
+}
+
+function renderLearningPanel() {
+  if (state.readingMode !== 'learn') return '';
+  const lesson = currentLesson();
+  if (!lesson) return '';
+  const questions = R.buildPalaceQuiz(lesson, state.data.ziWei);
+  const openStep = state.learning.openStep;
+  // 目前展開的這一步就是使用者正在讀的內容，在算進度之前先記下來，
+  // 否則進度條會永遠慢一次重繪（讀了第五步卻要再點一下別的地方才會更新）。
+  if (openStep) {
+    state.learningProgress = R.markStepRead(safeLocalStorage(), learningChartKey(), lesson.palaceName, openStep);
+  }
+  const progress = R.progressSummary(state.learningProgress);
+
+  const bodyOf = (step) => ({
+    self: () => learningStepSelfHtml(step.data),
+    opposite: () => learningStepOppositeHtml(step.data),
+    triad: () => learningStepTriadHtml(step.data),
+    mutagen: () => learningStepMutagenHtml(step.data),
+    synthesis: () => learningStepSynthesisHtml(step.data),
+  }[step.id]());
+
+  const steps = lesson.steps.map((step, index) => {
+    const open = step.id === openStep;
+    const done = (state.learningProgress.palaces?.[lesson.palaceName]?.steps ?? []).includes(step.id);
+    return `<section class="learn-step${open ? ' open' : ''}${done ? ' done' : ''}">
+      <button type="button" class="learn-step-head" data-learn-step="${esc(step.id)}" aria-expanded="${open}" aria-controls="learn-step-${index}">
+        <span class="learn-step-no">${index + 1}</span>
+        <span class="learn-step-title">${esc(step.title)}<small>${esc(step.hint)}</small></span>
+        <i aria-hidden="true">${open ? '−' : '＋'}</i>
+      </button>
+      ${open ? `<div class="learn-step-body" id="learn-step-${index}">${bodyOf(step)}</div>` : ''}
+    </section>`;
+  }).join('');
+
+  const glossary = lesson.glossary.map((g) => glossaryTip(g.term, g.text)).join('');
+  const badges = [
+    lesson.isEmpty ? '<span class="learn-badge empty">空宮</span>' : '',
+    lesson.isBodyPalace ? '<span class="learn-badge">身宮</span>' : '',
+    lesson.isLaiyin ? '<span class="learn-badge">來因宮</span>' : '',
+  ].join('');
+
+  return `<div class="card learn-card" id="learn-card">
+    <div class="learn-head">
+      <div class="round-icon">學</div>
+      <div class="learn-head-text">
+        <b>逐步判讀：${esc(lesson.palaceName)}（${esc(lesson.position)}）</b>${badges}
+        <small>照著五個步驟讀一遍，就知道下面的結論是從盤面哪幾項資料推出來的。點左側命盤可換宮位。</small>
+      </div>
+    </div>
+    <div class="learn-progress">
+      <span>${esc(progress.label)}</span>
+      <div class="learn-progress-bar"><i style="width:${(progress.completedCount / progress.total) * 100}%"></i></div>
+      ${progress.quizAnswered ? `<small>練習答對 ${progress.quizCorrect}／${progress.quizAnswered}</small>` : ''}
+      <button type="button" class="mini-btn" id="learn-continue">繼續上次學習</button>
+      <button type="button" class="mini-btn" id="learn-reset">重設學習進度</button>
+    </div>
+    ${learningEmptyGuideHtml(lesson.emptyGuide)}
+    <div class="learn-steps">${steps}</div>
+    ${learningQuizHtml(lesson, questions)}
+    ${glossary ? `<div class="learn-glossary"><b>這一頁出現的名詞</b><div class="learn-glossary-list">${glossary}</div><small>點名詞可看說明；桌面版滑過去也會顯示。</small></div>` : ''}
+  </div>`;
+}
+
+/**
+ * 學習模式的互動綁定。
+ * 每次 renderDashboard() 重畫都會重新呼叫，所以這裡只綁在本次產生的節點上，
+ * 不需要另外解除監聽（舊節點已經被 innerHTML 整批換掉）。
+ */
+function bindLearningPanel() {
+  const storage = safeLocalStorage();
+  const chartKey = learningChartKey();
+
+  $$('#view-dashboard [data-learn-step]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const stepId = btn.dataset.learnStep;
+      // 再點一次同一步等於收合，但「看過」的紀錄留著——進度是累積的，不會因為收合就倒退
+      state.learning.openStep = state.learning.openStep === stepId ? null : stepId;
+      if (state.learning.openStep) {
+        state.learningProgress = R.markStepRead(storage, chartKey, state.selectedPalace, stepId);
+      }
+      renderDashboard();
+    }));
+
+  $$('#view-dashboard [data-quiz-option]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const questionId = btn.dataset.quiz;
+      const picked = btn.dataset.quizOption;
+      const lesson = currentLesson();
+      const question = R.buildPalaceQuiz(lesson, state.data.ziWei).find((q) => q.id === questionId);
+      if (!question) return;
+      (state.learning.answers[state.selectedPalace] ??= {})[questionId] = picked;
+      state.learningProgress = R.recordQuizAnswer(storage, chartKey, state.selectedPalace, questionId, picked === question.answer);
+      state.dashboardOpenDetails.add('learn-quiz');
+      renderDashboard();
+    }));
+
+  $('#learn-quiz-reset')?.addEventListener('click', () => {
+    delete state.learning.answers[state.selectedPalace];
+    state.dashboardOpenDetails.add('learn-quiz');
+    renderDashboard();
+  });
+
+  $('#learn-continue')?.addEventListener('click', () => {
+    const next = R.nextPalaceToLearn(state.learningProgress);
+    state.selectedPalace = next;
+    state.learning.openStep = 'self';
+    renderDashboard();
+    toast(`接著看${next}`);
+  });
+
+  $('#learn-reset')?.addEventListener('click', () => {
+    state.learningProgress = R.resetProgress(storage, chartKey);
+    state.learning = { openStep: 'self', quizOpen: false, answers: {} };
+    renderDashboard();
+    toast('已重設這張命盤的學習進度');
+  });
+
+  // 名詞小百科：桌面版用 title 顯示，手機沒有 hover,點一下用 toast 顯示同一段說明
+  $$('#view-dashboard [data-glossary]').forEach((btn) =>
+    btn.addEventListener('click', () => toast(`${btn.dataset.glossary}：${btn.title}`)));
+}
+
+/**
+ * 「為什麼這樣判斷」：白話結論下方的可展開證據鏈。
+ * 內容是專業資料，沿用 .palace-technical 這個既有的收合樣式與語意，
+ * 讓它跟命盤小教室的「專業資料」在視覺與可讀性檢查上都屬於同一類。
+ */
+function whyPanelHtml(lesson) {
+  if (!lesson) return '';
+  const { evidence } = lesson;
+  const list = (items) => items.map((e) => `<li><b>${esc(e.kind)}</b>${esc(e.text)}</li>`).join('');
+  // 刻意不套用 .palace-technical:那個 class 已經被命盤小教室的「專業資料」與可讀性檢查當成
+  // 「該宮位的原始命盤資料」使用，再掛一份會讓 querySelector('.palace-technical') 抓到錯的區塊。
+  // 這裡用 .learn-why 自己的收合樣式（視覺與 .palace-technical 一致，見 style.css）。
+  return `<details class="learn-why" data-dashboard-detail="learn-why"${state.dashboardOpenDetails.has('learn-why') ? ' open' : ''}>
+    <summary>為什麼這樣判斷？</summary>
+    <div class="analysis-card__panel--technical" style="margin-top:10px">
+      <div class="tech-block"><b>主要依據</b><ul>${list(evidence.primary) || '<li>目前沒有可用的主要依據。</li>'}</ul></div>
+      <div class="tech-block"><b>輔助依據</b><ul>${list(evidence.supporting) || '<li>目前沒有輔助依據。</li>'}</ul></div>
+      <div class="tech-block"><b>推導過程</b><p>${esc(evidence.conclusion.observed)}${esc(evidence.conclusion.interaction)}${esc(evidence.conclusion.behavior)}</p></div>
+      <div class="tech-block"><b>還需要確認的部分</b><p>${esc(evidence.conclusion.pending)}</p></div>
+    </div>
+  </details>`;
 }
 
 /**
@@ -823,8 +1160,8 @@ function renderLuckBrowser() {
   const limit = limits[state.limitIdx];
   const [startAge] = limit.ageRange.split('~').map(Number);
 
-  // 「現在」是哪個大限、哪一年——用來在一排 chips 裡標出「現在」徽章,
-  // 跟使用者點選瀏覽的「選取中」區分開,避免切換幾次後忘記自己現在實際在哪個階段
+  // 「現在」是哪個大限、哪一年——用來在一排 chips 裡標出「現在」徽章，
+  // 跟使用者點選瀏覽的「選取中」區分開，避免切換幾次後忘記自己現在實際在哪個階段
   const nowYear = new Date().getFullYear();
   const nominalAge = nowYear - input.year + 1;
   const nowLimitIdx = limits.findIndex((l) => {
@@ -855,8 +1192,8 @@ function renderLuckBrowser() {
   const daxianPalace = state.data.byBranch[limit.ganZhi[1]].name;
   const liunianPalace = state.data.byBranch[sel.gz[1]].name;
 
-  // 白話短版:年度一句話重點 + 有利方向/需要留意,紫微跟八字各自的完整依據收在「專業運勢依據」裡分開標示
-  // (沿用 compose-plain.js 既有的時間卡片生成邏輯,不重算任何排盤或四化十神資料,只是換一組 age/year 參數)
+  // 白話短版：年度一句話重點 + 有利方向/需要留意，紫微跟八字各自的完整依據收在「專業運勢依據」裡分開標示
+  // (沿用 compose-plain.js 既有的時間卡片生成邏輯，不重算任何排盤或四化十神資料，只是換一組 age/year 參數)
   const zwCard = R.generatePlainZiweiTimeCard(state.data.ziWei, { age: sel.age, year: sel.year });
   const bzCard = R.generatePlainBaziTimeCard(state.data.baZi, { year: sel.year });
   const lifeStage = lifeStageForYear(input, sel.year);
@@ -886,7 +1223,7 @@ function renderLuckBrowser() {
       <details class="palace-technical" data-dashboard-detail="annual-technical"${state.dashboardOpenDetails.has('annual-technical') ? ' open' : ''}>
         <summary>專業運勢依據</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
-          <div class="tech-block"><b>紫微(大限重心：${esc(daxianPalace)}／流年命宮：${esc(liunianPalace)})</b><p>${esc(zwCard.technical.judgment)}</p></div>
+          <div class="tech-block"><b>紫微（大限重心：${esc(daxianPalace)}／流年命宮：${esc(liunianPalace)}）</b><p>${esc(zwCard.technical.judgment)}</p></div>
           <div class="tech-block"><b>八字</b><p>${esc(bzCard.technical.judgment)}</p></div>
         </div>
       </details>
@@ -895,10 +1232,10 @@ function renderLuckBrowser() {
   </div>`;
 }
 
-/** 流月瀏覽(八字):選定年份內逐月查看變動,預設收合 */
+/** 流月瀏覽（八字）：選定年份內逐月查看變動，預設收合 */
 function renderMonthlyBrowser(year) {
   if (state.monthIdx === null) {
-    return `<button type="button" class="mini-btn" id="open-monthly" style="align-self:flex-start;margin-left:0">＋ 展開 ${year} 逐月變動(八字流月)</button>`;
+    return `<button type="button" class="mini-btn" id="open-monthly" style="align-self:flex-start;margin-left:0">＋ 展開 ${year} 逐月變動（八字流月）</button>`;
   }
   const monthly = R.monthlyPillarsOf(year);
   const chips = Array.from({ length: 12 }, (_, i) => {
@@ -935,7 +1272,7 @@ function renderMonthlyBrowser(year) {
   ];
   const list = (title, items) => `<div class="analysis-card__section"><div class="analysis-card__section-title">${title}</div><ul class="analysis-card__list">${[...new Set(items)].map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>`;
   return `
-    <div class="chip-label" style="margin-top:4px">流月（${year} 年;八字以節氣月、紫微斗君以農曆月計,月界略有差異）</div>
+    <div class="chip-label" style="margin-top:4px">流月（${year} 年；八字以節氣月、紫微斗君以農曆月計，月界略有差異）</div>
     <div class="chip-row">${chips}</div>
     <div class="monthly-plain">
       <p class="palace-takeaway">${m} 月重點：${esc(domain)}，同時適合留意${esc(adaptToLifeStage(categoryPlain[0], stage))}。</p>
@@ -955,7 +1292,7 @@ function renderMonthlyBrowser(year) {
 function renderDashboard() {
   const isZw = state.chartTab !== 'bazi';
   const hourWarn = state.data.hourUnknown
-    ? `<div class="card" style="border-color:var(--gold)"><div class="card-hint" style="margin:0">⚠ 時辰未知:目前以「午時」暫排。紫微命盤的宮位與八字時柱會隨時辰改變,以下結果僅供參考;年柱、月柱、日柱與五行分佈不受影響,仍為準確資訊。</div></div>`
+    ? `<div class="card" style="border-color:var(--gold)"><div class="card-hint" style="margin:0">⚠ 時辰未知：目前以「午時」暫排。紫微命盤的宮位與八字時柱會隨時辰改變，以下結果僅供參考；年柱、月柱、日柱與五行分佈不受影響，仍為準確資訊。</div></div>`
     : '';
   $('#view-dashboard').innerHTML = `<div class="stack">
     ${hourWarn}
@@ -969,6 +1306,7 @@ function renderDashboard() {
         </div>
         <div class="row chart-area ${isZw ? 'show-ziwei' : 'show-bazi'}">${renderZiWeiCard()}${renderBaZiCard()}</div>
         ${renderClassroom()}
+        ${renderLearningPanel()}
         ${renderLuckBrowser()}
       </div>
     </details>
@@ -988,8 +1326,13 @@ function renderDashboard() {
   $$('#view-dashboard .palace-cell').forEach((cell) =>
     cell.addEventListener('click', () => {
       state.selectedPalace = cell.dataset.palace;
+      if (state.readingMode === 'learn') {
+        // 換宮位時逐步判讀回到第一步，並記下「這一宮開始讀了」
+        state.learning.openStep = 'self';
+        state.learningProgress = R.markStepRead(safeLocalStorage(), learningChartKey(), state.selectedPalace, 'self');
+      }
       renderDashboard();
-      // 宮格放大後,命盤小教室常被推到可視範圍外,點擊宮位卻像沒反應——主動捲過去,不用使用者自己往下找
+      // 宮格放大後，命盤小教室常被推到可視範圍外，點擊宮位卻像沒反應——主動捲過去，不用使用者自己往下找
       const classroomCard = $('#classroom-card');
       if (classroomCard?.scrollIntoView) classroomCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }));
@@ -1014,19 +1357,21 @@ function renderDashboard() {
   $$('#view-dashboard [data-month]').forEach((chip) =>
     chip.addEventListener('click', () => { state.monthIdx = Number(chip.dataset.month); renderDashboard(); }));
 
-  // 複製「宮位中心」AI 提示詞(以命盤小教室目前選中的宮位為中心)
+  bindLearningPanel();
+
+  // 複製「宮位中心」AI 提示詞（以命盤小教室目前選中的宮位為中心）
   $('#copy-palace-prompt')?.addEventListener('click', async () => {
     const { input, ziWei } = state.data;
-    await ensureModules('formatAi'); // 提示詞模組是動態載入的,按下去才需要
+    await ensureModules('formatAi'); // 提示詞模組是動態載入的，按下去才需要
     const text = mod.formatAi.formatPalacePromptForAI({ input, ziWei, palaceName: state.selectedPalace });
     if (!text) return toast('此宮位暫無提示詞模板');
     try {
       await navigator.clipboard.writeText(text);
-      toast(`已複製${state.selectedPalace}分析提示詞,可貼給AI`);
-    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+      toast(`已複製${state.selectedPalace}分析提示詞，可貼給AI`);
+    } catch { toast('複製失敗，請確認瀏覽器剪貼簿權限'); }
   });
 
-  // 複製「流年中心」AI 提示詞(以大限流年瀏覽目前選中的年份為基準)
+  // 複製「流年中心」AI 提示詞（以大限流年瀏覽目前選中的年份為基準）
   $('#copy-annual-prompt')?.addEventListener('click', async () => {
     const { input, baZi, ziWei } = state.data;
     const { year: selYear } = currentLuckSelection();
@@ -1034,8 +1379,8 @@ function renderDashboard() {
     const text = mod.formatAi.formatAnnualPromptForAI({ input, baZi, ziWei, year: selYear });
     try {
       await navigator.clipboard.writeText(text);
-      toast(`已複製 ${selYear} 流年分析提示詞,可貼給AI`);
-    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+      toast(`已複製 ${selYear} 流年分析提示詞，可貼給AI`);
+    } catch { toast('複製失敗，請確認瀏覽器剪貼簿權限'); }
   });
 }
 
@@ -1049,14 +1394,32 @@ function topicReportFor(contract, ziWei, baziCards) {
   return R.buildTopicReport({ contract, ziWei, ziweiCard, baziCards });
 }
 
-/** 依據與正文共用 buildTopicReport() 選出的同一組證據，不再直接印 card.summary。 */
-function topicChartBasisHtml(report) {
+/**
+ * 依據與正文共用 buildTopicReport() 選出的同一組證據，不再直接印 card.summary。
+ *
+ * 除了列出證據，再附一段「為什麼這樣判斷」的推導過程——只列資料而不說明彼此關係，
+ * 讀的人仍然不知道結論是怎麼來的。推導文字沿用學習模式的證據鏈（learning-palace.js），
+ * 兩邊講的是同一套邏輯，不另外寫一份會各自漂移的說法。
+ * 這段放在 .tech-block 裡，屬於預設收合的專業資料，與白話正文區隔開。
+ */
+function topicChartBasisHtml(report, contract) {
   const rows = report.topicAnalysis.evidence.map((item) =>
     `<li><b>${esc(item.supportedTarget)}</b><span>${esc(item.label)}</span></li>`);
   if (!rows.length) return '';
+  const palaceName = contract?.allowedPalaces?.[0];
+  const { limit, year } = currentLuckSelection();
+  const lesson = palaceName
+    ? R.buildPalaceLesson({ ziWei: state.data.ziWei, palaceName, year, majorLimit: limit })
+    : null;
+  const derivation = lesson ? `
+    <div class="tech-block"><b>推導過程</b><p>${esc(
+      [lesson.evidence.conclusion.observed, lesson.evidence.conclusion.interaction, lesson.evidence.conclusion.behavior].join(''),
+    )}</p></div>
+    <div class="tech-block"><b>還需要確認的部分</b><p>${esc(lesson.evidence.conclusion.pending)}</p></div>` : '';
   return `<details class="topic-answer topic-answer--basis">
     <summary>查看這一題的命盤依據（專業資料）</summary>
     <ul class="topic-basis-list">${rows.join('')}</ul>
+    ${derivation}
     <small>複製給 AI 時只會使用這些已篩選內容，不會由網站上傳。</small>
   </details>`;
 }
@@ -1087,7 +1450,7 @@ function renderTopics() {
       </button>
       ${open ? `<div class="topic-question-body" id="topic-answer-${index}">
         ${topicDirectAnswerHtml(report)}
-        ${topicChartBasisHtml(report)}
+        ${topicChartBasisHtml(report, contract)}
         <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">複製這題給 AI 深入問</button>
       </div>` : ''}
     </article>`;
@@ -1121,10 +1484,10 @@ function renderTopics() {
     }));
 }
 
-// ---------- 分頁二:重點解讀 ----------
+// ---------- 分頁二：重點解讀 ----------
 function reportItems() {
-  // 白話摘要卡片(7 段式結構)全部交給 compose-plain.js 組裝,這裡只負責取用已經算好的
-  // 命盤資料(ziWei/baZi)與現行大限流年(zwLuck/bzLuck)、五行分佈(elements),不重新排盤、
+  // 白話摘要卡片（7 段式結構）全部交給 compose-plain.js 組裝，這裡只負責取用已經算好的
+  // 命盤資料（ziWei/baZi）與現行大限流年（zwLuck/bzLuck）、五行分佈（elements），不重新排盤、
   // 不重算星曜宮位或十神喜用神——沿用 applyReadingMode() 已組裝好的資料。
   const { ziWei, baZi, zwLuck, bzLuck, elements } = state.data;
   const ziwei = R.generatePlainZiweiTopics(ziWei, zwLuck);
@@ -1132,7 +1495,7 @@ function reportItems() {
   return { ziwei, bazi };
 }
 
-/** 白話摘要卡片內的清單型區塊(生活中的表現／可能的挑戰／發揮建議) */
+/** 白話摘要卡片內的清單型區塊（生活中的表現／可能的挑戰／發揮建議） */
 function analysisSectionHtml(title, items) {
   if (!items || items.length === 0) return '';
   return `<div class="analysis-card__section">
@@ -1154,11 +1517,11 @@ function analysisPlainPanelHtml(it, hidden) {
 }
 
 /**
- * 專業依據面板(data-report-panel="technical"):對應宮位/主星借星/三方四正/四化、大限流年小限、
- * 八字日主十神五行喜忌等命盤原始判斷依據,以及白話結論與專業依據的對照。
- * 固定 4 小節:命盤資料 / 專業判斷 / 白話對應 / 限制與需綜合參考處。
- * 這裡永遠是完整內容(compose-plain.js 內部固定用 mode:'study' 組裝 technical.judgment),
- * 由外層的 hidden 屬性決定要不要顯示,不是靠內容本身的詳略來切換。
+ * 專業依據面板（data-report-panel="technical"）：對應宮位/主星借星/三方四正/四化、大限流年小限、
+ * 八字日主十神五行喜忌等命盤原始判斷依據，以及白話結論與專業依據的對照。
+ * 固定 4 小節：命盤資料 / 專業判斷 / 白話對應 / 限制與需綜合參考處。
+ * 這裡永遠是完整內容（compose-plain.js 內部固定用 mode:'study' 組裝 technical.judgment）,
+ * 由外層的 hidden 屬性決定要不要顯示，不是靠內容本身的詳略來切換。
  */
 function analysisTechnicalPanelHtml(technical, hidden) {
   if (!technical) return '';
@@ -1187,8 +1550,8 @@ function renderReport() {
   const list = items.map((it) => {
     const open = expandedKeys.includes(it.key);
     const cardTitle = R.uniqueHeading(it.title, usedCardTitles, it.summary);
-    // 大限/大運這兩項跟「命盤總覽」的互動大限流年瀏覽器內容有重疊,這裡只保留現在的固定摘要,
-    // 並加一個跳轉按鈕,引導想看其他年份的人去真正能自由切換的地方,而不是把所有年份都重複印一次
+    // 大限/大運這兩項跟「命盤總覽」的互動大限流年瀏覽器內容有重疊，這裡只保留現在的固定摘要，
+    // 並加一個跳轉按鈕，引導想看其他年份的人去真正能自由切換的地方，而不是把所有年份都重複印一次
     const jumpNote = (it.key === 'xian' || it.key === 'dayun')
       ? '<button type="button" class="mini-btn acc-jump" data-jump-dashboard="1" style="margin-top:10px">→ 到「命盤總覽」切換查看其他大限／流年</button>'
       : '';
@@ -1210,8 +1573,8 @@ function renderReport() {
     </div>`;
   }).join('');
 
-  // 分享邀請放在報告讀完之後(頁尾),而不是命盤總覽一進來就跟「閱讀報告」平起平坐——
-  // 使用者對命盤內容還沒有感覺時被邀請分享,順序上太早;看完摘要覺得「準」或有共鳴,才是自然的分享時機
+  // 分享邀請放在報告讀完之後（頁尾），而不是命盤總覽一進來就跟「閱讀報告」平起平坐——
+  // 使用者對命盤內容還沒有感覺時被邀請分享，順序上太早；看完摘要覺得「準」或有共鳴，才是自然的分享時機
   const shareInvite = `<div class="card share-invite">
     <div class="share-invite-text"><b>看完這份摘要了嗎？</b><span>如果覺得有共鳴，可以做一張命卡分享給朋友。</span></div>
     <button type="button" class="mini-btn" id="report-share-btn">✦ 產生分享命卡 →</button>
@@ -1230,7 +1593,7 @@ function renderReport() {
     tab.addEventListener('click', () => {
       state.reportTab = tab.dataset.tab;
       renderReport();
-      syncModeToggleUI(); // 換分頁後,按鈕要立刻反映這個分頁自己記住的白話/專業狀態
+      syncModeToggleUI(); // 換分頁後，按鈕要立刻反映這個分頁自己記住的白話/專業狀態
     }));
   $$('#view-report [data-jump-dashboard]').forEach((btn) =>
     btn.addEventListener('click', (e) => { e.stopPropagation(); switchView('dashboard'); }));
@@ -1245,42 +1608,44 @@ function renderReport() {
     }));
 }
 
-// ---------- 分頁:深度解析(綜合報告) ----------
-// 深度解析(綜合報告)裡屬於補充細節、預設收合的段落標題(點開才展開,避免一次全部展開資訊過載)
+// ---------- 分頁：深度解析（綜合報告） ----------
+// 深度解析（綜合報告）裡屬於補充細節、預設收合的段落標題（點開才展開，避免一次全部展開資訊過載）
 const COLLAPSIBLE_DETAIL_TITLES = new Set(['四、地支關係', '五、神煞']);
 
-// 段落標題在引擎裡是內部識別字(收合設定、白話導語、測試都以它為鍵),不適合直接改掉;
-// 但「地支關係」「神煞」「財官流向」對沒學過命理的人是看不懂的行話,直接當標題放在畫面上
-// 會讓人一眼覺得「這頁不是給我看的」。這裡只換顯示文字,內部識別字維持不變。
+// 段落標題在引擎裡是內部識別字（收合設定、白話導語、測試都以它為鍵），不適合直接改掉；
+// 但「地支關係」「神煞」「財官流向」對沒學過命理的人是看不懂的行話，直接當標題放在畫面上
+// 會讓人一眼覺得「這頁不是給我看的」。這裡只換顯示文字，內部識別字維持不變。
 const PLAIN_SECTION_TITLE = {
   '四、地支關係': '四、各領域之間的牽動',
   '五、神煞': '五、加分與要留意的地方',
   '二、財官流向': '二、金錢與事業的流向',
   '三、人際健康與行動建議': '三、人際、健康與可以怎麼做',
 };
-/** 顯示用標題:大眾版換成白話,專業命盤模式維持原本的術語標題(學習者需要對得上書上的名詞) */
+/** 顯示用標題：大眾版換成白話，專業命盤模式維持原本的術語標題（學習者需要對得上書上的名詞） */
 const displayTitle = (title) => (state.readingMode === 'study' ? title : (PLAIN_SECTION_TITLE[title] ?? title));
 
-// 深度解析的長文段落沿用 comprehensive.js 既有的組裝結果(不重寫那套模板邏輯),但這裡做兩件事:
-// 1) 把「從命宮來看」「官祿宮顯示」「日主丁(火日生)」這類白話模式不該出現的宮位/術語開頭句型
-//    做輕量清除,不動 comprehensive.js 本體,只在渲染這一層處理;
-// 2) 幫每段加一句白話 headline(重用命盤總覽/重點解讀已經有的白話摘要內容,不重新寫一份)。
+// 深度解析的長文段落沿用 comprehensive.js 既有的組裝結果（不重寫那套模板邏輯），但這裡做兩件事：
+// 1) 把「從命宮來看」「官祿宮顯示」「日主丁（火日生）」這類白話模式不該出現的宮位/術語開頭句型
+//    做輕量清除，不動 comprehensive.js 本體，只在渲染這一層處理；
+// 2) 幫每段加一句白話 headline(重用命盤總覽/重點解讀已經有的白話摘要內容，不重新寫一份)。
 function stripJargonOpeners(text) {
   return text
+    // 注意：以下幾條正規表示式裡的圓括號是分組與擷取語法，不是中文標點，不要全形化；
+    // 被比對的原文可能是半形或全形逗號，所以字元類別一律寫成 [,，] 兩者都收。
     .replace(/從(?:命宮|身宮所在的)?[一-龥]{0,4}(?:宮)?來看[,，]?/g, '')
-    .replace(/而身宮所在的([一-龥]{2,4}宮)[,，]?則/g, '同時,你的$1也')
+    .replace(/而身宮所在的([一-龥]{2,4}宮)[,，]?則/g, '同時，你的$1也')
     .replace(/([一-龥]{2,4}宮)(?:顯示|呈現|給的[一-龥]{0,4}提醒是)[,，]?/g, '你')
     .replace(/日主[甲乙丙丁戊己庚辛壬癸][(（][^)）]*[)）](?:是這張命盤的核心)?[,，]?/g, '')
     .replace(/(?:紫微|天機|太陽|武曲|天同|廉貞|天府|太陰|貪狼|巨門|天相|天梁|七殺|破軍)(?:化[祿權科忌])?[:：,，]?/g, '')
-    // readingDeduped() 的空宮借星備註句:「本宮無主星,借對宮XX的YY參看,方向與前述XX的特質一致」
-    .replace(/本宮無主星[,，]借對宮([一-龥]{2,4})的([^,，。]+)參看[,，]方向與前述\1的特質一致[,，。]?/g, '這裡跟前面提到的$1方向一致,呈現$2的傾向。')
-    // 呼應差異判斷邏輯裡「交集數量=0」的固定句,是唯一命中禁用詞「呈現差異」的地方
-    .replace(/呈現差異[,，]兩個宮位的特質分屬不同面向[,，]顯示需要兼顧不同性質的課題[。]?/g, '兩邊呈現的樣貌不太一樣,比較適合分開來看,不用勉強套成同一套邏輯。')
+    // readingDeduped() 的空宮借星備註句：「本宮無主星，借對宮XX的YY參看，方向與前述XX的特質一致」
+    .replace(/本宮無主星[,，]借對宮([一-龥]{2,4})的([^,，。]+)參看[,，]方向與前述\1的特質一致[,，。]?/g, '這裡跟前面提到的$1方向一致，呈現$2的傾向。')
+    // 呼應差異判斷邏輯裡「交集數量=0」的固定句，是唯一命中禁用詞「呈現差異」的地方
+    .replace(/呈現差異[,，]兩個宮位的特質分屬不同面向[,，]顯示需要兼顧不同性質的課題[。]?/g, '兩邊呈現的樣貌不太一樣，比較適合分開來看，不用勉強套成同一套邏輯。')
     .replace(/^[,，]\s*/, '')
     .trim();
 }
 
-/** 長段文字依句號拆成短段落(每段約 2 句),避免一大塊文字牆 */
+/** 長段文字依句號拆成短段落（每段約 2 句），避免一大塊文字牆 */
 function splitParagraphs(text, sentencesPerParagraph = 2) {
   const sentences = text.split(/(?<=。)/).map((s) => s.trim()).filter(Boolean);
   const paragraphs = [];
@@ -1291,13 +1656,13 @@ function splitParagraphs(text, sentencesPerParagraph = 2) {
 }
 
 /**
- * 每段的導讀句:告訴讀者「這一段要談什麼」,而不是先把結論講一次。
+ * 每段的導讀句：告訴讀者「這一段要談什麼」，而不是先把結論講一次。
  *
  * 舊版是直接重用 generatePlainPalaceCard(命宮).summary——也就是「重點摘要」那張卡的第一句。
- * 立意是保持兩頁說法一致,但實際效果是:使用者從重點摘要點進完整報告,
- * 看到的第一句話一字不差,直覺就是「這兩頁根本一樣」,於是不再往下讀。
- * 兩頁本來就該有明顯不同的入口感受:重點摘要給結論,完整報告給脈絡。
- * 所以這裡改成描述「這一段的範圍與看法角度」的固定導讀句,不重複任何結論。
+ * 立意是保持兩頁說法一致，但實際效果是：使用者從重點摘要點進完整報告，
+ * 看到的第一句話一字不差，直覺就是「這兩頁根本一樣」，於是不再往下讀。
+ * 兩頁本來就該有明顯不同的入口感受：重點摘要給結論，完整報告給脈絡。
+ * 所以這裡改成描述「這一段的範圍與看法角度」的固定導讀句，不重複任何結論。
  */
 function comprehensiveHeadline(title, source) {
   if (source?.summary) return source.summary;
@@ -1374,8 +1739,8 @@ function renderComprehensive() {
   const mode = state.readingMode;
   const zw = mod.comprehensive.generateZiweiComprehensiveReading(ziWei, { mode });
   const bz = mod.comprehensive.generateBaziComprehensiveReading(baZi, { mode });
-  // 專業命理依據永遠是完整版本(跟命盤總覽/重點解讀一致的做法),不受「白話摘要／專業依據」開關影響——
-  // 開關只影響上面白話段落的呈現,收合的專業依據本來就是給想深入看的人用,理所當然是完整內容
+  // 專業命理依據永遠是完整版本（跟命盤總覽/重點解讀一致的做法），不受「白話摘要／專業依據」開關影響——
+  // 開關只影響上面白話段落的呈現，收合的專業依據本來就是給想深入看的人用，理所當然是完整內容
   const zwStudy = mod.comprehensive.generateZiweiComprehensiveReading(ziWei, { mode: 'study' });
   const bzStudy = mod.comprehensive.generateBaziComprehensiveReading(baZi, { mode: 'study' });
   const zwStudyByTitle = Object.fromEntries(zwStudy.sections.map((s) => [s.title, s.text]));
@@ -1412,7 +1777,7 @@ function renderComprehensive() {
       <div class="acc-item${open ? ' open' : ''}">
         ${collapsible
           ? `<button type="button" class="acc-row" data-detail="${esc(s.title)}">
-              <div class="acc-title">${esc(sectionTitle)}<span class="acc-subtle">(補充細節,點開查看)</span></div>
+              <div class="acc-title">${esc(sectionTitle)}<span class="acc-subtle">(補充細節，點開查看)</span></div>
               <div class="acc-chevron">›</div>
             </button>`
           : `<div class="acc-row"><div class="acc-title">${esc(sectionTitle)}</div></div>`}
@@ -1439,7 +1804,7 @@ function renderComprehensive() {
     }));
 }
 
-// ---------- 分頁:雙人合盤 ----------
+// ---------- 分頁：雙人合盤 ----------
 async function runSynastry(selectedHourOverride = null) {
   const f = state.synastry.form;
   const parsed = synDateCtl?.read();
@@ -1498,11 +1863,11 @@ function renderSynastry() {
   $('#view-synastry').innerHTML = `
     <div class="card">
       <div class="card-label">雙人合盤</div>
-      <div class="card-hint">甲方=目前排盤的「${esc(a.name)}」;輸入乙方生辰,或從已存命盤帶入,看兩人的相性結構</div>
+      <div class="card-hint">甲方=目前排盤的「${esc(a.name)}」；輸入乙方生辰，或從已存命盤帶入，看兩人的相性結構</div>
       <div class="syn-form">
         <input id="syn-name" type="text" placeholder="乙方姓名" aria-label="乙方姓名" value="${esc(f.name)}" />
         <div class="date-parts">
-          <input id="syn-year" type="text" inputmode="numeric" maxlength="4" placeholder="出生年" aria-label="乙方出生年(西元4碼)" />
+          <input id="syn-year" type="text" inputmode="numeric" maxlength="4" placeholder="出生年" aria-label="乙方出生年（西元4碼）" />
           <select id="syn-month" aria-label="乙方出生月"></select>
           <select id="syn-day" aria-label="乙方出生日"></select>
         </div>
@@ -1524,7 +1889,7 @@ function renderSynastry() {
   for (const [id, key] of [['#syn-name', 'name'], ['#syn-hour', 'hour'], ['#syn-gender', 'gender']]) {
     $(id).addEventListener('input', (e) => { f[key] = e.target.value; });
   }
-  // 換關係型態時,若已有結果直接以新口吻重算
+  // 換關係型態時，若已有結果直接以新口吻重算
   $('#syn-rel').addEventListener('input', (e) => {
     f.rel = e.target.value;
     if (state.synastry.b) renderSynastry();
@@ -1549,12 +1914,12 @@ function renderSynastry() {
       : baseText;
     try {
       await navigator.clipboard.writeText(text);
-      toast('已複製合盤提示詞,可貼給AI');
-    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+      toast('已複製合盤提示詞，可貼給AI');
+    } catch { toast('複製失敗，請確認瀏覽器剪貼簿權限'); }
   });
 }
 
-// ---------- 分頁三:分享命卡 ----------
+// ---------- 分頁三：分享命卡 ----------
 function shareUrl() {
   const { input, name } = state.data;
   const params = new URLSearchParams({
@@ -1566,7 +1931,7 @@ function shareUrl() {
   return `${location.origin}${location.pathname}?${params}`;
 }
 
-// 宮位 → 白話人生焦點(命卡金句用:收到命卡的人多半不懂「大限行至夫妻宮」是什麼)
+// 宮位 → 白話人生焦點（命卡金句用：收到命卡的人多半不懂「大限行至夫妻宮」是什麼）
 const PALACE_FOCUS = {
   命宮: '自我成長', 兄弟宮: '手足與同儕', 夫妻宮: '感情與婚姻', 子女宮: '子女與創作',
   財帛宮: '財務理財', 疾厄宮: '健康調養', 遷移宮: '向外發展', 僕役宮: '人脈與合作',
@@ -1585,7 +1950,7 @@ function renderShare() {
   const isAnnualCard = state.shareCard === 'annual';
   const nowYear = new Date().getFullYear();
 
-  // 本命卡金句:命格一句 + 十年重心/今年焦點(同宮時合併),不出現大限/流年等術語
+  // 本命卡金句：命格一句 + 十年重心/今年焦點（同宮時合併），不出現大限/流年等術語
   const decadalFocus = zwLuck.decadal ? PALACE_FOCUS[zwLuck.decadal.palaceName] : null;
   const annualFocus = zwLuck.annual ? PALACE_FOCUS[zwLuck.annual.palaceName] : decadalFocus;
   const opener = lifeStars.startsWith('空宮')
@@ -1596,7 +1961,7 @@ function renderShare() {
     : `這十年與今年的焦點都落在${annualFocus ?? decadalFocus}`;
   let quote = `「${opener},${focusPart},宜順勢經營、穩健佈局。」`;
 
-  // 流年卡:標題、標籤與金句改為當年度重點(流年四化的祿/忌落點 + 八字流年性質)
+  // 流年卡：標題、標籤與金句改為當年度重點（流年四化的祿/忌落點 + 八字流年性質）
   let cardTitle = esc(name);
   let cardSub = `${input.year}年${input.month}月${input.day}日 ${esc(shichen.name)}・${input.gender === 'female' ? '女' : '男'}`;
   let tag1 = { label: '命宮主星', value: lifeStars };
@@ -1614,7 +1979,7 @@ function renderShare() {
     quote = `「${nowYear}年${catWord ? `整體是「${catWord}」性質的一年` : '運勢平穩'}${luDomain ? `,${luDomain}迎來順風` : ''}${jiDomain ? `;${jiDomain}宜放慢腳步` : ''}。」`;
   }
 
-  const cardEl = STEM_EL[dayStem]; // 用日主天干的五行,替命卡上色做個人化區隔(木火土金水各不同)
+  const cardEl = STEM_EL[dayStem]; // 用日主天干的五行，替命卡上色做個人化區隔（木火土金水各不同）
   $('#view-share').innerHTML = `<div class="share-wrap">
     <div style="flex-basis:100%;display:flex;gap:10px">
       <button type="button" class="report-tab${isAnnualCard ? '' : ' active'}" data-card="life">本命卡</button>
@@ -1663,7 +2028,7 @@ function renderShare() {
     try {
       await navigator.clipboard.writeText(shareUrl());
       toast('已複製命盤連結');
-    } catch { toast('複製失敗,請手動複製網址'); }
+    } catch { toast('複製失敗，請手動複製網址'); }
   });
   $('#btn-line').addEventListener('click', () =>
     window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl())}`, '_blank'));
@@ -1677,7 +2042,7 @@ function renderShare() {
       a.download = isAnnualCard ? `${name}-${nowYear}流年卡.png` : `${name}-命卡.png`;
       a.click();
       toast('已下載命卡圖片');
-    } catch { toast('圖片匯出失敗,請改用截圖'); }
+    } catch { toast('圖片匯出失敗，請改用截圖'); }
   });
   $('#btn-annual-report').addEventListener('click', async () => {
     const annualText = [
@@ -1706,12 +2071,12 @@ const VIEWS = ['dashboard', 'topics', 'report', 'comprehensive', 'synastry', 'sh
 
 async function switchView(view) {
   state.view = view;
-  // 先切好可見性再渲染:這一頁的引擎若還在下載,renderView 會先塞一行「載入中…」,
-  // 那行字必須是使用者看得到的那一區,否則慢速網路下會停在舊畫面、看起來像沒反應。
+  // 先切好可見性再渲染：這一頁的引擎若還在下載,renderView 會先塞一行「載入中…」,
+  // 那行字必須是使用者看得到的那一區，否則慢速網路下會停在舊畫面、看起來像沒反應。
   $$('.nav-item[data-view]').forEach((n) => n.classList.toggle('active', n.dataset.view === view));
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
   // 「白話摘要／專業依據」按鈕在重點解讀頁對應的是分頁各自的 reportViewMode,離開/進入這個頁面時
-  // 按鈕要立刻反映正確頁面的模式,不然切頁面回來後按鈕看起來像是「壞掉」(顯示上一頁的狀態)
+  // 按鈕要立刻反映正確頁面的模式，不然切頁面回來後按鈕看起來像是「壞掉」(顯示上一頁的狀態)
   if (state.data) syncModeToggleUI();
   if (state.data) $('#copy-ai-btn').hidden = view === 'topics';
   if (matchMedia('(max-width: 900px)').matches) {
@@ -1720,14 +2085,14 @@ async function switchView(view) {
     $('#main-content').scrollIntoView({ block: 'start' });
     $('#main-content').focus();
   }
-  // 延遲渲染:這一頁若還沒畫過(或資料換過之後還沒補畫),現在補上
+  // 延遲渲染：這一頁若還沒畫過（或資料換過之後還沒補畫），現在補上
   if (state.data && dirtyViews.has(view)) await renderView(view);
 }
 
 // ---------- 歷史命盤比對 ----------
 
-/** 命宮主星白話標籤(空宮則標示借對宮星曜,與命盤小教室邏輯一致) */
-/** 命宮主星名稱陣列(空宮則借對宮,不重複算命盤小教室的邏輯) */
+/** 命宮主星白話標籤（空宮則標示借對宮星曜，與命盤小教室邏輯一致） */
+/** 命宮主星名稱陣列（空宮則借對宮，不重複算命盤小教室的邏輯） */
 function lifePalaceStarNames(ziWei) {
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
   const life = ziWei.palaces.find((p) => p.name === '命宮');
@@ -1746,7 +2111,7 @@ function mainStarsLabelOf(ziWei, palaceName) {
   return opp?.majorStars.length ? `借${opp.name}:${opp.majorStars.map((s) => s.name).join('、')}` : '（無主星）';
 }
 
-/** 依已存命盤的生辰資料,現場排一次盤(不佔用 state.data,只給比對頁用) */
+/** 依已存命盤的生辰資料，現場排一次盤（不佔用 state.data,只給比對頁用） */
 async function computeCompareEntry(c) {
   const { convertToZiWei, convertToBaZi } = await loadEngines();
   const hourUnknown = c.hour === 'unknown';
@@ -1796,7 +2161,7 @@ function renderCompareTable(entries) {
     ['命宮主星', (e) => e.lifeStars],
     ['身宮', (e) => e.bodyPalaceName],
     ['五行局', (e) => e.fiveElementBureau],
-    ['日主／身強弱', (e) => `${e.dayStem}(${e.yongshen.dayEl}）・${e.yongshen.strength}`],
+    ['日主／身強弱', (e) => `${e.dayStem}（${e.yongshen.dayEl}）・${e.yongshen.strength}`],
     ['喜用神', (e) => e.yongshen.favorable.map((f) => f.element).join('、') || '—'],
     ['忌神', (e) => e.yongshen.unfavorable.map((f) => f.element).join('、') || '—'],
     ['目前大限', (e) => `${e.limit.ageRange}歲・${e.limit.palace}`],
@@ -1816,11 +2181,11 @@ function renderCompare() {
   $('#view-compare').innerHTML = `<div class="stack">
     <div class="card">
       <div class="card-label">歷史命盤比對</div>
-      <div class="card-hint">想知道你跟家人、朋友的命盤差在哪,或同一個人不同時期存的命盤有什麼變化?從已存命盤勾選 2–4 筆,就能並排比較命宮主星、五行局、日主喜忌與今年流年重點。</div>
+      <div class="card-hint">想知道你跟家人、朋友的命盤差在哪，或同一個人不同時期存的命盤有什麼變化？從已存命盤勾選 2–4 筆，就能並排比較命宮主星、五行局、日主喜忌與今年流年重點。</div>
       ${list.length
         ? `<div class="compare-checks">${renderCompareChecks(list)}</div>
            <button type="button" class="submit-btn compare-run-btn" id="run-compare">開始比較</button>`
-        : `<p class="welcome-text muted">目前沒有已存的命盤,先在左側「☆ 儲存目前命盤」存幾筆,才能比較。</p>`}
+        : `<p class="welcome-text muted">目前沒有已存的命盤，先在左側「☆ 儲存目前命盤」存幾筆，才能比較。</p>`}
     </div>
     <div id="compare-result"></div>
   </div>`;
@@ -1834,7 +2199,7 @@ function renderCompare() {
   $('#run-compare')?.addEventListener('click', async () => {
     const picked = [...state.compareSelected].filter((i) => list[i]).sort((a, b) => a - b);
     if (picked.length < 2) return toast('請至少勾選 2 筆命盤');
-    if (picked.length > 4) return toast('最多同時比較 4 筆,請取消一些勾選');
+    if (picked.length > 4) return toast('最多同時比較 4 筆，請取消一些勾選');
     const btn = $('#run-compare');
     btn.disabled = true;
     btn.textContent = '計算中…';
@@ -1842,7 +2207,7 @@ function renderCompare() {
       const entries = await Promise.all(picked.map((i) => computeCompareEntry(list[i])));
       $('#compare-result').innerHTML = renderCompareTable(entries);
     } catch {
-      toast('比對失敗,請重新整理頁面再試一次');
+      toast('比對失敗，請重新整理頁面再試一次');
     } finally {
       btn.disabled = false;
       btn.textContent = '開始比較';
@@ -1855,16 +2220,16 @@ function renderCompare() {
 function renderWuGeCard(result) {
   if (!result.ok) {
     if (result.unsupported) {
-      return `<div class="card"><div class="card-hint" style="margin:0">目前只支援單姓/複姓(1~2字)搭配單名/雙名(1~2字)的組合,這個姓名結構暫不支援計算。</div></div>`;
+      return `<div class="card"><div class="card-hint" style="margin:0">目前只支援單姓/複姓（1~2字）搭配單名/雙名（1~2字）的組合，這個姓名結構暫不支援計算。</div></div>`;
     }
-    return `<div class="card"><div class="card-hint" style="margin:0">「${esc(result.unknown.join('、'))}」目前不在收錄的姓名用字字典裡(字典僅收錄約 780 個常見姓氏與命名用字),無法計算五格,不做臆測。</div></div>`;
+    return `<div class="card"><div class="card-hint" style="margin:0">「${esc(result.unknown.join('、'))}」目前不在收錄的姓名用字字典裡（字典僅收錄約 780 個常見姓氏與命名用字），無法計算五格，不做臆測。</div></div>`;
   }
   const rows = ['天格', '人格', '地格', '外格', '總格']
     .map((k) => `<div class="wuge-cell"><div class="wuge-label">${k}</div><div class="wuge-num">${result.grid[k]}</div><div class="wuge-el">${result.elements[k]}</div></div>`)
     .join('');
   return `<div class="card">
     <div class="card-label">五格剖象法</div>
-    <div class="card-hint">五格剖象法是華人姓名學常見的筆畫分析法:把姓名拆成「天格」(祖蔭根基)、「人格」(自己的個性,通常最關鍵)、「地格」(早年運)、「外格」(人際外緣)、「總格」(晚年整體運)五組數字,再看彼此的五行銜接順不順。以下數字採熊崎氏姓名學公式實算;三才只看五行生剋大方向,不做 81 數理逐條吉凶(那需要另一套龐大對照表,沒把握逐條核對正確就不硬做)。</div>
+    <div class="card-hint">五格剖象法是華人姓名學常見的筆畫分析法：把姓名拆成「天格」(祖蔭根基)、「人格」(自己的個性，通常最關鍵)、「地格」(早年運)、「外格」(人際外緣)、「總格」(晚年整體運)五組數字，再看彼此的五行銜接順不順。以下數字採熊崎氏姓名學公式實算；三才只看五行生剋大方向，不做 81 數理逐條吉凶（那需要另一套龐大對照表，沒把握逐條核對正確就不硬做）。</div>
     <div class="wuge-grid">${rows}</div>
     <div class="reading-line">${esc(result.sancai.tianRenNote)}</div>
     <div class="reading-line">${esc(result.sancai.renDiNote)}</div>
@@ -1873,32 +2238,32 @@ function renderWuGeCard(result) {
 
 function renderNameElementCard(fullName) {
   if (!state.data) {
-    return `<div class="card"><div class="card-hint" style="margin:0">姓名五行 × 喜用神比對需要先有一張命盤——請先在左側輸入生辰排盤,再回來看這張名字跟你的命盤搭不搭。</div></div>`;
+    return `<div class="card"><div class="card-hint" style="margin:0">姓名五行 × 喜用神比對需要先有一張命盤——請先在左側輸入生辰排盤，再回來看這張名字跟你的命盤搭不搭。</div></div>`;
   }
   const ys = R.computeYongShen(state.data.baZi);
   const r = mod.naming.analyzeNameElements(fullName, ys);
   const rows = r.known.map((k) =>
     `<div class="wuge-cell"><div class="wuge-label">${esc(k.char)}</div><div class="wuge-num">${k.strokes}畫</div><div class="wuge-el">${k.element}</div></div>`).join('');
 
-  // 紫微角度:命宮主星五行 vs 姓名五行(兩套系統各自獨立,沒有官方合併算法,誠實呈現兩邊各自看到什麼,不做過度延伸的綜合結論)
+  // 紫微角度：命宮主星五行 vs 姓名五行（兩套系統各自獨立，沒有官方合併算法，誠實呈現兩邊各自看到什麼，不做過度延伸的綜合結論）
   const life = lifePalaceStarNames(state.data.ziWei);
   const zw = mod.naming.analyzeZiweiOverlap(r.known, life.stars);
   let zwLine = '';
   if (zw) {
-    const starLabel = `${life.borrowed ? '(借對宮)' : ''}${zw.stars.join('、')}`;
+    const starLabel = `${life.borrowed ? '（借對宮）' : ''}${zw.stars.join('、')}`;
     zwLine = zw.overlap.length
-      ? `<div class="reading-line"><span class="lead red">紫微角度　</span>命宮主星${esc(starLabel)}五行屬${esc(zw.starEls.join('、'))},跟姓名裡的${esc(zw.overlap.join('、'))}是同一個五行,兩套系統在這點上是一致的參考訊號。</div>`
-      : `<div class="reading-line"><span class="lead red">紫微角度　</span>命宮主星${esc(starLabel)}五行屬${esc(zw.starEls.join('、'))},姓名用字裡沒有這個五行,跟八字喜用神的判斷是兩個獨立角度,可以當作額外參考,不代表互相矛盾。</div>`;
+      ? `<div class="reading-line"><span class="lead red">紫微角度　</span>命宮主星${esc(starLabel)}五行屬${esc(zw.starEls.join('、'))},跟姓名裡的${esc(zw.overlap.join('、'))}是同一個五行，兩套系統在這點上是一致的參考訊號。</div>`
+      : `<div class="reading-line"><span class="lead red">紫微角度　</span>命宮主星${esc(starLabel)}五行屬${esc(zw.starEls.join('、'))},姓名用字裡沒有這個五行，跟八字喜用神的判斷是兩個獨立角度，可以當作額外參考，不代表互相矛盾。</div>`;
   }
 
   return `<div class="card">
     <div class="card-label">姓名五行 × ${esc(state.data.name)}的紫微八字</div>
-    <div class="card-hint">每個人的八字都能算出「喜用神」(對你比較有幫助的五行)跟「忌神」(比較不搭的五行)——排盤時就已經算好。這裡是看姓名用字的五行組成跟你的喜用神/忌神合不合,再補一段紫微命宮主星五行的參考角度。喜用神判斷跟「完整報告」的八字段落是同一份邏輯。</div>
+    <div class="card-hint">每個人的八字都能算出「喜用神」(對你比較有幫助的五行)跟「忌神」(比較不搭的五行)——排盤時就已經算好。這裡是看姓名用字的五行組成跟你的喜用神/忌神合不合，再補一段紫微命宮主星五行的參考角度。喜用神判斷跟「完整報告」的八字段落是同一份邏輯。</div>
     ${rows ? `<div class="wuge-grid">${rows}</div>` : ''}
     <div class="reading-line"><span class="lead gold">判斷　</span>${esc(r.verdict)}</div>
     <div class="reading-line">${esc(r.verdictNote)}</div>
     ${zwLine}
-    ${r.unknown.length ? `<div class="card-hint" style="margin:8px 0 0">「${esc(r.unknown.join('、'))}」不在收錄字典裡,未納入判斷。</div>` : ''}
+    ${r.unknown.length ? `<div class="card-hint" style="margin:8px 0 0">「${esc(r.unknown.join('、'))}」不在收錄字典裡，未納入判斷。</div>` : ''}
   </div>`;
 }
 
@@ -1919,7 +2284,7 @@ function renderNaming() {
   $('#view-naming').innerHTML = `<div class="stack">
     <div class="card">
       <div class="card-label">姓名學</div>
-      <div class="card-hint">這裡用兩個角度分析一個名字:「五格剖象法」用筆畫數字看名字的架構跟運勢傾向,「姓名五行」看名字用字的五行屬性跟你的命盤搭不搭。輸入姓、名(各 1~2 字)就能看結果,不會被儲存或上傳,純本機計算。</div>
+      <div class="card-hint">這裡用兩個角度分析一個名字：「五格剖象法」用筆畫數字看名字的架構跟運勢傾向，「姓名五行」看名字用字的五行屬性跟你的命盤搭不搭。輸入姓、名（各 1~2 字）就能看結果，不會被儲存或上傳，純本機計算。</div>
       <div class="naming-form">
         <input id="naming-surname" type="text" placeholder="姓" aria-label="姓" maxlength="2" value="${esc(surname)}" />
         <input id="naming-given" type="text" placeholder="名" aria-label="名" maxlength="2" value="${esc(given)}" />
@@ -1935,15 +2300,15 @@ function renderNaming() {
   $('#naming-run').addEventListener('click', () => renderNaming());
   $('#copy-naming-prompt')?.addEventListener('click', async () => {
     await ensureModules('formatAi');
-    // formatNamingPromptForAI 內部要動態載入姓名字庫,是唯一一個非同步的提示詞函式
+    // formatNamingPromptForAI 內部要動態載入姓名字庫，是唯一一個非同步的提示詞函式
     const text = await mod.formatAi.formatNamingPromptForAI({
       input: state.data.input, surname, given, baZi: state.data.baZi, ziWei: state.data.ziWei,
     });
-    if (!text) return toast('姓名用字不在字典裡,無法產生提示詞');
+    if (!text) return toast('姓名用字不在字典裡，無法產生提示詞');
     try {
       await navigator.clipboard.writeText(text);
-      toast('已複製,可貼給AI生成完整解讀');
-    } catch { toast('複製失敗,請確認瀏覽器剪貼簿權限'); }
+      toast('已複製，可貼給AI生成完整解讀');
+    } catch { toast('複製失敗，請確認瀏覽器剪貼簿權限'); }
   });
 }
 
@@ -1975,23 +2340,23 @@ function aiPromptBase(tool, result, question = '') {
   return `你是一位熟悉傳統術數、但不採宿命論的臺灣繁體中文解讀者。\n工具：${tool}\n${question ? `使用者問題：${question}\n` : ''}已計算結果：\n${result}\n\n請只回答本次問題，控制在約500至800個中文字：\n1. 先用1至2句白話直接回答，再說明2至3個最重要的判斷。\n2. 每個判斷都要翻譯成具體情境、可觀察行為或候選方案的實際差異，不逐項教學術語。\n3. 最後列出「可運用」「要留意」「下一步」各一項，做法必須可執行。\n4. 已知事實、傳統象徵與推測要分清楚；資料不足或門派有差異時直接說明。\n5. 不擴寫無關人生分類，不預言死亡、疾病、災難或保證結果；醫療、法律、財務問題應回到專業意見。\n6. 直接進入內容，刪除「值得注意的是、總的來說、深入探討」等空話；少用制式對比與破折號。句子過長就拆開，各段不要用相同方式收尾。`;
 }
 
-// 「今天適合先看」的預設 3 個工具:不用額外輸入資料就能立刻用,對第一次來的人負擔最小;
-// 其餘 4 個(需要時間軸事件、候選時辰比對、日期範圍搜尋、排盤時間)點「顯示其餘工具」再展開,
+// 「今天適合先看」的預設 3 個工具：不用額外輸入資料就能立刻用，對第一次來的人負擔最小；
+// 其餘 4 個（需要時間軸事件、候選時辰比對、日期範圍搜尋、排盤時間）點「顯示其餘工具」再展開，
 // 避免一進頁面就是 7 張卡片的資訊量。
 const META_PRIORITY_KEYS = ['daily', 'iching', 'meihua'];
 
-// 導覽卡片的內容獨立成一個函式:展開/收合只重繪這一小塊,不重跑整個 metaShell(body)——
-// 否則像「每日週運」這種本體是非同步計算的分頁,點一下展開/收合會讓已經算好的結果整個被清空重算。
+// 導覽卡片的內容獨立成一個函式：展開/收合只重繪這一小塊，不重跑整個 metaShell(body)——
+// 否則像「每日週運」這種本體是非同步計算的分頁，點一下展開/收合會讓已經算好的結果整個被清空重算。
 function metaGuideHtml() {
   const guideKeys = state.metaGuideExpanded ? META_TABS.map(([key]) => key) : META_PRIORITY_KEYS;
   const guideCards = guideKeys.map((key) => `<button type="button" data-meta-jump="${key}"${state.metaphysicsTab === key ? ' class="active"' : ''}><b>${META_INFO[key].title}</b><span>${META_INFO[key].use}</span></button>`).join('');
-  // 按鈕文字直接列出被收合的工具名稱,而不是「其餘 4 個工具」這種空泛說法——
-  // 讓已經知道自己要找什麼的人(例如想確認時辰的人),一眼就能認出「時辰驗盤」藏在這裡,不用先點開才知道
+  // 按鈕文字直接列出被收合的工具名稱，而不是「其餘 4 個工具」這種空泛說法——
+  // 讓已經知道自己要找什麼的人（例如想確認時辰的人），一眼就能認出「時辰驗盤」藏在這裡，不用先點開才知道
   const hiddenLabels = META_TABS.filter(([key]) => !META_PRIORITY_KEYS.includes(key)).map(([, label]) => label);
   const guideToggle = hiddenLabels.length > 0
     ? `<button type="button" class="mini-btn" id="meta-guide-toggle" style="margin-top:10px">${state.metaGuideExpanded ? '︿ 收合' : `＋ 還有${hiddenLabels.join('、')}等 ${hiddenLabels.length} 個工具`}</button>`
     : '';
-  return `<div class="card-label" id="meta-guide-title">不知道從哪開始？先選你的目的</div><div class="card-hint" style="margin:0 0 10px">${state.metaGuideExpanded ? '全部 7 個工具:' : '先列出不用額外準備、今天就能直接用的幾個:'}</div><div class="meta-choices">${guideCards}</div>${guideToggle}`;
+  return `<div class="card-label" id="meta-guide-title">不知道從哪開始？先選你的目的</div><div class="card-hint" style="margin:0 0 10px">${state.metaGuideExpanded ? '全部 7 個工具：' : '先列出不用額外準備、今天就能直接用的幾個：'}</div><div class="meta-choices">${guideCards}</div>${guideToggle}`;
 }
 
 function bindMetaGuideEvents() {
@@ -2033,13 +2398,14 @@ async function renderDaily() {
     const god = R.tenGodOf(birthStem, dayStem);
     const lunar = Solar.fromYmd(d.getFullYear(), d.getMonth() + 1, d.getDate()).getLunar();
     const yi = trad(lunar.getDayYi().slice(0, 3).join('、')) || '日常安排';
-    const themes = { 比肩:'自主與執行', 劫財:'合作與界線', 食神:'創作與休息', 傷官:'表達與突破', 偏財:'機會與人脈', 正財:'務實與財務', 七殺:'挑戰與決斷', 正官:'責任與秩序', 偏印:'研究與轉念', 正印:'學習與支持' };
+    // 注意：這裡的冒號是物件字面值的語法，不是中文標點，不要跟著全形化。
+    const themes = { 比肩: '自主與執行', 劫財: '合作與界線', 食神: '創作與休息', 傷官: '表達與突破', 偏財: '機會與人脈', 正財: '務實與財務', 七殺: '挑戰與決斷', 正官: '責任與秩序', 偏印: '研究與轉念', 正印: '學習與支持' };
     const avoidHit = avoidEls.has(STEM_EL[dayStem]) || avoidEls.has(BRANCH_EL[dayBranch]);
     return { date: `${d.getMonth() + 1}/${d.getDate()}`, week: `週${'日一二三四五六'[d.getDay()]}`, gz, god, yi, theme: themes[god] ?? '穩定推進', avoidHit };
   });
   metaShell(`<div class="card"><div class="card-label">未來七日節奏</div><div class="card-hint">依你的日主與每日干支十神關係整理，並標示是否貼近你八字的忌神五行；宜忌取自傳統黃曆，只作行程反思。</div><p class="reading-line"><span class="lead gold">目前大限　</span>${esc(curLimit.ageRange)}歲・${esc(curLimitPalace)}——本週節奏可搭配這個階段的重心一起看。</p><div class="daily-grid">${days.map((x, i) => `<article class="daily-card${i === 0 ? ' today' : ''}${x.avoidHit ? ' caution' : ''}">${x.avoidHit ? '<span class="daily-flag">忌神日</span>' : ''}<b>${x.date} ${x.week}</b><span>${x.gz}・${x.god}</span><strong>${x.theme}</strong><small>傳統宜：${x.yi}</small></article>`).join('')}</div></div>
     <div class="card"><div class="card-label">本週提醒</div><p class="reading-line">把十神當成每日的觀察鏡頭，忌神日不代表當天必然不順，只是提醒可以放慢決策、多留一點彈性。工作安排優先看現實期限、身心狀態與專業建議。</p><button type="button" class="mini-btn" id="copy-week" style="margin-left:0">複製本週摘要</button>${aiButton('ai-daily')}</div>`);
-  $('#copy-week')?.addEventListener('click', async () => { await navigator.clipboard.writeText(days.map((x) => `${x.date} ${x.gz} ${x.god}${x.avoidHit ? '(忌神日)' : ''}：${x.theme}`).join('\n')); toast('已複製本週摘要'); });
+  $('#copy-week')?.addEventListener('click', async () => { await navigator.clipboard.writeText(days.map((x) => `${x.date} ${x.gz} ${x.god}${x.avoidHit ? '（忌神日）' : ''}：${x.theme}`).join('\n')); toast('已複製本週摘要'); });
   bindAiPrompt('ai-daily', mod.formatAi.formatDailyPromptForAI({ input, baZi, ziWei, days, curLimit, curLimitPalace, favorable: yongshen.favorable, unfavorable: yongshen.unfavorable }));
 }
 
@@ -2058,8 +2424,8 @@ function renderTimeline() {
     <div class="card"><div class="card-label">加入過往事件</div><div class="event-form"><input id="event-year" type="number" min="1900" max="2100" placeholder="年份" aria-label="事件年份"><input id="event-title" maxlength="40" placeholder="例如：轉職、搬家、結婚" aria-label="事件名稱"><button id="event-add" type="button" class="submit-btn">加入時間軸</button></div>${events.length ? `<div class="event-list">${events.map((e, i) => `<button type="button" data-event-del="${i}" title="刪除事件">${esc(e.year)}・${esc(e.title)} ×</button>`).join('')}</div>` : ''}${aiButton('ai-timeline', '複製時間軸給 AI 分析')}</div>`);
   $('#event-add')?.addEventListener('click', () => { const year=$('#event-year').value; const title=$('#event-title').value.trim(); if(!year||!title)return toast('請輸入年份與事件'); const next=[...loadEvents(),{year:Number(year),title}]; saveEvents(next); renderTimeline(); });
   $$('[data-event-del]').forEach((b) => b.addEventListener('click', () => { const list=loadEvents(); list.splice(Number(b.dataset.eventDel),1); saveEvents(list); renderTimeline(); }));
-  // 手機版預設把每個大限的詳細內容收合成兩行預覽,點「展開全部內容」再看完整段落——
-  // 十個大限一次全展開,在窄螢幕上是一長串文字牆,先看結論比較不會滑到放棄
+  // 手機版預設把每個大限的詳細內容收合成兩行預覽，點「展開全部內容」再看完整段落——
+  // 十個大限一次全展開，在窄螢幕上是一長串文字牆，先看結論比較不會滑到放棄
   $$('#view-metaphysics .tl-toggle').forEach((btn) => btn.addEventListener('click', () => {
     const block = btn.closest('.timeline-block');
     const expanded = block.classList.toggle('expanded');
@@ -2096,10 +2462,10 @@ function renderDates() {
     const purpose = $('#date-purpose').value;
     const start = new Date($('#date-start').value);
     const birthBranches = [state.data.baZi.fourPillars.yearPillar.branch, state.data.baZi.fourPillars.dayPillar.branch];
-    const CLASH = { 子:'午', 丑:'未', 寅:'申', 卯:'酉', 辰:'戌', 巳:'亥', 午:'子', 未:'丑', 申:'寅', 酉:'卯', 戌:'辰', 亥:'巳' };
-    const LIUHE = { 子:'丑', 丑:'子', 寅:'亥', 亥:'寅', 卯:'戌', 戌:'卯', 辰:'酉', 酉:'辰', 巳:'申', 申:'巳', 午:'未', 未:'午' };
+    const CLASH = { 子: '午', 丑: '未', 寅: '申', 卯: '酉', 辰: '戌', 巳: '亥', 午: '子', 未: '丑', 申: '寅', 酉: '卯', 戌: '辰', 亥: '巳' };
+    const LIUHE = { 子: '丑', 丑: '子', 寅: '亥', 亥: '寅', 卯: '戌', 戌: '卯', 辰: '酉', 酉: '辰', 巳: '申', 申: '巳', 午: '未', 未: '午' };
     const SANHE_GROUPS = [['申','子','辰'], ['亥','卯','未'], ['寅','午','戌'], ['巳','酉','丑']];
-    const BRANCH_EL = { 子:'水', 丑:'土', 寅:'木', 卯:'木', 辰:'土', 巳:'火', 午:'火', 未:'土', 申:'金', 酉:'金', 戌:'土', 亥:'水' };
+    const BRANCH_EL = { 子: '水', 丑: '土', 寅: '木', 卯: '木', 辰: '土', 巳: '火', 午: '火', 未: '土', 申: '金', 酉: '金', 戌: '土', 亥: '水' };
     const sanheWith = (a, b) => SANHE_GROUPS.some((g) => a !== b && g.includes(a) && g.includes(b));
     const yongshen = R.computeYongShen(state.data.baZi);
     const favEls = new Set(yongshen.favorable.map((f) => f.element));
@@ -2144,7 +2510,7 @@ function renderMeihua() {
   $('#meihua-run').addEventListener('click',()=>{
     const r=mod.divination.plumBlossom($('#meihua-time').value,Number($('#meihua-number').value||0));
     const ty=mod.divination.tiYongAnalysis(r);
-    $('#meihua-result').innerHTML=`<div class="card"><div class="card-label">時間起卦結果</div>${diagramHtml({...r,moving:[r.movingLine]})}<div class="plain-summary"><b>先看白話重點</b><p>內在基礎呈現「${r.lower.image}」，外在情勢呈現「${r.upper.image}」。第 ${r.movingLine} 爻變動，提醒你把注意力放在事情發展的對應階段。</p></div><div class="tiyong-card"><b>體用斷卦　${esc(ty.relation)}</b><p>體卦：${esc(ty.ti.name)}（${esc(ty.ti.element)}）　用卦：${esc(ty.yong.name)}（${esc(ty.yong.element)}）</p><p class="reading-line">${esc(ty.tendency)}</p></div><p class="card-hint" style="margin-top:8px">體用生剋依傳統口訣(體剋用／用剋體／用生體／體生用／比和)推得，只是傾向判斷，不是定論。取數公式：${esc(r.formula)}。</p>${aiButton('ai-meihua')}</div>`;
+    $('#meihua-result').innerHTML=`<div class="card"><div class="card-label">時間起卦結果</div>${diagramHtml({...r,moving:[r.movingLine]})}<div class="plain-summary"><b>先看白話重點</b><p>內在基礎呈現「${r.lower.image}」，外在情勢呈現「${r.upper.image}」。第 ${r.movingLine} 爻變動，提醒你把注意力放在事情發展的對應階段。</p></div><div class="tiyong-card"><b>體用斷卦　${esc(ty.relation)}</b><p>體卦：${esc(ty.ti.name)}（${esc(ty.ti.element)}）　用卦：${esc(ty.yong.name)}（${esc(ty.yong.element)}）</p><p class="reading-line">${esc(ty.tendency)}</p></div><p class="card-hint" style="margin-top:8px">體用生剋依傳統口訣（體剋用／用剋體／用生體／體生用／比和）推得，只是傾向判斷，不是定論。取數公式：${esc(r.formula)}。</p>${aiButton('ai-meihua')}</div>`;
     bindAiPrompt('ai-meihua',aiPromptBase('梅花易數時間起卦',`本卦：${r.name}\n上卦：${r.upper.name}（${r.upper.element}，${r.upper.image}）\n下卦：${r.lower.name}（${r.lower.element}，${r.lower.image}）\n動爻：第${r.movingLine}爻\n體卦：${ty.ti.name}（${ty.ti.element}）\n用卦：${ty.yong.name}（${ty.yong.element}）\n體用關係：${ty.relation}\n變卦：${r.changedName}\n取數公式：${r.formula}`,'請先解釋體用生剋的判斷依據，再給出可驗證、非宿命的行動建議。'));
   });
 }
@@ -2172,10 +2538,10 @@ function renderMetaphysics() {
 }
 
 // ---------- 分頁延遲渲染 ----------
-// 原本每次排盤都會把九個分頁的 DOM 一次全部組出來,但使用者當下只看得到一頁;
-// 其餘八頁(含深度解析、姓名學、進階玄學等重運算頁)的成本完全是白花的,
+// 原本每次排盤都會把九個分頁的 DOM 一次全部組出來，但使用者當下只看得到一頁；
+// 其餘八頁（含深度解析、姓名學、進階玄學等重運算頁）的成本完全是白花的，
 // 在手機上會讓「排盤」按下去到畫面出現之間多等好幾百毫秒。
-// 改成:排盤後只畫目前這一頁,其餘標記為 dirty,切過去時才即時補畫(且只畫一次)。
+// 改成：排盤後只畫目前這一頁，其餘標記為 dirty,切過去時才即時補畫（且只畫一次）。
 const VIEW_RENDERERS = {
   dashboard: renderDashboard,
   topics: renderTopics,
@@ -2189,7 +2555,7 @@ const VIEW_RENDERERS = {
 };
 const dirtyViews = new Set();
 
-/** 把某幾頁標記為需要重畫;若其中包含目前這一頁,立刻補畫(其餘等切過去再說) */
+/** 把某幾頁標記為需要重畫；若其中包含目前這一頁，立刻補畫（其餘等切過去再說） */
 function invalidateViews(...views) {
   if (!state.data) return;
   for (const v of views) dirtyViews.add(v);
@@ -2197,11 +2563,11 @@ function invalidateViews(...views) {
 }
 
 /**
- * 畫出單一分頁,並沿用原本的防護網:單頁組裝失敗不會讓整個介面卡死。
+ * 畫出單一分頁，並沿用原本的防護網：單頁組裝失敗不會讓整個介面卡死。
  *
- * 深度解析/合盤/姓名學/進階玄學的引擎是動態載入的,所以這支是非同步的。
- * 大多數情況下模組已被 preloadViewEngines 預先抓回來,await 會在同一個 microtask 內完成;
- * 只有「網路很慢 + 使用者搶在預載完成前就點過去」時才會真的等待,這時給一行載入中提示,
+ * 深度解析/合盤/姓名學/進階玄學的引擎是動態載入的，所以這支是非同步的。
+ * 大多數情況下模組已被 preloadViewEngines 預先抓回來,await 會在同一個 microtask 內完成；
+ * 只有「網路很慢 + 使用者搶在預載完成前就點過去」時才會真的等待，這時給一行載入中提示，
  * 而不是留一片空白讓人以為按鈕壞了。
  */
 async function renderView(view) {
@@ -2217,34 +2583,34 @@ async function renderView(view) {
     }
     fn();
   } catch (err) {
-    console.error(`render ${view} 失敗:`, err);
-    dirtyViews.add(view); // 失敗(例如 chunk 下載中斷)要留著標記,下次切過來可以重試
+    console.error(`render ${view} 失敗：`, err);
+    dirtyViews.add(view); // 失敗（例如 chunk 下載中斷）要留著標記，下次切過來可以重試
     toast('顯示命盤時發生錯誤，請重新整理頁面再試一次；若重複發生請回報這組生辰資料。');
   }
 }
 
 function renderAll() {
-  // 防護網:任何一段畫面組裝在排盤資料的邊界情況下出錯,都要讓使用者看得到、
-  // 而不是靜默失敗、側邊欄卡死在 disabled 狀態(曾發生過大限與流年同宮時的 null 例外)。
+  // 防護網：任何一段畫面組裝在排盤資料的邊界情況下出錯，都要讓使用者看得到、
+  // 而不是靜默失敗、側邊欄卡死在 disabled 狀態（曾發生過大限與流年同宮時的 null 例外）。
   try {
     renderHead();
-    // 資料換了 → 所有分頁的內容都過期;目前這頁馬上重畫,其餘等切過去再補。
+    // 資料換了 → 所有分頁的內容都過期；目前這頁馬上重畫，其餘等切過去再補。
     for (const v of VIEWS) dirtyViews.add(v);
     renderView(state.view);
-    preloadViewEngines(); // 其餘分頁的引擎趁閒置先抓,讓之後點側欄感覺不到載入
+    preloadViewEngines(); // 其餘分頁的引擎趁閒置先抓，讓之後點側欄感覺不到載入
     document.body.classList.add('has-chart');
     document.body.classList.remove('editing-chart');
     $$('.side-nav [data-view]').forEach((n) => { n.disabled = false; n.removeAttribute('aria-disabled'); });
   } catch (err) {
-    console.error('renderAll 失敗:', err);
+    console.error('renderAll 失敗：', err);
     toast('顯示命盤時發生錯誤，請重新整理頁面再試一次；若重複發生請回報這組生辰資料。');
   }
 }
 
 /**
- * 流年運勢提醒卡:已有存檔命盤時,在歡迎畫面頂部給一個直接的回訪誘因——
- * 不用重新輸入生辰,一鍵跳去看「今年」的大限流年重點(dashboard 排盤後預設就會停在現行大限流年)。
- * 只取最近存的 3 筆(saveCurrentChart 用 unshift,index 0 = 最新),避免清單太長。
+ * 流年運勢提醒卡：已有存檔命盤時，在歡迎畫面頂部給一個直接的回訪誘因——
+ * 不用重新輸入生辰，一鍵跳去看「今年」的大限流年重點（dashboard 排盤後預設就會停在現行大限流年）。
+ * 只取最近存的 3 筆（saveCurrentChart 用 unshift,index 0 = 最新），避免清單太長。
  */
 function renderAnnualReminderCard() {
   const list = loadSavedCharts().slice(0, 3);
@@ -2257,7 +2623,7 @@ function renderAnnualReminderCard() {
     </button>`).join('');
   return `<div class="card reminder-card">
     <div class="card-label">${nowYear} 年（${esc(yearGanZhi(nowYear))}）流年提醒</div>
-    <div class="card-hint">「大限」是紫微斗數裡每十年一個階段的運勢重心,「流年」是當年的運勢重點——這裡讓你不用重新輸入生辰,直接看已存命盤在今年的這兩項重點。</div>
+    <div class="card-hint">「大限」是紫微斗數裡每十年一個階段的運勢重心，「流年」是當年的運勢重點——這裡讓你不用重新輸入生辰，直接看已存命盤在今年的這兩項重點。</div>
     <div class="reminder-list">${rows}</div>
   </div>`;
 }
@@ -2296,7 +2662,7 @@ function renderEmpty() {
   for (const v of VIEWS) {
     if (v !== 'dashboard') $(`#view-${v} .welcome-cosmos`)?.remove();
   }
-  dirtyViews.clear(); // 歡迎畫面已把每一頁都填成同一份內容,沒有待補畫的分頁
+  dirtyViews.clear(); // 歡迎畫面已把每一頁都填成同一份內容，沒有待補畫的分頁
   $$('[data-remind]').forEach((btn) =>
     btn.addEventListener('click', async () => {
       const c = loadSavedCharts()[Number(btn.dataset.remind)];
@@ -2311,8 +2677,8 @@ function renderEmpty() {
   $('#welcome-start')?.addEventListener('click', () => {
     $('.sidebar').classList.add('open');
     $('#sidebar-toggle').setAttribute('aria-expanded', 'true');
-    // 首頁引導卡跟左側常駐表單其實是同一件事,點下去卻只是靜默 focus,
-    // 使用者容易看不出兩者的關係──補上捲動＋短暫高亮,讓「按鈕把你帶去了哪裡」看得見
+    // 首頁引導卡跟左側常駐表單其實是同一件事，點下去卻只是靜默 focus,
+    // 使用者容易看不出兩者的關係──補上捲動＋短暫高亮，讓「按鈕把你帶去了哪裡」看得見
     $('#birth-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
     $('#birth-form').classList.add('form-highlight');
     setTimeout(() => $('#birth-form').classList.remove('form-highlight'), 1400);
@@ -2337,8 +2703,8 @@ function renderEmpty() {
 function setupControls() {
   birthDateCtl = wireDateParts({ yearId: '#birth-year', monthId: '#birth-month', dayId: '#birth-day', errorId: '#birth-date-error', nextId: '#birth-hour' });
 
-  // 命盤上的符號(限/年/祿權科忌小標記、・身)原本只靠 title 屬性做 hover 提示,手機沒有 hover 等於看不到說明——
-  // 綁一個委派點擊事件,點到這些符號時直接用 toast 顯示同樣的文字,桌面版 hover 仍然保留,手機版多了點擊也能看
+  // 命盤上的符號（限/年/祿權科忌小標記、・身）原本只靠 title 屬性做 hover 提示，手機沒有 hover 等於看不到說明——
+  // 綁一個委派點擊事件，點到這些符號時直接用 toast 顯示同樣的文字，桌面版 hover 仍然保留，手機版多了點擊也能看
   $('#view-dashboard').addEventListener('click', (e) => {
     const marker = e.target.closest('.luck-tag, .flow-mut, .body-mark, sup[title]');
     if (marker?.title) toast(marker.title);
@@ -2353,11 +2719,11 @@ function setupControls() {
     else state.dashboardOpenDetails.delete(key);
   }, true);
 
-  // 時辰選單(預設子時,列表第一個選項,避免下拉選單一開始就停在中間某個時辰,
-  // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選,這裡只是給一個不易混淆的起始值)
+  // 時辰選單(預設子時，列表第一個選項，避免下拉選單一開始就停在中間某個時辰，
+  // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選，這裡只是給一個不易混淆的起始值)
   $('#birth-hour').innerHTML = SHICHEN
     .map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')
-    + '<option value="unknown">不確定時辰(以午時暫排)</option>';
+    + '<option value="unknown">不確定時辰（以午時暫排）</option>';
   $('#birth-hour').value = '0';
   $('#solar-time-enabled').addEventListener('change', (event) => {
     $('#solar-time-fields').hidden = !event.target.checked;
@@ -2391,7 +2757,7 @@ function setupControls() {
   });
   renderSavedList();
 
-  // 三頁互相導引用的跳轉連結([data-goto])用事件代理綁在 #main-content 上,不管內容重繪幾次都不用重新綁定,
+  // 三頁互相導引用的跳轉連結（[data-goto]）用事件代理綁在 #main-content 上，不管內容重繪幾次都不用重新綁定，
   // 命盤總覽/重點解讀/深度解析裡任何一顆 data-goto 按鈕都共用這一個監聽器
   $('#main-content').addEventListener('click', (e) => {
     const gotoBtn = e.target.closest('[data-goto]');
@@ -2405,7 +2771,7 @@ function setupControls() {
     syncModeToggleUI();
     if (state.view === 'report') {
       // 重點解讀的專業依據永遠是預先算好的完整版本(compose-plain.js 內部固定用 mode:'study'
-      // 組裝 technical),切換白話/專業只是換哪個面板可見,不需要整頁 renderAll,避免不必要的重繪與捲動風險
+      // 組裝 technical),切換白話/專業只是換哪個面板可見，不需要整頁 renderAll,避免不必要的重繪與捲動風險
       renderReport();
     } else {
       applyReadingMode();
@@ -2432,10 +2798,10 @@ function setupControls() {
     await withLoading(btn, '排盤中…', async () => {
       if (await computeAll()) {
         renderAll();
-        // 排盤完成的小小揭曉感:主內容區加一個淡入效果,而不是直接無聲切換畫面
+        // 排盤完成的小小揭曉感：主內容區加一個淡入效果，而不是直接無聲切換畫面
         const main = $('#main-content');
         main.classList.remove('reveal-in');
-        void main.offsetWidth; // 強制重新觸發動畫(reflow)
+        void main.offsetWidth; // 強制重新觸發動畫（reflow）
         main.classList.add('reveal-in');
         if (matchMedia('(max-width: 900px)').matches) {
           $('.sidebar').classList.remove('open');
@@ -2451,10 +2817,10 @@ function setupControls() {
     $('#sidebar-toggle').setAttribute('aria-expanded', String(open));
   });
 
-  // 分享連結參數回填(有參數才直接排盤)
-  // 網址列是完全由外部控制的輸入,任何人都能手改後傳給別人,所以每個參數都要先驗證再落地:
-  // 之前 hour 只要塞一個不存在的值,<select> 會靜默變成空字串 → Number('') === 0 → 悄悄排成子時;
-  // gender 也可能被塞入任意字串,一路帶進排盤引擎。現在一律白名單比對,不合法就忽略、沿用預設值。
+  // 分享連結參數回填（有參數才直接排盤）
+  // 網址列是完全由外部控制的輸入，任何人都能手改後傳給別人，所以每個參數都要先驗證再落地：
+  // 之前 hour 只要塞一個不存在的值,<select> 會靜默變成空字串 → Number('') === 0 → 悄悄排成子時；
+  // gender 也可能被塞入任意字串，一路帶進排盤引擎。現在一律白名單比對，不合法就忽略、沿用預設值。
   const params = new URLSearchParams(location.search);
   const rawDate = params.get('date');
   if (rawDate && /^\d{4}-\d{1,2}-\d{1,2}$/.test(rawDate)) {
@@ -2475,17 +2841,17 @@ function setupControls() {
 }
 
 const hasSharedParams = setupControls();
-renderEmpty(); // 先渲染歡迎畫面(不需要排盤庫);分享連結進站則在引擎載完後自動蓋掉
+renderEmpty(); // 先渲染歡迎畫面（不需要排盤庫）；分享連結進站則在引擎載完後自動蓋掉
 if (hasSharedParams) {
   computeAll().then((ok) => { if (ok) renderAll(); });
 }
 
-// ---------- 輕量錯誤監控:未預期錯誤時給使用者一個提示,避免畫面靜默壞掉 ----------
+// ---------- 輕量錯誤監控：未預期錯誤時給使用者一個提示，避免畫面靜默壞掉 ----------
 let errorNotified = false;
 function notifyError() {
   if (errorNotified) return;
   errorNotified = true;
-  try { toast('發生未預期的錯誤,請重新整理頁面再試一次'); } catch { /* toast 本身壞掉就算了 */ }
+  try { toast('發生未預期的錯誤，請重新整理頁面再試一次'); } catch { /* toast 本身壞掉就算了 */ }
 }
 window.addEventListener('error', notifyError);
 window.addEventListener('unhandledrejection', notifyError);
