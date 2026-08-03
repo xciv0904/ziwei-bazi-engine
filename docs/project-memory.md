@@ -22,6 +22,7 @@ Calculations run in the browser.
 | `src/data/topic-star-answers.json` | 60 questions × 14 major stars: the on-question answer for each question |
 | `src/engines/life-manual.js` | Life manual narrative: opening, decade stages, recurring themes, turning points |
 | `src/data/life-manual.js` | Palace decade themes, star approaches, turning-point closers |
+| `src/data/life-stage-details.json` | 12 palaces × 14 major stars: what each decade actually looks like |
 | `src/engines/learning-palace.js` | Learning mode: five-step palace lesson, evidence chain, quiz |
 | `src/engines/learning-progress.js` | Learning mode: per-chart progress in localStorage |
 | `src/data/learning-mode.js` | Palace axis relations, mutagen primer, glossary, empty-palace guide |
@@ -30,6 +31,7 @@ Calculations run in the browser.
 | `cross-test.mjs` | Zi Wei independent-reference comparison |
 | `cross-test-bazi.mjs` | Bazi independent-reference comparison |
 | `smoke.mjs` | happy-dom UI flow smoke test |
+| `tests/life-manual.mjs` | Life manual stage coverage, personalisation and chart-derived facts |
 | `tests/topic-on-question.mjs` | Topic answers must stay on question, never reuse generic star personality |
 | `tests/learning-mode.mjs` | Learning mode vs calculation engine consistency |
 
@@ -73,6 +75,7 @@ palaces, stars, transformations, or limits.
 - `node cross-test.mjs`: Zi Wei reference comparison
 - `node cross-test-bazi.mjs`: Bazi reference comparison
 - `npm run on-question`: topic answer coverage, on-question checks and text quality
+- `npm run life-manual`: life manual stage coverage and per-chart narrative checks
 - `npm run learning-mode`: learning mode lessons, evidence chain and progress storage
 
 ## Durable decisions
@@ -87,4 +90,5 @@ palaces, stars, transformations, or limits.
 | 2026-08-03 | Topic answers come from a per-question × per-star library, not from palace cards | Palace cards are written per palace, so seven palaces answered every question with generic personality text |
 | 2026-08-03 | The safety fallback only triggers when no major star resolves | A valid star answer must never be replaced by the "insufficient signal" canned line |
 | 2026-08-03 | Comprehensive report opens with a life-stage narrative instead of an advice checklist | The checklist repeated the same sentence across four fields and read like a to-do list |
+| 2026-08-03 | Each decade stage is written per palace × per star, not composed from a generic star line | Composing from a shared style sentence made everyone with the same limit palace read the same decade |
 

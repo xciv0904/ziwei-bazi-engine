@@ -8,13 +8,14 @@
     "build": "node scripts/build-wiki.mjs && vite build",
     "preview": "vite preview",
     "test": "node test.js && node test-divination.mjs",
-    "smoke": "node --import ./css-hook.mjs smoke.mjs && npm run readability && npm run text-quality && npm run topic-contracts && npm run on-question && npm run learning-mode",
+    "smoke": "node --import ./css-hook.mjs smoke.mjs && npm run readability && npm run text-quality && npm run topic-contracts && npm run on-question && npm run learning-mode && npm run life-manual",
     "wiki": "node scripts/build-wiki.mjs",
     "readability": "node --import ./css-hook.mjs readability.mjs",
     "text-quality": "node tests/ziwei-text-quality.mjs",
     "topic-contracts": "node tests/topic-report-contracts.mjs",
     "learning-mode": "node tests/learning-mode.mjs",
-    "on-question": "node tests/topic-on-question.mjs"
+    "on-question": "node tests/topic-on-question.mjs",
+    "life-manual": "node tests/life-manual.mjs"
   },
   "devDependencies": {
     "happy-dom": "^20.10.6",

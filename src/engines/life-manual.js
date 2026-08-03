@@ -19,8 +19,11 @@ import {
   STAR_DISPLAY_NAME,
   TURNING_POINT_CLOSERS,
 } from '../data/life-manual.js';
+import stageDetails from '../data/life-stage-details.json' with { type: 'json' };
 import { starMeanings } from '../data/star-meanings.js';
 import { computeFlyingTransformations, findFlyingConvergence } from './compose-annual.js';
+
+const STAGE_DETAIL = stageDetails['階段'];
 
 const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 
@@ -100,7 +103,12 @@ function buildStages(ziWei, birthYear, currentYear) {
     if (theme) {
       paragraphs.push(`這十年的重心是${theme.focus}。${theme.scenes[0]}。`);
       if (theme.scenes[1]) paragraphs.push(`${theme.scenes[1]}。`);
-      if (lead.name && STAR_APPROACH[lead.name]) {
+      // 宮位決定這十年的主題，主星決定這個人會怎麼過這十年。
+      // 兩者合起來才是個人化的內容——只用宮位主題的話，同一個大限落宮的人會讀到一模一樣的段落。
+      const detail = lead.name ? STAGE_DETAIL[palace?.name]?.[lead.name] : null;
+      if (detail) {
+        paragraphs.push(`${detail}${lead.borrowed ? `（${palace.name}無主星，這一段借對宮的${showStar(lead.name)}參看）` : ''}`);
+      } else if (lead.name && STAR_APPROACH[lead.name]) {
         paragraphs.push(`${STAR_APPROACH[lead.name]}${lead.borrowed ? '（這一宮無主星，借對宮參看）' : ''}。`);
       }
       paragraphs.push(`這段最容易被消耗的地方是：${theme.cost}。`);
