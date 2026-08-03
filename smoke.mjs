@@ -360,23 +360,41 @@ check('深度解析具備完整內容層級', (() => {
   const text = $('#view-comprehensive').textContent;
   return text.includes('現實中可能怎麼出現')
     && text.includes('容易反覆出現的課題')
-    && text.includes('長期發展建議')
     && text.includes('專業命理依據')
     && !text.includes('與其他人生主題的關聯');
 })());
-check('長期發展建議分成先處理與接著練習，且做法不再拼接卡片標籤', (() => {
-  const advice = $('#view-comprehensive .deep-advice');
-  const text = advice?.textContent ?? '';
-  return !!advice
-    && advice.querySelectorAll('ol > li').length <= 2
-    && text.includes('先處理')
-    && text.includes('接著練習')
-    && text.includes('具體做法')
-    && text.includes('開始時機')
-    && text.includes('怎麼知道有效')
-    && !text.includes('的現在優先處理階段');
-})());
 
+// 完整報告開頭的「人生說明書」：原本的「長期發展建議」把同一句情況重複塞進四個欄位，
+// 讀起來像待辦清單。改成一條時間線之後，這裡驗的是敘事四段都在、而且真的依命盤產生。
+check('完整報告開頭是人生說明書，四段俱全', (() => {
+  const card = $('#view-comprehensive .manual-card');
+  const text = card?.textContent ?? '';
+  return !!card && text.includes('你是什麼樣的人') && text.includes('你的人生會怎麼展開')
+    && text.includes('你反覆遇到的課題') && text.includes('你的轉折點');
+})());
+check('人生說明書列出十個十年階段，預設只展開現在這一段', (() => {
+  const stages = $$('#view-comprehensive .manual-stage');
+  return stages.length === 10
+    && $$('#view-comprehensive .manual-stage.current').length === 1
+    && $$('#view-comprehensive .manual-stage-body').length === 1;
+})());
+check('人生說明書的階段內容依命盤宮位產生，不是固定文案', (() => {
+  const names = $$('#view-comprehensive .manual-stage-main b').map((el) => el.textContent.replace('（現在）', ''));
+  return names.length === 10 && new Set(names).size >= 6 && names.every((n) => n.endsWith('宮'));
+})());
+check('人生說明書的轉折點標出實際西元年', (() => {
+  const years = $$('#view-comprehensive .manual-turns li b').map((el) => Number(el.textContent));
+  return years.length >= 5 && years.every((y) => y > 1900 && y < 2200)
+    && years.every((y, i) => i === 0 || y > years[i - 1]);
+})());
+check('點其他十年階段可以展開對照', (() => {
+  const other = $$('#view-comprehensive [data-manual-stage]').find((b) => !b.closest('.manual-stage').classList.contains('current'));
+  if (!other) return false;
+  other.click();
+  return $$('#view-comprehensive .manual-stage-body').length === 2;
+})());
+check('完整報告不再出現待辦清單式的長期發展建議', !$('#view-comprehensive').textContent.includes('長期發展建議')
+  && !$('#view-comprehensive .deep-advice'));
 // 地支關係/神煞屬於補充細節，預設收合（acc-item 沒有 open class,內文不渲染），點開才展開
 // 用 data-detail(內部識別字)定位，不用畫面上的標題——顯示標題在大眾版已改成白話
 const findDetailItem = (title) => $$('#view-comprehensive .acc-item').find((it) => it.querySelector('.acc-row[data-detail]')?.dataset.detail.includes(title));
@@ -631,14 +649,21 @@ await settle();
 check('切回白話模式後教學區收起', !$('#learn-card'));
 check('切回白話模式後「為什麼這樣判斷」回來', !!$('.learn-why'));
 
-// 主題分析的命盤依據不只列資料，還要說明彼此關係（推導過程）
+// 主題分析的命盤依據要列真正可以回到命盤上核對的事實，
+// 而不是每一條都長成「XX宮的主要訊號」這種對誰都成立的佔位字串。
 await nav('topics');
-check('主題分析的命盤依據附推導過程', (() => {
-  const basis = $('#view-topics .topic-answer--basis');
-  return Boolean(basis && basis.textContent.includes('推導過程') && basis.textContent.includes('還需要確認的部分'));
+check('命盤依據列出真實盤面事實', (() => {
+  const labels = $$('#view-topics .topic-basis-list li b').map((el) => el.textContent);
+  const details = $$('#view-topics .topic-basis-list li span').map((el) => el.textContent);
+  return labels.includes('對應宮位')
+    && labels.some((l) => l.includes('主星'))
+    && details.some((d) => /[子丑寅卯辰巳午未申酉戌亥]/.test(d));
 })());
-check('主題分析的推導過程收在專業資料區（不污染白話正文）',
-  !!$('#view-topics .topic-answer--basis .tech-block'));
+check('命盤依據不再出現重複的佔位標籤', (() => {
+  const rows = $$('#view-topics .topic-basis-list li').map((el) => el.textContent);
+  return rows.length === new Set(rows).size
+    && !rows.some((r) => r.includes('的主要訊號'));
+})());
 await nav('dashboard');
 
 // 重點解讀的「白話摘要／專業依據」是分頁各自獨立的狀態（state.reportViewMode），要先切到這個頁面，
@@ -848,7 +873,7 @@ const VAGUE_FILLER = ['實際狀況仍會', '可以著力的方向', '會比單�
 /** 只取白話面板：專業依據面板本來就該有術語，先移除再檢查 */
 const plainTextOf = (view) => {
   const root = $(`#view-${view}`).cloneNode(true);
-  for (const el of [...root.querySelectorAll('.analysis-card__panel--technical, .palace-technical, .tech-block, [data-report-panel="technical"]')]) el.remove();
+  for (const el of [...root.querySelectorAll('.analysis-card__panel--technical, .palace-technical, .tech-block, .topic-answer--basis, [data-report-panel="technical"]')]) el.remove();
   return root.textContent.replace(/\s+/g, ' ');
 };
 // 前面的測試切過專業命盤模式，而重點解讀的紫微/八字分頁各自記住自己的模式。
@@ -876,7 +901,8 @@ for (const view of ['topics', 'report', 'comprehensive']) {
   await nav(view);
   const text = plainTextOf(view);
   // 深度解析的「身宮」保留，但必須就地附上白話註解，不能光丟術語
-  const banned = PLAIN_BANNED_JARGON.filter((j) => text.includes(j));
+  // 「七殺星」是紫微主星的白話寫法（見 readability.mjs 的同一條規則），不算八字術語外洩
+  const banned = PLAIN_BANNED_JARGON.filter((j) => (j === '七殺' ? /七殺(?!星)/.test(text) : text.includes(j)));
   check(`${view}:白話面板無術語${banned.length ? ':' + banned.join('、') : ''}`, banned.length === 0);
   const filler = VAGUE_FILLER.filter((j) => text.includes(j));
   check(`${view}:白話面板無空話${filler.length ? ':' + filler.join('、') : ''}`, filler.length === 0);

@@ -23,6 +23,15 @@ const BANNED_JARGON = [
   '正印', '偏印', '傷官', '食神', '劫財', '比肩', '廟旺', '落陷', '借星', '來因宮', '自化',
   '納音', '藏干', '會照', '宮干', '命局', '本氣', '當令', '入柱', '日支', '年干',
 ];
+/**
+ * 「七殺」同時是紫微主星與八字十神的名稱。白話段落若寫成「七殺星」，
+ * 指的明確是紫微主星，屬於一般讀者看得懂的星名，不算術語外洩；
+ * 單獨出現的「七殺」才是要攔下的八字十神用法。
+ */
+const jargonHits = (text) => BANNED_JARGON.filter((term) => (term === '七殺'
+  ? /七殺(?!星)/.test(text)
+  : text.includes(term)));
+
 /** 允許出現，但必須帶著白話說明一起出現 */
 const GLOSSED_TERMS = { 身宮: '命理上稱為身宮' };
 /** 沒有資訊量、套在誰身上都成立的句子 */
@@ -75,11 +84,11 @@ for (const [y, m, d, hour, gender] of CHARTS) {
     $$('.nav-item').find((n) => n.dataset.view === view).click();
     await settle();
     const root = $(`#view-${view}`).cloneNode(true);
-    for (const el of [...root.querySelectorAll('.analysis-card__panel--technical, .palace-technical, .tech-block, [data-report-panel="technical"]')]) el.remove();
+    for (const el of [...root.querySelectorAll('.analysis-card__panel--technical, .palace-technical, .tech-block, .topic-answer--basis, [data-report-panel="technical"]')]) el.remove();
     const text = root.textContent.replace(/\s+/g, ' ');
     const where = `${y}/${m}/${d} ${hour}時 ${gender}｜${view}`;
 
-    const jargon = BANNED_JARGON.filter((j) => text.includes(j));
+    const jargon = jargonHits(text);
     if (jargon.length) fail(`${where} 白話面板出現術語：${jargon.join('、')}`);
 
     for (const [term, gloss] of Object.entries(GLOSSED_TERMS)) {

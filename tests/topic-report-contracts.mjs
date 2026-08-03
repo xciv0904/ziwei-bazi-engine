@@ -140,10 +140,19 @@ for (const testCase of fixture.cases) {
   for (const field of ['rawReason', 'internalNote', 'relevanceReason', 'debugText']) {
     if (prompt.includes(field)) fail(`${testCase.chartId} 單題 prompt 泄漏 ${field}`);
   }
-  const rejected = buildTopicReport({ contract: promptContract, ziWei, ziweiCard: null, baziCards: [] });
-  if (!rejected.fallbackApplied || !rejected.validationIssues.length) fail(`${testCase.chartId} validator 失敗時未啟用安全 fallback`);
+  // 答案改由主星答案庫提供之後，就算白話卡完全缺席，只要命盤本身有主星就仍該答得出來，
+  // 而且答的是這一題。這比舊的「湊不齊補充欄位就整段換成罐頭句」更接近使用者要的結果。
+  const withoutCards = buildTopicReport({ contract: promptContract, ziWei, ziweiCard: null, baziCards: [] });
+  if (withoutCards.fallbackApplied) fail(`${testCase.chartId} 有主星可用時不該退回安全 fallback`);
+  if (!withoutCards.resolvedStar?.star) fail(`${testCase.chartId} 未解析出這一題要用的主星`);
+  if (compactLength(withoutCards.directAnswer.answer) < 12) fail(`${testCase.chartId} 缺少白話卡時答案過短`);
+  if (!withoutCards.chartBasis.some((row) => row.label === '對應宮位')) fail(`${testCase.chartId} 命盤依據缺少對應宮位`);
+
+  // 真的無從判斷時（連命盤都拿不到主星）才啟用安全 fallback，並且不得留下半截正文。
+  const rejected = buildTopicReport({ contract: promptContract, ziWei: { palaces: [] }, ziweiCard: null, baziCards: [] });
+  if (!rejected.fallbackApplied || !rejected.validationIssues.length) fail(`${testCase.chartId} 無主星可用時未啟用安全 fallback`);
   if (rejected.selectedEvidence.length || rejected.topicAnalysis.manifestations.length || rejected.directAnswer.reasons.length) {
-    fail(`${testCase.chartId} validator 失敗後仍保留問題正文或證據`);
+    fail(`${testCase.chartId} fallback 後仍保留問題正文或證據`);
   }
   reportsByChart.set(testCase.chartId, reports);
 }

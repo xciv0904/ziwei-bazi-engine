@@ -1402,24 +1402,15 @@ function topicReportFor(contract, ziWei, baziCards) {
  * 兩邊講的是同一套邏輯，不另外寫一份會各自漂移的說法。
  * 這段放在 .tech-block 裡，屬於預設收合的專業資料，與白話正文區隔開。
  */
-function topicChartBasisHtml(report, contract) {
-  const rows = report.topicAnalysis.evidence.map((item) =>
-    `<li><b>${esc(item.supportedTarget)}</b><span>${esc(item.label)}</span></li>`);
+function topicChartBasisHtml(report) {
+  // 列的是可以回到命盤上核對的事實(宮位、主星、亮度、生年四化、借星)，
+  // 不是「XX宮的主要訊號」這種每一條都長一樣、對誰都成立的佔位字串。
+  const rows = (report.chartBasis ?? []).map((item) =>
+    `<li><b>${esc(item.label)}</b><span>${esc(item.detail)}</span></li>`);
   if (!rows.length) return '';
-  const palaceName = contract?.allowedPalaces?.[0];
-  const { limit, year } = currentLuckSelection();
-  const lesson = palaceName
-    ? R.buildPalaceLesson({ ziWei: state.data.ziWei, palaceName, year, majorLimit: limit })
-    : null;
-  const derivation = lesson ? `
-    <div class="tech-block"><b>推導過程</b><p>${esc(
-      [lesson.evidence.conclusion.observed, lesson.evidence.conclusion.interaction, lesson.evidence.conclusion.behavior].join(''),
-    )}</p></div>
-    <div class="tech-block"><b>還需要確認的部分</b><p>${esc(lesson.evidence.conclusion.pending)}</p></div>` : '';
   return `<details class="topic-answer topic-answer--basis">
     <summary>查看這一題的命盤依據（專業資料）</summary>
     <ul class="topic-basis-list">${rows.join('')}</ul>
-    ${derivation}
     <small>複製給 AI 時只會使用這些已篩選內容，不會由網站上傳。</small>
   </details>`;
 }
@@ -1450,7 +1441,7 @@ function renderTopics() {
       </button>
       ${open ? `<div class="topic-question-body" id="topic-answer-${index}">
         ${topicDirectAnswerHtml(report)}
-        ${topicChartBasisHtml(report, contract)}
+        ${topicChartBasisHtml(report)}
         <button type="button" class="mini-btn topic-ai-btn" data-topic-question="${index}">複製這題給 AI 深入問</button>
       </div>` : ''}
     </article>`;
@@ -1707,19 +1698,70 @@ function deepListHtml(title, items, className = '') {
   </section>`;
 }
 
-function longTermAdviceHtml(card) {
-  const items = R.buildLongTermAdvicePlan(card);
-  if (!items.length) return '';
-  return `<section class="deep-section deep-advice">
-    <h4>長期發展建議</h4>
-    <ol>${items.map((item) => `<li>
-      <b>${esc(item.priority)}</b>
-      <p><strong>遇到的情況：</strong>${esc(item.problem)}</p>
-      <p><strong>具體做法：</strong>${esc(item.action)}</p>
-      <p><strong>開始時機：</strong>${esc(item.trigger)}</p>
-      <p><strong>怎麼知道有效：</strong>${esc(item.check)}</p>
-    </li>`).join('')}</ol>
-  </section>`;
+/**
+ * 人生說明書：完整報告的開頭。
+ *
+ * 這裡取代了原本的「長期發展建議」。那個區塊把同一句情況重複塞進「遇到的情況」「開始時機」
+ * 「怎麼知道有效」三個欄位，讀起來像待辦清單，而完整報告該給的是脈絡而不是代辦事項。
+ * 改成一條時間線：你是什麼樣的人 → 人生怎麼展開 → 反覆遇到的課題 → 轉折點落在哪幾年，
+ * 讓人可以拿自己走過的路直接對照。
+ */
+function lifeManualHtml() {
+  const { ziWei, input } = state.data;
+  const manual = R.buildLifeManual({ ziWei, birthYear: Number(input.year) });
+  if (!manual) return '';
+
+  const stageHtml = manual.stages.map((stage) => {
+    // 預設只展開現在這一段；其餘由使用者自己點開（狀態沿用完整報告既有的展開集合）
+    const open = state.expandedComprehensiveDetails.has(stage.ageRange)
+      ? !stage.current
+      : stage.current;
+    return `<article class="manual-stage${open ? ' current' : ''}${stage.endYear < new Date().getFullYear() ? ' past' : ''}">
+      <button type="button" class="manual-stage-head" data-manual-stage="${esc(stage.ageRange)}" aria-expanded="${open}">
+        <span class="manual-stage-age">${esc(stage.ageRange)}歲</span>
+        <span class="manual-stage-main">
+          <b>${esc(stage.palaceName)}${stage.current ? '（現在）' : ''}</b>
+          <small>${stage.startYear}–${stage.endYear}　${esc(stage.stageLabel)}</small>
+        </span>
+        <i aria-hidden="true">${open ? '−' : '＋'}</i>
+      </button>
+      ${open ? `<div class="manual-stage-body">
+        ${stage.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}
+        <p class="manual-stage-note">${esc(stage.stageNote)}。</p>
+      </div>` : ''}
+    </article>`;
+  }).join('');
+
+  return `<div class="card manual-card">
+    <div class="card-label">人生說明書</div>
+    <div class="card-hint">把命盤排成一條時間線：你是什麼樣的人、人生大致怎麼展開、哪些課題會反覆出現、階段的轉折落在哪幾年。可以拿已經走過的年份直接對照。</div>
+
+    <section class="manual-block">
+      <h3>你是什麼樣的人</h3>
+      ${manual.opening.map((p) => `<p>${esc(p)}</p>`).join('')}
+    </section>
+
+    <section class="manual-block">
+      <h3>你的人生會怎麼展開</h3>
+      <p class="manual-lead">每十年一個階段，重心會換到不同的位置。點開任何一段可以看那十年在忙什麼。</p>
+      <div class="manual-stages">${stageHtml}</div>
+    </section>
+
+    ${manual.themes.length ? `<section class="manual-block">
+      <h3>你反覆遇到的課題</h3>
+      <p class="manual-lead">這幾件事不會因為換階段而消失，它們會用不同的形式一再出現。</p>
+      ${manual.themes.map((t) => `<div class="manual-theme"><b>${esc(t.headline)}</b><p>${esc(t.body)}</p></div>`).join('')}
+    </section>` : ''}
+
+    ${manual.turningPoints.length ? `<section class="manual-block">
+      <h3>你的轉折點</h3>
+      <p class="manual-lead">階段交界的前後一兩年，生活的主題通常會明顯換一個方向。</p>
+      <ul class="manual-turns">${manual.turningPoints.map((t) =>
+        `<li class="${t.past ? 'past' : 'future'}"><b>${t.year}</b><span>${esc(t.body)}</span></li>`).join('')}</ul>
+    </section>` : ''}
+
+    <p class="manual-disclaimer">${esc(manual.disclaimer)}</p>
+  </div>`;
 }
 
 function deepPatternsHtml(items) {
@@ -1765,7 +1807,6 @@ function renderComprehensive() {
         <div class="palace-explain">${plainParagraphs.slice(0, source ? 3 : plainParagraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
         ${source ? deepListHtml('現實中可能怎麼出現', source.lifeExamples, 'deep-strengths') : ''}
         ${source ? deepListHtml('容易反覆出現的課題', source.challenges, 'deep-challenges') : ''}
-        ${source ? longTermAdviceHtml(source) : ''}
         <details class="palace-technical">
           <summary>專業命理依據</summary>
           <div class="analysis-card__panel--technical" style="margin-top:10px">
@@ -1791,6 +1832,8 @@ function renderComprehensive() {
 
   $('#view-comprehensive').innerHTML =
     intro +
+    lifeManualHtml() +
+    '<div style="height:20px"></div>' +
     block('紫微斗數・綜合解析', zw.sections, zwStudyByTitle) +
     '<div style="height:20px"></div>' +
     block('八字・綜合解析', bz.sections, bzStudyByTitle);
@@ -1800,6 +1843,14 @@ function renderComprehensive() {
       const title = row.dataset.detail;
       if (state.expandedComprehensiveDetails.has(title)) state.expandedComprehensiveDetails.delete(title);
       else state.expandedComprehensiveDetails.add(title);
+      renderComprehensive();
+    }));
+  // 人生說明書的十年階段：預設只展開現在這一段，點其他段可以攤開對照過去或提前看未來
+  $$('#view-comprehensive [data-manual-stage]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.manualStage;
+      if (state.expandedComprehensiveDetails.has(key)) state.expandedComprehensiveDetails.delete(key);
+      else state.expandedComprehensiveDetails.add(key);
       renderComprehensive();
     }));
 }

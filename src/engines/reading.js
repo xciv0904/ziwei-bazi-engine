@@ -36,6 +36,7 @@ export {
 } from './compose-annual.js';
 export { composeYongShenReading, computeYongShen } from './compose-yongshen.js';
 export { PALACE_ORDER, buildPalaceLesson, buildPalaceQuiz, triadOf } from './learning-palace.js';
+export { buildLifeManual } from './life-manual.js';
 export {
   LEARNING_PROGRESS_KEY,
   chartKeyOf,

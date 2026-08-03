@@ -1237,3 +1237,56 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .reading-mode-toggle { flex-wrap: wrap; }
   .mode-pill { padding: 6px 11px; font-size: 11.5px; }
 }
+
+/* ============ 人生說明書（完整報告開頭） ============
+   目的是讓人一路讀下來像在看自己的人生時間線，所以段落之間留白大、行距寬，
+   十年階段用可展開的卡片，現在這一段預設打開。 */
+.manual-card { display: flex; flex-direction: column; gap: 22px; }
+.manual-block h3 {
+  margin: 0 0 6px; font: 700 16px/1.5 var(--serif); color: var(--red);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.manual-block p { margin: 0 0 10px; font: 400 14.5px/2 var(--sans); color: var(--ink); }
+.manual-lead { color: var(--ink-45) !important; font-size: 12.5px !important; line-height: 1.8 !important; }
+
+/* 十年階段 */
+.manual-stages { display: flex; flex-direction: column; gap: 6px; }
+.manual-stage { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: rgba(244, 237, 224, .45); }
+.manual-stage.current { border-color: var(--red); background: var(--card-bg); }
+.manual-stage.past .manual-stage-age { opacity: .55; }
+.manual-stage-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; text-align: left; }
+.manual-stage-age {
+  flex: 0 0 64px; font: 700 12.5px/1.4 var(--sans); color: var(--gold);
+  border-right: 1px solid var(--border); padding-right: 10px;
+}
+.manual-stage.current .manual-stage-age { color: var(--red); }
+.manual-stage-main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.manual-stage-main b { font: 600 14px/1.4 var(--sans); }
+.manual-stage-main small { font: 400 11.5px/1.5 var(--sans); color: var(--ink-45); }
+.manual-stage-head i { font-style: normal; color: var(--red); font-size: 15px; }
+.manual-stage-body { padding: 0 14px 14px 88px; }
+.manual-stage-body p { margin: 0 0 8px; font: 400 14px/2 var(--sans); }
+.manual-stage-note { color: var(--ink-45) !important; font-size: 12.5px !important; }
+
+/* 反覆出現的課題 */
+.manual-theme { border-left: 3px solid var(--gold); padding: 2px 0 2px 12px; margin-bottom: 12px; }
+.manual-theme b { display: block; font: 600 13.5px/1.7 var(--sans); color: var(--gold); }
+.manual-theme p { margin: 2px 0 0 !important; }
+
+/* 轉折點 */
+.manual-turns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.manual-turns li { display: flex; gap: 12px; align-items: baseline; }
+.manual-turns li b {
+  flex: 0 0 48px; font: 700 13px/1.8 var(--sans); color: var(--red);
+}
+.manual-turns li.past b { color: var(--ink-40); }
+.manual-turns li span { font: 400 14px/1.95 var(--sans); }
+.manual-disclaimer { margin: 0; font: 400 12px/1.85 var(--sans); color: var(--ink-40); }
+
+@media (max-width: 700px) {
+  .manual-stage-head { padding: 11px 10px; gap: 9px; }
+  .manual-stage-age { flex-basis: 52px; padding-right: 8px; font-size: 11.5px; }
+  .manual-stage-body { padding: 0 10px 12px; }
+  .manual-turns li { flex-direction: column; gap: 2px; }
+  .manual-turns li b { flex-basis: auto; }
+}

@@ -1,4 +1,7 @@
+import starAnswers from '../data/topic-star-answers.json' with { type: 'json' };
 import { similarityScore } from './text-quality.js';
+
+const STAR_ANSWERS = starAnswers['答案'];
 
 const PUBLIC_FORBIDDEN_FIELDS = [
   'reason', 'rawReason', 'internalNote', 'knowledgeLabel', 'keyword', 'traitFragment',
@@ -89,6 +92,81 @@ function evidenceFromCard({ contract, card, sourceType, sourceName, palace = nul
   })));
 }
 
+const BRANCHES_TR = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+
+/**
+ * 找出這一題該用哪一顆主星回答。
+ *
+ * 為什麼需要這一層:每一題的答案都掛在「主星」上(見 topic-star-answers.json),
+ * 但題目宮位可能是空宮。空宮的通行讀法是借對宮主星參看,所以這裡一併處理,
+ * 並把「是不是借來的」記下來,讓命盤依據可以誠實標示。
+ *
+ * @returns {{palace, star, second, borrowed, borrowedFrom, brightness, transformation}|null}
+ */
+export function resolveTopicStar(contract, ziWei) {
+  const palace = ziWei?.palaces?.find((item) => contract.allowedPalaces.includes(item.name));
+  if (!palace) return null;
+  let source = palace;
+  let borrowed = false;
+  if (!palace.majorStars.length) {
+    const oppositeBranch = BRANCHES_TR[(BRANCHES_TR.indexOf(palace.position[1]) + 6) % 12];
+    const opposite = ziWei.palaces.find((item) => item.position[1] === oppositeBranch);
+    if (opposite?.majorStars.length) {
+      source = opposite;
+      borrowed = true;
+    }
+  }
+  const [first, second] = source.majorStars;
+  if (!first) return { palace, star: null, second: null, borrowed: false, borrowedFrom: null };
+  return {
+    palace,
+    star: first.name,
+    second: second?.name ?? null,
+    borrowed,
+    borrowedFrom: borrowed ? source.name : null,
+    brightness: first.brightness ?? '',
+    transformation: first.transformation ? String(first.transformation).replace(/^化/, '') : '',
+  };
+}
+
+/** 這一題的答案:由主星決定,雙主星時第二顆作為補充 */
+function starAnswerFor(contract, resolved) {
+  const table = STAR_ANSWERS[contract.id];
+  if (!table || !resolved?.star) return { main: '', extra: '' };
+  return {
+    main: table[resolved.star] ?? '',
+    extra: resolved.second ? (table[resolved.second] ?? '') : '',
+  };
+}
+
+/**
+ * 命盤依據:真正的盤面事實,不是「XX宮的主要訊號」這種對誰都成立的佔位字串。
+ * 使用者展開這一區是想知道「這個答案是從命盤哪裡來的」,所以列的是宮位、星曜、
+ * 亮度、生年四化與借星狀態,每一項都可以回到命盤上核對。
+ */
+export function buildChartBasis(contract, ziWei, resolved) {
+  if (!resolved?.palace) return [];
+  const rows = [];
+  const { palace, star, second, borrowed, borrowedFrom, brightness, transformation } = resolved;
+  rows.push({ label: '對應宮位', detail: `${palace.name}（${palace.position}）` });
+  if (!star) {
+    rows.push({ label: '主星', detail: '本宮與對宮都沒有十四主星，這一題的判斷可用資料較少' });
+    return rows;
+  }
+  rows.push({
+    label: borrowed ? '借對宮主星' : '本宮主星',
+    detail: borrowed
+      ? `${palace.name}無主星，借對宮${borrowedFrom}的${[star, second].filter(Boolean).join('、')}參看`
+      : `${[star, second].filter(Boolean).join('、')}${brightness ? `（${star}亮度${brightness}）` : ''}`,
+  });
+  if (transformation) {
+    rows.push({ label: '生年四化', detail: `${star}帶生年化${transformation}，這個傾向一輩子都在` });
+  }
+  const minor = (palace.minorStars ?? []).slice(0, 4).map((item) => String(item).replace(/[(（].*$/, ''));
+  if (minor.length) rows.push({ label: '同宮輔星煞曜', detail: minor.join('、') });
+  return rows;
+}
+
 export function extractTopicEvidence({ contract, ziWei, ziweiCard, baziCards = [] }) {
   if (!contract) return [];
   const palace = ziWei?.palaces?.find((item) => contract.allowedPalaces.includes(item.name));
@@ -163,7 +241,7 @@ function actionText(selected, contract) {
 }
 
 function directAnswerText(contract, directBase, summaryCandidate) {
-  // 「常遇到什麼對象」要直接描述對方，不把內部 answerTarget 或自己的反應繞寫進正文。
+  // 這是備援路徑:主星答案庫沒有涵蓋到的情況(例如本宮與對宮都無主星)才會走到這裡。
   if (contract.id === 'love.partner-pattern') {
     let partner = clean(summaryCandidate || directBase).split('。')[0];
     // 宮位卡前半句有時是觸發條件或雙星組合說明；冒號後才是可讀的關係特質。
@@ -174,7 +252,7 @@ function directAnswerText(contract, directBase, summaryCandidate) {
   return `${contract.answerTargets[0]}：${completeSentence(directBase)}`;
 }
 
-function buildSchemas(contract, selected, insufficient) {
+function buildSchemas(contract, selected, insufficient, resolved = null) {
   const summaryCandidate = selected.find((item) => item.kind === 'summary')?.interpretation ?? '';
   const preferredKind = DIRECT_KIND_BY_QUESTION[contract.questionIndex] ?? 'summary';
   const preferredCandidate = (selected.find((item) => item.kind === preferredKind && item.sourceType.startsWith('ziwei_'))
@@ -185,7 +263,15 @@ function buildSchemas(contract, selected, insufficient) {
     directBase = selected.map((item) => item.interpretation)
       .find((item) => compactLength(item) <= 100) ?? directBase;
   }
-  const direct = directAnswerText(contract, directBase, summaryCandidate);
+  // 主星答案庫是這一題的正解來源:它是照著題目寫的，會扣題。
+  // 宮位白話卡只是備援——那套內容是為「宮位」寫的，不是為「這一題」寫的，
+  // 用它回答「什麼樣的居住環境適合我」就會答成主星的通用性格。
+  const fromStars = starAnswerFor(contract, resolved);
+  // 「我常遇到什麼類型的對象」沿用既有的開場：這一題問的是對方，加上這句前綴才不會被誤讀成在講自己。
+  const starDirect = fromStars.main && contract.id === 'love.partner-pattern'
+    ? `你常遇到的類型是：${clean(fromStars.main)}。`
+    : fromStars.main && completeSentence(fromStars.main);
+  const direct = starDirect || directAnswerText(contract, directBase, summaryCandidate);
   const lifeTexts = distinctTexts(selected.filter((item) => item.kind === 'life').map((item) => item.interpretation), 3);
   const challengeCandidate = selected.find((item) => item.kind === 'challenge')?.interpretation ?? '';
   const scenario = lifeTexts.find((item) => similarityScore(item, direct) < 0.72)
@@ -198,8 +284,11 @@ function buildSchemas(contract, selected, insufficient) {
   const action = actionText(selected, contract);
   const prefix = insufficient ? '這部分可使用的命盤訊號較少，目前較能確認的是：' : '';
   const conclusion = `${prefix}${direct}`;
-  const reasons = distinctTexts(selected.map((item) => item.interpretation)
-    .filter((text) => text !== directBase && text !== scenario && text !== action), 2);
+  // 雙主星時，第二顆星的答案作為補充；沒有雙主星才回頭用宮位卡的句子。
+  const reasons = fromStars.extra
+    ? distinctTexts([fromStars.extra], 1)
+    : distinctTexts(selected.map((item) => item.interpretation)
+      .filter((text) => text !== directBase && text !== scenario && text !== action), 2);
   const strength = '';
 
   return {
@@ -257,8 +346,12 @@ export function validateTopicReport(report, contract) {
   }
   if (!report.directAnswer.answer) issues.push('缺少直接答案');
   if (/較明顯的方向是|這項傾向運用得宜|需要的判斷與安排/.test(report.directAnswer.answer)) issues.push('直接答案使用抽象模板');
-  if (!report.directAnswer.scenario) issues.push('缺少具體情境');
-  if (!(report.directAnswer.actions ?? []).length) issues.push('缺少可執行做法');
+  // 情境與做法是舊管線(宮位白話卡)的補充欄位。主星答案庫的內容本身就寫成具體情境，
+  // 不必再硬湊一段，因此只有在沒有主星答案可用時才要求這兩欄。
+  if (!report.resolvedStar?.star) {
+    if (!report.directAnswer.scenario) issues.push('缺少具體情境');
+    if (!(report.directAnswer.actions ?? []).length) issues.push('缺少可執行做法');
+  }
   if (compactLength(publicText) > contract.wordBudget.topicAnalysis + contract.wordBudget.directAnswer) issues.push('公開文字超過總字數預算');
 
   const sections = [
@@ -280,6 +373,7 @@ export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [] })
   if (!contract) throw new TypeError('buildTopicReport 需要 Topic Contract');
   const candidates = extractTopicEvidence({ contract, ziWei, ziweiCard, baziCards });
   const selectedEvidence = selectTopicEvidence(contract, candidates);
+  const resolved = resolveTopicStar(contract, ziWei);
   const insufficient = contract.requiredTargets.some((target) =>
     !selectedEvidence.some((item) => item.supportedTarget === target));
   const report = {
@@ -289,10 +383,21 @@ export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [] })
     questionIndex: contract.questionIndex,
     selectedEvidence,
     insufficient,
-    ...buildSchemas(contract, selectedEvidence, insufficient),
+    resolvedStar: resolved,
+    chartBasis: buildChartBasis(contract, ziWei, resolved),
+    ...buildSchemas(contract, selectedEvidence, insufficient, resolved),
   };
   report.validationIssues = validateTopicReport(report, contract);
-  if (report.validationIssues.length) {
+  // 有主星答案時不套用整段抹除的備援:那份答案是照著題目寫的，本身就是最扣題的內容。
+  // 這時的 validationIssues 多半來自舊管線的補充欄位(情境、做法)沒湊齊，
+  // 不該因此把已經正確的答案換成「訊號較少」的罐頭句。
+  if (report.validationIssues.length && starAnswerFor(contract, resolved).main) {
+    report.topicAnalysis.manifestations = [];
+    report.topicAnalysis.cost = '';
+    report.directAnswer.reasons = report.directAnswer.reasons.filter(Boolean);
+    report.validationIssues = validateTopicReport(report, contract);
+  }
+  if (report.validationIssues.length && !starAnswerFor(contract, resolved).main) {
     const safeAnswer = `這部分可使用的命盤訊號較少，目前還不足以完整回答「${contract.questionFocus}」。`;
     report.fallbackApplied = true;
     report.insufficient = true;
