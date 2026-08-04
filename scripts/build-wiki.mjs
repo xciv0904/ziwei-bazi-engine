@@ -20,10 +20,6 @@ const branchRelDb = await json('branch-interactions-analysis.json');
 const { starMeanings } = await import('../src/data/star-meanings.js');
 const { palaceMeanings } = await import('../src/data/palace-meanings.js');
 const { PLAIN_SHENSHA } = await import('../src/engines/compose-shensha.js');
-const commonCombos = await json('common-combinations.json');
-const { convertToZiWei } = await import('../src/engines/ziwei.js');
-const { convertToBaZi } = await import('../src/engines/bazi.js');
-const { generateZiweiComprehensiveReading, generateBaziComprehensiveReading } = await import('../src/engines/comprehensive.js');
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -85,8 +81,10 @@ function emit(term, category, desc, bodyHtml, related) {
 const starNames = Object.keys(starMeanings);
 for (const star of starNames) {
   const m = starMeanings[star];
-  // 反查：這顆星有沒有出現在「常見命盤組合」文章裡，有的話互相連結（增加站內連結密度）
-  const relatedCombos = Object.keys(commonCombos).filter((term) => commonCombos[term].stars.includes(star));
+  // 反查這顆星參與了哪幾組雙星同宮，互相連結（增加站內連結密度）
+  const relatedCombos = Object.keys(doubleStarDb['雙主星組合'])
+    .filter((k) => k.split('+').includes(star))
+    .map((k) => `${k.split('+')[0]}${k.split('+')[1]}同宮`);
   const body = [
     para('核心特質', `${m.core}。關鍵詞：${m.keywords.join('、')}。`),
     '<h2>在十二宮的表現</h2>',
@@ -96,7 +94,7 @@ for (const star of starNames) {
       .filter(([k]) => k.includes(star))
       .map(([k, v]) => para(k.replace('+', '・'), v)),
     relatedCombos.length
-      ? `<h2>延伸閱讀：相關命盤組合</h2><div class="rel">${relatedCombos.map((t) => `<a href="./${encodeURIComponent(t)}.html">${esc(t)}</a>`).join('')}</div>`
+      ? `<h2>延伸閱讀：這顆星的雙星組合</h2><div class="rel">${relatedCombos.map((t) => `<a href="./${encodeURIComponent(t)}.html">${esc(t)}</a>`).join('')}</div>`
       : '',
   ].join('');
   emit(star, '紫微斗數・十四主星', `紫微斗數${star}星：${m.core}`, body, starNames.filter((s) => s !== star).slice(0, 8));
@@ -147,58 +145,32 @@ for (const r of relNames) {
   emit(r, '八字・地支關係', `地支${r}是什麼意思：${branchRelDb['關係類型解讀'][r]}`, body, relNames.filter((x) => x !== r));
 }
 
-// 6. 常見命盤組合（殺破狼/機月同梁等固定結構格局，以及紫府/武貪等同宮組合）
-// 內容全部組裝自既有的 star-meanings / double-star-combinations 資料庫，不新增未經驗證的命理主張，
-// 只是換一個「以組合為主角」的角度重新呈現，同時大量互相連結既有的星曜/其他組合頁面。
-const comboNames = Object.keys(commonCombos);
-for (const term of comboNames) {
-  const c = commonCombos[term];
-  const pairText = c.stars.length === 2
-    ? (doubleStarDb['雙主星組合'][`${c.stars[0]}+${c.stars[1]}`] ?? doubleStarDb['雙主星組合'][`${c.stars[1]}+${c.stars[0]}`])
-    : null;
+// 6. 雙星組合（23 組）
+// 原本這裡是「常見命盤組合」與「示範案例解讀」，但使用者反映點進去看不懂：
+// 前者混了殺破狼這類三方結構格局與紫府這類同宮組合，兩種東西放在一起講；
+// 後者是整段引擎輸出的節錄，沒有前後脈絡，讀起來像別人的報告。
+// 改成單純的雙星組合介紹：紫微斗數的雙星同宮只有固定的 23 種，
+// 這是使用者在自己命盤上真的會看到、也真的需要查的東西。
+const doubleCombos = doubleStarDb['雙主星組合'];
+const doubleNames = Object.keys(doubleCombos);
+for (const key of doubleNames) {
+  const [a, b] = key.split('+');
+  const term = `${a}${b}同宮`;
   const body = [
-    para(c.aka ? `又稱「${c.aka}」` : '', c.intro),
-    '<h2>組成星曜</h2>',
-    ...c.stars.map((s) => para(s, `${starMeanings[s].core}。關鍵詞：${starMeanings[s].keywords.join('、')}。`)),
-    pairText ? `<h2>同宮時的整體解讀</h2>${para('', pairText)}` : '',
-    `<h2>想知道自己的命盤是不是這個組合?</h2>${para('', '每個人的命宮星曜組合都不一樣，直接排一次自己的命盤最準——免費線上排盤，馬上看到你的十二宮與主星落點。')}`,
+    para('一句話理解', doubleCombos[key]),
+    `<h2>兩顆星各自是什麼</h2>`,
+    para(a, `${starMeanings[a].core}。關鍵詞：${starMeanings[a].keywords.join('、')}。`),
+    para(b, `${starMeanings[b].core}。關鍵詞：${starMeanings[b].keywords.join('、')}。`),
+    '<h2>怎麼讀雙星</h2>',
+    para('', '兩顆十四主星同坐一宮，要當成一個新的組合來讀，不是把兩顆星的特質相加。'),
+    para('', '兩顆星常常一個主導、一個修飾：先看哪一顆入廟或帶生年四化，那顆多半主導；再看另一顆把它往哪個方向調整。'),
+    para('常見的誤讀', '把兩顆星的優點都算上、缺點都跳過。實際上雙星多半是一種取捨：得到某種能力，同時也帶著相應的代價。'),
+    '<h2>接下來看什麼</h2>',
+    para('', '三合派的判讀順序是：主星 → 廟旺利陷 → 雙星組合 → 生年四化 → 六吉六煞 → 雜曜。雙星讀完之後，再往下看這一宮有沒有四化、有沒有吉星煞星同宮。'),
+    `<div class="cta-wrap"><a class="cta" href="../">排一次自己的命盤，看看這組雙星落在你的哪一宮 →</a></div>`,
   ].join('');
-  emit(term, '紫微斗數・常見命盤組合', `${term}${c.aka ? `(${c.aka})` : ''}是什麼：${c.intro.slice(0, 80)}`,
-    body, [...c.stars, ...comboNames.filter((t) => t !== term)]);
-}
-
-// 7. 示範案例解讀：實際餵兩組示範生辰資料進排盤引擎，展示「解讀報告」與「命盤解析」節錄長什麼樣子。
-// 明確標示為示範命盤、非真實委託人資料，内容也全部來自引擎真實輸出，不手寫杜撰解讀文字。
-const demoCases = [
-  {
-    term: '示範案例・紫微天府坐命的命盤解讀',
-    input: { year: 1975, month: 3, day: 21, hour: 2, gender: 'female' },
-    combo: '紫微天府同宮',
-  },
-  {
-    term: '示範案例・天同坐命的命盤解讀（機月同梁格）',
-    input: { year: 1980, month: 1, day: 5, hour: 1, gender: 'female' },
-    combo: '機月同梁格',
-  },
-];
-for (const dc of demoCases) {
-  const zw = convertToZiWei(dc.input);
-  const bz = convertToBaZi(dc.input);
-  const zwReading = generateZiweiComprehensiveReading(zw);
-  const bzReading = generateBaziComprehensiveReading(bz);
-  const lifeStars = zw.palaces.find((p) => p.name === '命宮').majorStars.map((s) => s.name);
-  const body = [
-    para('', `以下是一張示範命盤（以固定的示範生辰資料產生，非真實委託人資料），用來展示「解讀報告」與「命盤解析」實際會呈現的內容。這張盤的命宮主星是${lifeStars.join('、')},出生於${dc.input.year}年${dc.input.month}月${dc.input.day}日。`),
-    '<h2>紫微綜合解讀（節錄）</h2>',
-    para(zwReading.sections[0].title, zwReading.sections[0].text),
-    para(zwReading.sections[1].title, zwReading.sections[1].text),
-    '<h2>八字綜合解讀（節錄）</h2>',
-    para(bzReading.sections[0].title, bzReading.sections[0].text),
-    `<h2>相關命盤組合</h2><div class="rel"><a href="./${encodeURIComponent(dc.combo)}.html">${esc(dc.combo)}</a>${lifeStars.map((s) => `<a href="./${encodeURIComponent(s)}.html">${esc(s)}</a>`).join('')}</div>`,
-  ].join('');
-  emit(dc.term, '紫微斗數・案例解讀',
-    `示範命盤解讀案例：命宮${lifeStars.join('、')},完整紫微+八字解讀報告節錄（非真實委託人資料）`,
-    body, [dc.combo, ...lifeStars]);
+  emit(term, '紫微斗數・雙星組合', `${a}${b}同宮是什麼：${doubleCombos[key]}`,
+    body, [a, b, ...doubleNames.filter((k) => k !== key).map((k) => `${k.split('+')[0]}${k.split('+')[1]}同宮`).slice(0, 8)]);
 }
 
 // 8. 輔星、煞曜、雜曜、四組十二神與四化
@@ -234,20 +206,89 @@ for (const [term, item] of Object.entries(glossaryEntries)) {
 }
 
 // ---------- 索引頁 ----------
+// 拆成三個入口，理由是使用者反映混在一起難以判讀：
+//   1. 紫微斗數與八字是兩套完全不同的系統，星曜名稱還會撞名（七殺、咸池、華蓋），
+//      放同一份清單會讓人以為是同一個東西。
+//   2. 紫微內部又分三合派（南派）與飛星派（北派）：兩派看同一張盤的方法不同，
+//      自化、飛化、來因宮只有北派在用。分開放，學哪一派就看哪一區。
+const CATEGORY_GROUPS = [
+  {
+    slug: 'ziwei-south',
+    title: '紫微斗數・三合派（南派）',
+    lead: '三合派用數十至上百顆星，判斷重點是星曜的廟旺利陷、三方四正的會照、格局是否成立，以及出生年天干決定的生年四化。本站的解讀文案以這一派為主體。',
+    order: ['紫微斗數・十四主星', '紫微斗數・雙星組合', '紫微斗數・十二宮位', '紫微斗數・六吉星',
+      '紫微斗數・六煞星', '紫微斗數・財祿與驛馬', '紫微斗數・空亡類', '紫微斗數・雜曜',
+      '紫微斗數・博士十二神', '紫微斗數・將前十二神', '紫微斗數・歲前十二神',
+      '紫微斗數・長生十二神', '紫微斗數・四化'],
+  },
+  {
+    slug: 'ziwei-north',
+    title: '紫微斗數・飛星派（北派）',
+    lead: '飛星派只用約十八顆星，核心是四化飛星：每個宮位用自己的宮干再引動一組四化，藉此追蹤事情的起因、過程與結果。三合派並不使用這一套，兩者請分開理解。',
+    order: ['紫微斗數・飛星派補充'],
+  },
+  {
+    slug: 'bazi',
+    title: '八字',
+    lead: '八字與紫微斗數是兩套獨立的系統，判斷方式與名詞都不相通。少數名詞會與紫微撞名（例如七殺、咸池、華蓋），指的是不同的東西。',
+    order: ['八字・十神', '八字・神煞', '八字・地支關係'],
+  },
+];
+
 const byCat = {};
 for (const e of entries) (byCat[e.category] ??= []).push(e.term);
-const indexBody = Object.entries(byCat).map(([cat, terms]) => `
-  <h2>${esc(cat)}(${terms.length})</h2>
-  <ul class="idx">${terms.map((t) => `<li><a href="./${encodeURIComponent(t)}.html">${esc(t)}</a></li>`).join('')}</ul>`).join('');
+
+const catListHtml = (cats) => cats.filter((cat) => byCat[cat]?.length).map((cat) => `
+  <h2>${esc(cat.split('・').at(-1))}（${byCat[cat].length}）</h2>
+  <ul class="idx">${byCat[cat].map((t) => `<li><a href="./${encodeURIComponent(t)}.html">${esc(t)}</a></li>`).join('')}</ul>`).join('');
+
+// 每個分區各自一頁
+for (const group of CATEGORY_GROUPS) {
+  const count = group.order.reduce((sum, cat) => sum + (byCat[cat]?.length ?? 0), 0);
+  const others = CATEGORY_GROUPS.filter((g) => g.slug !== group.slug);
+  const body = [
+    `<div class="card">${esc(group.lead)}</div>`,
+    catListHtml(group.order),
+    `<h2>其他分區</h2><div class="rel">${others.map((g) => `<a href="./${g.slug}.html">${esc(g.title)}</a>`).join('')}</div>`,
+  ].join('');
+  writeFileSync(join(outDir, `${group.slug}.html`), page({
+    title: group.title,
+    category: '命理小百科',
+    desc: `${group.title}詞條總覽，共 ${count} 條。${group.lead.slice(0, 60)}`,
+    bodyHtml: body,
+  }));
+}
+
+// 總入口：只放三個分區的說明與連結，不再把所有詞條倒在同一頁
+const indexBody = [
+  '<div class="card">這裡收錄紫微斗數與八字的名詞解釋。兩套系統的判斷方式與名詞並不相通，所以分開放；紫微斗數內部再依三合派與飛星派分成兩區，避免把兩派的方法混著學。</div>',
+  ...CATEGORY_GROUPS.map((group) => {
+    const count = group.order.reduce((sum, cat) => sum + (byCat[cat]?.length ?? 0), 0);
+    return `<h2><a href="./${group.slug}.html">${esc(group.title)}</a>（${count} 條）</h2>
+      <div class="card">${esc(group.lead)}</div>
+      <ul class="idx">${group.order.filter((cat) => byCat[cat]?.length)
+    .map((cat) => `<li><a href="./${group.slug}.html">${esc(cat.split('・').at(-1))}（${byCat[cat].length}）</a></li>`).join('')}</ul>`;
+  }),
+].join('');
 writeFileSync(join(outDir, 'index.html'), page({
   title: '命理小百科',
   category: '紫微斗數與八字名詞完整詞典',
-  desc: '十四主星、十二宮位、八字十神、神煞、地支關係的白話解釋詞典，共收錄' + entries.length + '個詞條。',
+  desc: `紫微斗數與八字的白話解釋詞典，依系統與派別分區，共收錄 ${entries.length} 個詞條。`,
   bodyHtml: indexBody,
 }));
 
+// 未歸入任何分區的類別要及早發現，否則新增分類後詞條會在索引上消失
+const grouped = new Set(CATEGORY_GROUPS.flatMap((g) => g.order));
+const ungrouped = Object.keys(byCat).filter((cat) => !grouped.has(cat));
+if (ungrouped.length) {
+  console.error(`⚠ 有分類沒有歸入任何分區，索引頁上看不到：${ungrouped.join('、')}`);
+  process.exitCode = 1;
+}
+
 // ---------- sitemap / robots ----------
-const urls = [SITE, `${SITE}wiki/`, ...entries.map((e) => `${SITE}wiki/${encodeURIComponent(e.term)}.html`)];
+const urls = [SITE, `${SITE}wiki/`,
+  ...CATEGORY_GROUPS.map((g) => `${SITE}wiki/${g.slug}.html`),
+  ...entries.map((e) => `${SITE}wiki/${encodeURIComponent(e.term)}.html`)];
 writeFileSync(join(root, 'public', 'sitemap.xml'),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join('\n')}\n</urlset>\n`);
 writeFileSync(join(root, 'public', 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE}sitemap.xml\n`);

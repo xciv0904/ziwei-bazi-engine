@@ -675,7 +675,11 @@ function renderZiWeiCard() {
   const cells = ziWei.palaces.map((p) => {
     const branch = p.position[1];
     const pos = LAYOUT_POSITIONS[branch];
-    const stars = p.majorStars.map((s) => s.name + (s.transformation ? `<sup title="生年化${s.transformation}：${esc(lookupTransformation(s.transformation) ?? '')}">${s.transformation}</sup>` : '')).join('');
+    // 星名可點：跳到命理小百科的對應詞條。
+    // 宮格本身是 <button>（點了選宮位），HTML 不允許在 button 裡放 <a>，
+    // 所以這裡用 span 帶 data-wiki，由委派事件處理跳轉並擋掉冒泡，避免順便換了宮位。
+    const stars = p.majorStars.map((s) => `<span class="star-link" data-wiki="${esc(s.name)}" title="點擊查看「${esc(s.name)}」的說明">${esc(s.name)}</span>`
+      + (s.transformation ? `<sup title="生年化${s.transformation}：${esc(lookupTransformation(s.transformation) ?? '')}">${s.transformation}</sup>` : '')).join('');
     const cls = [
       'palace-cell',
       p.name === '命宮' ? 'self' : '',
@@ -708,7 +712,7 @@ function renderZiWeiCard() {
         <div class="c-meta">命主：${esc(state.data.ziWei.lifeMaster)}　身主：${esc(state.data.ziWei.bodyMaster)}<br>${esc(state.data.ziWei.fiveElementBureau)}</div>
       </div>
     </div></div>
-    <div class="chart-legend">限＝所選大限宮位　年＝${year} 流年命宮　祿權科忌＝${year} 流年四化落點　虛線框＝所選宮位的三方四正</div>
+    <div class="chart-legend">限＝所選大限宮位　年＝${year} 流年命宮　祿權科忌＝${year} 流年四化落點　虛線框＝所選宮位的三方四正<br>點宮格可切換宮位；點<span class="star-link" style="pointer-events:none">星名</span>會另開命理小百科的說明。</div>
   </div>`;
 }
 
@@ -838,27 +842,102 @@ function learningFactRow(label, value) {
   return `<div class="learn-fact"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
 }
 
+/**
+ * 命理小百科的詞條網址。
+ *
+ * 小百科是 build 時產生的靜態頁（public/wiki/星名.html），vite 的 base 設為相對路徑，
+ * 所以 './wiki/…' 在開發模式與 GitHub Pages 都指得到。命盤上會顯示的每一顆星
+ * 都保證有對應頁面（見 tests/star-glossary.mjs 的覆蓋率檢查），可以直接連。
+ * 例外是單檔離線版（file://）沒有 wiki 目錄，那個模式本來就只提供排盤本體。
+ */
+const wikiUrl = (term) => `./wiki/${encodeURIComponent(term)}.html`;
+
+/**
+ * 可點開的星名：滑過看定義、點擊跳到小百科完整詞條。
+ * 手機沒有 hover，所以點擊直接進詞條頁，不必先看 tooltip。
+ */
+function starChip(item) {
+  const label = item.label ?? item.name;
+  const tip = item.glossary ? `${item.glossary.core}。${item.glossary.plain}` : `查看${item.name}的完整說明`;
+  return `<a class="star-chip has-def" href="${esc(wikiUrl(item.name))}" target="_blank" rel="noopener"
+    title="${esc(tip)}">${esc(label)}<span aria-hidden="true">↗</span></a>`;
+}
+
 function learningStepSelfHtml(data) {
   const marks = [
     data.isBodyPalace ? '身宮' : '',
     data.isLaiyin ? '來因宮' : '',
     data.isEmpty ? '空宮' : '',
   ].filter(Boolean).join('、');
+
+  // 判讀順序放在最前面：初學者最常見的問題不是不認識星，而是不知道先看哪一個。
+  const orderHtml = `<div class="learn-note learn-order"><b>三合派的判讀順序</b>
+    <ol>${data.readingOrder.map((o) => `<li><b>${esc(o.label)}</b>${esc(o.why)}</li>`).join('')}</ol>
+    <p class="learn-hint">下面就照這個順序排。看到煞星先別緊張，它排在第五層。</p></div>`;
+
+  // 第三層：雙星結構
+  const ds = data.doubleStar ?? {};
+  const doubleHtml = ds.combined ? `<div class="learn-layer">
+      <b class="learn-layer-title">③ 雙星結構：${esc(ds.pair)}</b>
+      <p class="learn-layer-lead">${esc(ds.combined)}</p>
+      <div class="learn-note"><b>怎麼讀雙星</b><p>${esc(ds.what)}</p><p>${esc(ds.how)}</p>
+        ${ds.lead ? `<p>這一組裡<b>${esc(ds.lead)}</b>的性質較強（入廟或帶生年四化），多半由它主導，另一顆負責修飾方向。</p>` : ''}
+        <p class="learn-caution">${esc(ds.caution)}</p></div>
+    </div>` : `<div class="learn-layer">
+      <b class="learn-layer-title">③ 雙星結構</b>
+      <p class="learn-layer-lead">${esc(ds.single ?? '這一宮沒有兩顆主星同宮。')}</p>
+    </div>`;
+
+  // 第五層：見吉見煞
+  const auxList = (items, rule, mark) => `<div class="learn-layer">
+      <b class="learn-layer-title">${mark}</b>
+      ${items.length
+    ? `<ul class="learn-star-list">${items.map((i) => `<li>${starChip(i)}<span>${esc(i.effect)}</span></li>`).join('')}</ul>`
+    : '<p class="learn-empty">這一宮沒有。</p>'}
+      <div class="learn-note"><b>${esc(rule.headline)}</b><p>${esc(rule.body)}</p>
+        <p><b>三合派：</b>${esc(rule.southern)}</p>
+        <p class="learn-caution">${esc(rule.caution)}</p></div>
+    </div>`;
+
+  // 第六層：雜曜
+  const minorHtml = `<div class="learn-layer">
+      <b class="learn-layer-title">⑥ 雜曜</b>
+      ${data.otherDetail.length
+    ? `<div class="learn-star-chips">${data.otherDetail.map(starChip).join('')}</div>`
+    : '<p class="learn-empty">這一宮沒有雜曜。</p>'}
+      <div class="learn-note"><b>${esc(data.minorStarRule.headline)}</b><p>${esc(data.minorStarRule.body)}</p>
+        <ul>${data.minorStarRule.when.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
+        <p class="learn-caution">${esc(data.minorStarRule.caution)}</p></div>
+    </div>`;
+
   return `
+    ${orderHtml}
     ${learningFactRow('宮位主題', data.topic)}
     ${learningFactRow('宮干地支', data.position)}
-    ${learningFactRow('主星', data.majorStars.join('、') || '無主星')}
-    ${learningFactRow('輔星（六吉）', data.auspiciousStars.join('、') || '無')}
-    ${learningFactRow('煞曜（六煞）', data.maleficStars.join('、') || '無')}
-    ${learningFactRow('其他雜曜', data.otherStars.join('、') || '無')}
-    ${learningFactRow('生年四化', data.birthMutagens.map((f) => `${f.star}化${f.mutagen}`).join('、') || '此宮沒有生年四化')}
-    ${learningFactRow('自化', [
-      ...data.selfMutagens.outgoing.map((x) => `${x}（離心↓）`),
-      ...data.selfMutagens.incoming.map((x) => `${x}（向心↑）`),
-    ].join('、') || '此宮沒有自化')}
     ${learningFactRow('特殊標記', marks || '無')}
-    ${data.brightnessNotes.length ? `<div class="learn-note"><b>廟旺利陷</b><ul>${data.brightnessNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
-    ${data.majorStarFunctions.length ? `<div class="learn-note"><b>主星功能</b><ul>${data.majorStarFunctions.map((s) => `<li>${esc(s.name)}：${esc(s.core)}</li>`).join('')}</ul></div>` : ''}`;
+
+    <div class="learn-layer">
+      <b class="learn-layer-title">①② 主星與廟旺</b>
+      ${data.majorStarFunctions.length
+    ? `<ul class="learn-star-list">${data.majorStarFunctions.map((s) => `<li>${starChip(s)}<span><b>${esc(s.core)}</b>${s.brightnessNote ? `　在${esc(data.branch)}為「${esc(s.brightness)}」：${esc(s.brightnessNote)}` : ''}</span></li>`).join('')}</ul>`
+    : '<p class="learn-empty">這一宮沒有十四主星（空宮），主星要借對宮參看，見下方空宮提示。</p>'}
+    </div>
+
+    ${doubleHtml}
+
+    <div class="learn-layer">
+      <b class="learn-layer-title">④ 生年四化與自化</b>
+      ${learningFactRow('生年四化', data.birthMutagens.map((f) => `${f.star}化${f.mutagen}`).join('、') || '此宮沒有生年四化')}
+      ${learningFactRow('自化', [
+    ...data.selfMutagens.outgoing.map((x) => `${x}（離心↓）`),
+    ...data.selfMutagens.incoming.map((x) => `${x}（向心↑）`),
+  ].join('、') || '此宮沒有自化')}
+      <p class="learn-hint">完整的四化分層與飛化落點在第四步。</p>
+    </div>
+
+    ${auxList(data.auspiciousDetail, data.auspiciousRule, '⑤a 見吉（六吉星）')}
+    ${auxList(data.maleficDetail, data.maleficRule, '⑤b 見煞（六煞星）')}
+    ${minorHtml}`;
 }
 
 function learningStepOppositeHtml(data) {
@@ -1078,6 +1157,10 @@ function bindLearningPanel() {
   // 名詞小百科：桌面版用 title 顯示，手機沒有 hover,點一下用 toast 顯示同一段說明
   $$('#view-dashboard [data-glossary]').forEach((btn) =>
     btn.addEventListener('click', () => toast(`${btn.dataset.glossary}：${btn.title}`)));
+
+  // 星曜就地查詢：命盤上看到的每一顆星都能點開看定義，不必離開頁面去翻小百科
+  $$('#view-dashboard [data-star-def]').forEach((btn) =>
+    btn.addEventListener('click', () => toast(`${btn.dataset.starDef}：${btn.title}`)));
 }
 
 /**
@@ -2757,6 +2840,15 @@ function setupControls() {
   // 命盤上的符號（限/年/祿權科忌小標記、・身）原本只靠 title 屬性做 hover 提示，手機沒有 hover 等於看不到說明——
   // 綁一個委派點擊事件，點到這些符號時直接用 toast 顯示同樣的文字，桌面版 hover 仍然保留，手機版多了點擊也能看
   $('#view-dashboard').addEventListener('click', (e) => {
+    // 點命盤上的星名 → 開小百科詞條。要擋掉冒泡，否則會連帶把該宮位選起來，
+    // 使用者只是想查一顆星，畫面卻整個換宮位。
+    const starLink = e.target.closest('.star-link[data-wiki]');
+    if (starLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(wikiUrl(starLink.dataset.wiki), '_blank', 'noopener');
+      return;
+    }
     const marker = e.target.closest('.luck-tag, .flow-mut, .body-mark, sup[title]');
     if (marker?.title) toast(marker.title);
   });

@@ -11,20 +11,49 @@
 //      措辭一律用「可能、較容易、可理解為」,不寫成確定會發生的事。
 //   3. 不寫死任何一張命盤的答案。星名、宮名、四化落點全部從傳入的 ziWei 取得。
 
+import doubleStarDb from '../data/double-star-combinations.json' with { type: 'json' };
+import starGlossary from '../data/star-glossary.json' with { type: 'json' };
 import {
+  AUSPICIOUS_EFFECT,
   AUSPICIOUS_MINOR,
+  AUSPICIOUS_RULE,
   BRIGHTNESS_NOTE,
+  DOUBLE_STAR_TEACHING,
   EMPTY_PALACE_GUIDE,
   GLOSSARY,
   LESSON_STEPS,
+  MALEFIC_EFFECT,
   MALEFIC_MINOR,
+  MALEFIC_RULE,
+  MINOR_STAR_RULE,
   MUTAGEN_BASICS,
   MUTAGEN_CAUTION,
   MUTAGEN_LAYERS,
   PALACE_AXES,
+  READING_ORDER,
   SELF_MUTAGEN_NOTE,
   TRIAD_NOTE,
 } from '../data/learning-mode.js';
+
+const DOUBLE_STAR_COMBOS = doubleStarDb['雙主星組合'];
+const STAR_GLOSSARY = starGlossary['詞條'];
+
+/**
+ * 雙主星組合說明。兩種順序都試——資料庫的鍵值只收一種寫法，
+ * 但命盤上兩顆星的排列順序不固定（與 compose.js lookupCombo 同一套做法）。
+ */
+function lookupDoubleStar(starNames) {
+  if (starNames.length !== 2) return null;
+  const [a, b] = starNames;
+  return DOUBLE_STAR_COMBOS[`${a}+${b}`] ?? DOUBLE_STAR_COMBOS[`${b}+${a}`] ?? null;
+}
+
+/** 單顆星的小百科定義：讓使用者在命盤上點到就看得到，不必離開頁面去查 */
+function glossaryOf(name) {
+  const entry = STAR_GLOSSARY[name];
+  if (!entry) return null;
+  return { name, category: entry['類別'], core: entry['核心'], plain: entry['白話'] };
+}
 import { palaceMeanings } from '../data/palace-meanings.js';
 import { starMeanings } from '../data/star-meanings.js';
 import { computeLaiyinPalace, computeSelfTransformations, flyingOfStem } from './compose-annual.js';
@@ -164,6 +193,35 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
     .filter((s) => s.brightness && BRIGHTNESS_NOTE[s.brightness])
     .map((s) => `${s.name}在${branch}為「${s.brightness}」：${BRIGHTNESS_NOTE[s.brightness]}`);
   const birthMutagens = birthMutagensOf(palace);
+  // ---- 判讀四層:雙星結構 / 見吉 / 見煞 / 雜曜 ----
+  // 這四層原本只列星名，使用者看得到卻學不到「怎麼用」。
+  // 現在各自帶上作用說明與判斷規則，並照三合派的判讀順序排列。
+  const selfStarNames = (palace.majorStars ?? []).map((s) => s.name);
+  const doubleStar = selfStarNames.length === 2
+    ? {
+      pair: selfStarNames.join('、'),
+      combined: lookupDoubleStar(selfStarNames),
+      ...DOUBLE_STAR_TEACHING,
+      // 入廟或帶生年四化的那一顆，通常是這組合裡的主導
+      lead: (palace.majorStars.find((s) => s.transformation)
+        ?? palace.majorStars.find((s) => ['廟', '旺'].includes(s.brightness))
+        ?? palace.majorStars[0])?.name ?? null,
+    }
+    : { pair: selfStarNames.join('、'), combined: null, single: DOUBLE_STAR_TEACHING.single, lead: selfStarNames[0] ?? null };
+
+  const auspiciousDetail = minor.auspicious.map((raw) => {
+    const name = bareStarName(raw);
+    return { name, label: raw, effect: AUSPICIOUS_EFFECT[name] ?? '', glossary: glossaryOf(name) };
+  });
+  const maleficDetail = minor.malefic.map((raw) => {
+    const name = bareStarName(raw);
+    return { name, label: raw, effect: MALEFIC_EFFECT[name] ?? '', glossary: glossaryOf(name) };
+  });
+  const otherDetail = minor.others.map((raw) => {
+    const name = bareStarName(raw);
+    return { name, label: raw, glossary: glossaryOf(name) };
+  });
+
   const stepSelf = {
     id: 'self',
     palaceName,
@@ -171,15 +229,26 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
     position: palace.position,
     stem,
     branch,
+    readingOrder: READING_ORDER,
     majorStars: (palace.majorStars ?? []).map(starLabel),
     majorStarFunctions: (palace.majorStars ?? []).map((s) => ({
       name: s.name,
       core: starMeanings[s.name]?.core ?? '',
       keywords: starMeanings[s.name]?.keywords ?? [],
+      brightness: s.brightness ?? '',
+      brightnessNote: s.brightness ? (BRIGHTNESS_NOTE[s.brightness] ?? '') : '',
+      glossary: glossaryOf(s.name),
     })),
+    doubleStar,
     auspiciousStars: minor.auspicious,
     maleficStars: minor.malefic,
     otherStars: minor.others,
+    auspiciousDetail,
+    maleficDetail,
+    otherDetail,
+    auspiciousRule: AUSPICIOUS_RULE,
+    maleficRule: MALEFIC_RULE,
+    minorStarRule: MINOR_STAR_RULE,
     brightnessNotes,
     birthMutagens,
     selfMutagens: {
@@ -338,6 +407,11 @@ export function buildEvidenceChain({ palaceName, palace, opposite, isEmpty, step
         `${palaceName}坐${star.name}${bright ? `（${bright}）` : ''}${core ? `，這顆星主要在講${core}` : ''}。`));
     }
   }
+  // 雙星要當成一個組合來讀，這是主結構的一部分，不是補充
+  if (stepSelf.doubleStar?.combined) {
+    push(primary, evidenceItem('doublestar', '雙星組合',
+      `${stepSelf.doubleStar.pair}同宮：${stepSelf.doubleStar.combined}`));
+  }
   for (const f of stepMutagen.birth) {
     push(primary, evidenceItem(`birth:${f.star}${f.mutagen}`, '生年四化',
       `${f.star}帶生年化${f.mutagen}坐在${palaceName}，${MUTAGEN_BASICS[f.mutagen]?.plain ?? ''}`));
@@ -366,6 +440,15 @@ export function buildEvidenceChain({ palaceName, palace, opposite, isEmpty, step
         ? `三合的${m.name}見${m.stars.join('、')}，代表這個主題也會出現在${palaceMeanings[m.name] ?? m.name}這個場景。`
         : `三合的${m.name}為空宮，這個方向的表現比較隨環境變動。`));
   }
+  // 六吉六煞改變的是力道與方式，屬於輔助依據——主題仍由主星與四化決定
+  for (const item of stepSelf.auspiciousDetail ?? []) {
+    push(supporting, evidenceItem(`aux:${item.name}`, '六吉星',
+      `同宮見${item.name}：${item.effect}`));
+  }
+  for (const item of stepSelf.maleficDetail ?? []) {
+    push(supporting, evidenceItem(`sha:${item.name}`, '六煞星',
+      `同宮見${item.name}：${item.effect}判斷時要看主星是否入廟——入廟時這股力道會轉成執行力，落陷時才容易變成問題。`));
+  }
   if (stepSelf.isBodyPalace) {
     push(supporting, evidenceItem('body', '身宮', `${palaceName}同時是身宮，中年之後這個領域的感受通常會比年輕時更明顯。`));
   }
@@ -381,8 +464,12 @@ export function buildEvidenceChain({ palaceName, palace, opposite, isEmpty, step
 
   // --- 暫時不採用:有列出來但這次沒拿來當理由,說清楚為什麼 ---
   if (stepSelf.otherStars.length) {
-    unused.push(evidenceItem('minor:other', '雜曜',
-      `${stepSelf.otherStars.join('、')}這一類雜曜先不列入判斷，它們通常只做細節修飾，需要主星與四化的結構先成立。`));
+    // 舊版只寫「先不列入判斷」，等於告訴使用者別看。實際上雜曜不是不能看，
+    // 而是有先後：主結構讀完之後，它才用來解釋「為什麼是這種形式」。
+    unused.push(evidenceItem('minor:other', '雜曜（順序在後，不是不能看）',
+      `${stepSelf.otherStars.join('、')}屬於雜曜。判讀順序上它們排在主星、廟旺、四化與吉煞之後：`
+      + `主結構先指出這一宮的主題，雜曜再補「以什麼形式呈現」。`
+      + `任何一張命盤都找得到幾顆雜曜支持你想要的結論，所以先讀完主結構再看它們。`));
   }
   const outboundPalace = stepMutagen.palace.filter((item) => !item.landsHere);
   if (outboundPalace.length) {
@@ -617,7 +704,78 @@ export function buildPalaceQuiz(lesson, ziWei) {
     }));
   }
 
-  // 7) 主要證據
+  // 7) 判讀順序:初學者最常見的錯誤是看到煞星就先下結論，這題直接考先後
+  questions.push(choiceQuestion({
+    id: 'reading-order',
+    prompt: '三合派判讀一個宮位時，下面哪一項應該最先看？',
+    answer: '主星（沒有主星就借對宮）',
+    distractors: ['同宮的煞曜', '雜曜', '大限與流年'],
+    explain: '順序是主星 → 廟旺利陷 → 雙星組合 → 生年四化 → 六吉六煞 → 雜曜。主星是骨架，先確定這一宮由誰主導，後面幾層都是在調整它的力道與方式。',
+    seed: seed + 7,
+  }));
+
+  // 8) 雙星組合(有兩顆主星才出題)
+  if (self.doubleStar?.combined) {
+    questions.push(choiceQuestion({
+      id: 'double-star',
+      prompt: `${lesson.palaceName}是${self.doubleStar.pair}同宮。判讀雙星時，正確的做法是什麼？`,
+      answer: '當成一個新的組合來讀，看哪一顆主導、另一顆往哪個方向修飾',
+      distractors: [
+        '把兩顆星的特質相加，優點都算上',
+        '只看第一顆，第二顆可以忽略',
+        '兩顆星互相抵銷，等於沒有主星',
+      ],
+      explain: `雙星是一種取捨，不是特質相加。這一組裡${self.doubleStar.lead}入廟或帶生年四化，性質較強，多半由它主導。`,
+      seed: seed + 8,
+    }));
+  }
+
+  // 9) 廟旺(有亮度資料才出題)
+  const bright = self.majorStarFunctions.find((s) => s.brightness);
+  if (bright) {
+    questions.push(choiceQuestion({
+      id: 'brightness',
+      prompt: `${bright.name}在${lesson.branch}的亮度是什麼？`,
+      answer: bright.brightness,
+      distractors: ['廟', '旺', '平', '陷'].filter((b) => b !== bright.brightness),
+      explain: `${bright.name}在${lesson.branch}為「${bright.brightness}」。${bright.brightnessNote}亮度決定這顆星的力道，不等於吉凶。`,
+      seed: seed + 9,
+    }));
+  }
+
+  // 10) 煞星的正確理解:這是最容易被誤讀的一項
+  if (self.maleficDetail?.length) {
+    questions.push(choiceQuestion({
+      id: 'malefic-rule',
+      prompt: `${lesson.palaceName}見到${self.maleficDetail[0].name}，判斷時該怎麼看？`,
+      answer: '看主星是否入廟：入廟時煞星轉成力道，落陷時才容易變成問題',
+      distractors: [
+        '見到煞星就代表這個領域不好',
+        '煞星會改變這一宮的主題',
+        '煞星只要有吉星同宮就完全沒有影響',
+      ],
+      explain: '煞星加的是力道與壓力，方向仍由主星決定。同一顆擎羊配入廟主星是執行力，配落陷主星才是衝突。',
+      seed: seed + 10,
+    }));
+  }
+
+  // 11) 雜曜的優先序
+  if (self.otherStars?.length) {
+    questions.push(choiceQuestion({
+      id: 'minor-priority',
+      prompt: '雜曜在判讀裡的角色是什麼？',
+      answer: '排在最後，主結構讀完後用來補「以什麼形式呈現」',
+      distractors: [
+        '和主星一樣重要，要優先看',
+        '完全不用看，沒有參考價值',
+        '雜曜愈多代表命愈好',
+      ],
+      explain: '任何一張命盤都找得到幾顆雜曜支持你想要的結論，所以先讀完主星、廟旺、四化與吉煞，再看雜曜補細節。',
+      seed: seed + 11,
+    }));
+  }
+
+  // 12) 主要證據
   const primaryTop = lesson.evidence.primary[0];
   if (primaryTop) {
     const supportingTop = lesson.evidence.supporting.slice(0, 2).map((e) => e.kind);

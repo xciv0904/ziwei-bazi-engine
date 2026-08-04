@@ -98,4 +98,7 @@ palaces, stars, transformations, or limits.
 | 2026-08-03 | Each decade stage is written per palace × per star, not composed from a generic star line | Composing from a shared style sentence made everyone with the same limit palace read the same decade |
 | 2026-08-04 | Glossary follows 三合派 (Southern); 自化/飛化/來因宮 are labelled as 飛星派 (Northern) in their own category | The two schools answer different questions; mixing them teaches contradictions |
 | 2026-08-04 | Documentation now states the actual four-transformation table instead of 中州派 | The code has always used the Qintian/flying-star table; only the docs were wrong. Calculation unchanged |
+| 2026-08-04 | Learning mode step 1 teaches the Southern reading order (主星→廟旺→雙星→四化→吉煞→雜曜) | Listing star names taught recognition but not application; users could not tell what to look at first |
+| 2026-08-04 | Wiki index split into Southern Zi Wei / Northern Zi Wei / Bazi | One flat list mixed two unrelated systems and two schools, with colliding star names |
+| 2026-08-04 | Wiki drops 常見命盤組合 and 案例解讀 in favour of the 23 double-star pairs | Users reported both were unreadable: one mixed structural formations with same-palace pairs, the other dumped engine output without context |
 

@@ -537,7 +537,35 @@ check('預設只展開第一步（漸進式揭露）', $$('#learn-card .learn-st
   && $('#learn-card .learn-step.open .learn-step-title').textContent.includes('先看本宮'));
 check('第一步列出宮干地支、主星、生年四化與自化欄位', (() => {
   const text = $('#learn-card .learn-step.open .learn-step-body').textContent;
-  return ['宮干地支', '主星', '輔星', '煞曜', '生年四化', '自化', '特殊標記'].every((k) => text.includes(k));
+  return ['宮干地支', '主星', '六吉星', '六煞星', '雜曜', '生年四化', '自化', '特殊標記'].every((k) => text.includes(k));
+})());
+// 第一步不只列名字，還要照三合派的順序教「先看哪一個、每一層怎麼改變判斷」。
+// 原本雙星、吉煞、雜曜都只有星名，使用者看得到卻學不到怎麼用。
+check('第一步先給三合派的判讀順序', (() => {
+  const order = $('#learn-card .learn-order');
+  const text = order?.textContent ?? '';
+  return !!order && order.querySelectorAll('ol > li').length === 6
+    && text.includes('主星') && text.includes('廟旺利陷') && text.includes('雙星組合')
+    && text.includes('生年四化') && text.includes('六吉六煞') && text.includes('雜曜');
+})());
+check('第一步依判讀順序分層呈現', (() => {
+  const titles = $$('#learn-card .learn-layer-title').map((el) => el.textContent);
+  return titles.some((t) => t.includes('主星與廟旺')) && titles.some((t) => t.includes('雙星結構'))
+    && titles.some((t) => t.includes('見吉')) && titles.some((t) => t.includes('見煞'))
+    && titles.some((t) => t.includes('雜曜'));
+})());
+check('見吉見煞有說明怎麼改變判斷，不只列星名', (() => {
+  const text = $('#learn-card .learn-step.open .learn-step-body').textContent;
+  return text.includes('見吉星時，判斷要怎麼調整') && text.includes('見煞星時，判斷要怎麼調整')
+    && text.includes('煞星不等於壞事');
+})());
+check('雜曜改成說明何時才要看，不再只說不列入判斷', (() => {
+  const text = $('#learn-card .learn-step.open .learn-step-body').textContent;
+  return text.includes('雜曜什麼時候才要納入判斷') && text.includes('主結構');
+})());
+check('星名可點開連到命理小百科', (() => {
+  const chips = $$('#learn-card .star-chip');
+  return chips.length > 0 && chips.every((a) => a.getAttribute('href')?.startsWith('./wiki/'));
 })());
 check('學習模式不重複顯示「為什麼這樣判斷」(內容已在第五步)', !$('.learn-why'));
 check('顯示十二宮學習進度', $('#learn-card .learn-progress').textContent.includes('十二宮學習進度：'));

@@ -1290,3 +1290,29 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .manual-turns li { flex-direction: column; gap: 2px; }
   .manual-turns li b { flex-basis: auto; }
 }
+
+/* 命盤與學習模式裡可點的星名：連到命理小百科的詞條 */
+.star-link {
+  cursor: pointer; border-bottom: 1px dotted rgba(43, 38, 33, .35);
+}
+.star-link:hover { color: var(--red); border-bottom-color: var(--red); }
+.star-chip {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 8px; border-radius: 10px; text-decoration: none;
+  font: 600 12.5px/1.7 var(--sans); color: var(--gold);
+  background: rgba(138, 109, 59, .1); border: 1px solid rgba(138, 109, 59, .25);
+}
+.star-chip:hover { background: rgba(138, 109, 59, .2); }
+.star-chip span { font-size: 9px; opacity: .7; }
+.learn-star-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.learn-star-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.learn-star-list li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.learn-star-list li > span { flex: 1; min-width: 180px; font: 400 13px/1.85 var(--sans); color: var(--ink-60); }
+
+/* 第一步的判讀層級：每一層一個小標，讓順序看得出來 */
+.learn-layer { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 4px; }
+.learn-layer-title { display: block; font: 700 13px/1.7 var(--sans); color: var(--red); margin-bottom: 6px; }
+.learn-layer-lead { margin: 0 0 8px; font: 400 13.5px/1.9 var(--sans); }
+.learn-order ol { margin: 4px 0 0; padding-left: 20px; }
+.learn-order li { font: 400 13px/1.85 var(--sans); color: var(--ink-60); margin-bottom: 3px; }
+.learn-order li b { color: var(--ink); margin-right: 4px; }
