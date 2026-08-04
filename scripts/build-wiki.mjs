@@ -20,6 +20,8 @@ const branchRelDb = await json('branch-interactions-analysis.json');
 const { starMeanings } = await import('../src/data/star-meanings.js');
 const { palaceMeanings } = await import('../src/data/palace-meanings.js');
 const { PLAIN_SHENSHA } = await import('../src/engines/compose-shensha.js');
+// 神煞在前、紫微星曜詞條在後，但判斷撞名時就需要紫微側的名稱，所以先讀進來
+const glossaryEntriesForClash = (await json('star-glossary.json'))['詞條'];
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -72,7 +74,15 @@ rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 const entries = []; // { term, category }
 
+// 詞條檔名就是星名，所以同名的兩條會互相覆蓋，而且不會有任何錯誤訊息——
+// 使用者只會發現點八字的「孤辰」跑出紫微的內容。撞名時直接讓建置失敗。
+const emitted = new Map(); // term → category
 function emit(term, category, desc, bodyHtml, related) {
+  if (emitted.has(term)) {
+    throw new Error(`詞條撞名：「${term}」同時被「${emitted.get(term)}」與「${category}」使用，`
+      + '後者會覆蓋前者的頁面。請為其中一方加上消歧後綴（例如「孤辰(八字神煞)」）。');
+  }
+  emitted.set(term, category);
   writeFileSync(join(outDir, `${term}.html`), page({ title: term, category, desc, bodyHtml, related }));
   entries.push({ term, category });
 }
@@ -128,14 +138,22 @@ for (const g of godNames) {
 }
 
 // 4. 神煞
+// 八字神煞有五條與紫微星曜同名（孤辰、空亡、喪門、劫煞、將星），指的是不同系統的東西。
+// 檔名相同會互相覆蓋，所以這裡比照十神的做法加上消歧後綴，並在頁面內互相標註。
 const shenshaAll = { ...shenshaDb['貴人星解讀'], ...shenshaDb['煞星解讀'] };
 const shenshaNames = Object.keys(shenshaAll);
+const ziweiTermNames = new Set([...Object.keys(glossaryEntriesForClash), ...starNames]);
+const shenshaTerm = (s) => (ziweiTermNames.has(s) ? `${s}(八字神煞)` : s);
 for (const s of shenshaNames) {
   const body = [
     PLAIN_SHENSHA[s] ? para('白話理解', `${PLAIN_SHENSHA[s]}。`) : '',
     para('完整解讀', shenshaAll[s]),
+    ziweiTermNames.has(s)
+      ? `<div class="card">注意：紫微斗數也有一顆叫「<a href="./${encodeURIComponent(s)}.html">${esc(s)}</a>」的星，那是另一套系統的概念，兩者不相通。</div>`
+      : '',
   ].join('');
-  emit(s, '八字・神煞', `八字神煞「${s}」：${PLAIN_SHENSHA[s] ?? shenshaAll[s]}`, body, shenshaNames.filter((x) => x !== s).slice(0, 10));
+  emit(shenshaTerm(s), '八字・神煞', `八字神煞「${s}」：${PLAIN_SHENSHA[s] ?? shenshaAll[s]}`,
+    body, shenshaNames.filter((x) => x !== s).map(shenshaTerm).slice(0, 10));
 }
 
 // 5. 地支關係
@@ -238,17 +256,47 @@ const CATEGORY_GROUPS = [
 const byCat = {};
 for (const e of entries) (byCat[e.category] ??= []).push(e.term);
 
-const catListHtml = (cats) => cats.filter((cat) => byCat[cat]?.length).map((cat) => `
-  <h2>${esc(cat.split('・').at(-1))}（${byCat[cat].length}）</h2>
-  <ul class="idx">${byCat[cat].map((t) => `<li><a href="./${encodeURIComponent(t)}.html">${esc(t)}</a></li>`).join('')}</ul>`).join('');
+// 分類頁的檔名。分類名含「・」與中文，直接當檔名不好讀也不好連，
+// 統一加 cat- 前綴並只取「・」後面的短名（十四主星、六吉星…）。
+const categorySlug = (cat) => `cat-${cat.split('・').at(-1)}`;
+const categoryShortName = (cat) => cat.split('・').at(-1);
 
-// 每個分區各自一頁
+// 每個分類各自一頁：點「十四主星」就只看到十四主星。
+// 這一層原本不存在，索引上的分類直接連到整個分區頁，
+// 結果不管點哪個分類，看到的都是那一區的全部詞條。
+for (const group of CATEGORY_GROUPS) {
+  for (const cat of group.order) {
+    const terms = byCat[cat];
+    if (!terms?.length) continue;
+    const siblings = group.order.filter((c) => c !== cat && byCat[c]?.length);
+    const body = [
+      `<div class="card">${esc(group.title)}　共 ${terms.length} 條。</div>`,
+      `<ul class="idx">${terms.map((t) => `<li><a href="./${encodeURIComponent(t)}.html">${esc(t)}</a></li>`).join('')}</ul>`,
+      siblings.length
+        ? `<h2>同一區的其他分類</h2><div class="rel">${siblings.map((c) => `<a href="./${categorySlug(c)}.html">${esc(categoryShortName(c))}（${byCat[c].length}）</a>`).join('')}</div>`
+        : '',
+      `<div class="rel" style="margin-top:14px"><a href="./${group.slug}.html">← 回${esc(group.title)}</a><a href="./">← 回命理小百科</a></div>`,
+    ].join('');
+    writeFileSync(join(outDir, `${categorySlug(cat)}.html`), page({
+      title: categoryShortName(cat),
+      category: group.title,
+      desc: `${group.title}的${categoryShortName(cat)}詞條總覽，共 ${terms.length} 條：${terms.slice(0, 12).join('、')}。`,
+      bodyHtml: body,
+    }));
+  }
+}
+
+// 分區頁：只列分類與條數，不再把所有詞條攤在同一頁
+const catLinksHtml = (cats) => `<ul class="idx">${cats.filter((cat) => byCat[cat]?.length)
+  .map((cat) => `<li><a href="./${categorySlug(cat)}.html">${esc(categoryShortName(cat))}（${byCat[cat].length}）</a></li>`).join('')}</ul>`;
+
 for (const group of CATEGORY_GROUPS) {
   const count = group.order.reduce((sum, cat) => sum + (byCat[cat]?.length ?? 0), 0);
   const others = CATEGORY_GROUPS.filter((g) => g.slug !== group.slug);
   const body = [
     `<div class="card">${esc(group.lead)}</div>`,
-    catListHtml(group.order),
+    `<h2>分類（共 ${count} 條）</h2>`,
+    catLinksHtml(group.order),
     `<h2>其他分區</h2><div class="rel">${others.map((g) => `<a href="./${g.slug}.html">${esc(g.title)}</a>`).join('')}</div>`,
   ].join('');
   writeFileSync(join(outDir, `${group.slug}.html`), page({
@@ -259,15 +307,14 @@ for (const group of CATEGORY_GROUPS) {
   }));
 }
 
-// 總入口：只放三個分區的說明與連結，不再把所有詞條倒在同一頁
+// 總入口：三個分區的說明，各自列出底下的分類
 const indexBody = [
   '<div class="card">這裡收錄紫微斗數與八字的名詞解釋。兩套系統的判斷方式與名詞並不相通，所以分開放；紫微斗數內部再依三合派與飛星派分成兩區，避免把兩派的方法混著學。</div>',
   ...CATEGORY_GROUPS.map((group) => {
     const count = group.order.reduce((sum, cat) => sum + (byCat[cat]?.length ?? 0), 0);
     return `<h2><a href="./${group.slug}.html">${esc(group.title)}</a>（${count} 條）</h2>
       <div class="card">${esc(group.lead)}</div>
-      <ul class="idx">${group.order.filter((cat) => byCat[cat]?.length)
-    .map((cat) => `<li><a href="./${group.slug}.html">${esc(cat.split('・').at(-1))}（${byCat[cat].length}）</a></li>`).join('')}</ul>`;
+      ${catLinksHtml(group.order)}`;
   }),
 ].join('');
 writeFileSync(join(outDir, 'index.html'), page({
@@ -288,6 +335,8 @@ if (ungrouped.length) {
 // ---------- sitemap / robots ----------
 const urls = [SITE, `${SITE}wiki/`,
   ...CATEGORY_GROUPS.map((g) => `${SITE}wiki/${g.slug}.html`),
+  ...CATEGORY_GROUPS.flatMap((g) => g.order.filter((cat) => byCat[cat]?.length)
+    .map((cat) => `${SITE}wiki/${encodeURIComponent(categorySlug(cat))}.html`)),
   ...entries.map((e) => `${SITE}wiki/${encodeURIComponent(e.term)}.html`)];
 writeFileSync(join(root, 'public', 'sitemap.xml'),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join('\n')}\n</urlset>\n`);

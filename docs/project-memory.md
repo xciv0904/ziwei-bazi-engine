@@ -32,6 +32,7 @@ Calculations run in the browser.
 | `cross-test.mjs` | Zi Wei independent-reference comparison |
 | `cross-test-bazi.mjs` | Bazi independent-reference comparison |
 | `smoke.mjs` | happy-dom UI flow smoke test |
+| `tests/wiki-structure.mjs` | Wiki page hierarchy, category isolation, no broken links, no name collisions |
 | `tests/star-glossary.mjs` | Glossary covers every star the engine can output; schools kept separate |
 | `tests/life-manual.mjs` | Life manual stage coverage, personalisation and chart-derived facts |
 | `tests/topic-on-question.mjs` | Topic answers must stay on question, never reuse generic star personality |
@@ -79,6 +80,7 @@ palaces, stars, transformations, or limits.
 - `node cross-test.mjs`: Zi Wei reference comparison
 - `node cross-test-bazi.mjs`: Bazi reference comparison
 - `npm run on-question`: topic answer coverage, on-question checks and text quality
+- `npm run wiki-structure`: rebuilds the wiki then checks its page hierarchy and links
 - `npm run star-glossary`: glossary coverage against engine output and school separation
 - `npm run life-manual`: life manual stage coverage and per-chart narrative checks
 - `npm run learning-mode`: learning mode lessons, evidence chain and progress storage
@@ -101,4 +103,6 @@ palaces, stars, transformations, or limits.
 | 2026-08-04 | Learning mode step 1 teaches the Southern reading order (主星→廟旺→雙星→四化→吉煞→雜曜) | Listing star names taught recognition but not application; users could not tell what to look at first |
 | 2026-08-04 | Wiki index split into Southern Zi Wei / Northern Zi Wei / Bazi | One flat list mixed two unrelated systems and two schools, with colliding star names |
 | 2026-08-04 | Wiki drops 常見命盤組合 and 案例解讀 in favour of the 23 double-star pairs | Users reported both were unreadable: one mixed structural formations with same-palace pairs, the other dumped engine output without context |
+| 2026-08-04 | Wiki has four levels: index → section → category → term | Category links used to point at the section page, so every category showed the whole section |
+| 2026-08-04 | Wiki term names must be unique; `emit()` throws on collision | Bazi 神煞 and Zi Wei stars share five names (孤辰、空亡、喪門、劫煞、將星) and silently overwrote each other's pages |
 
