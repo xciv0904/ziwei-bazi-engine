@@ -201,6 +201,38 @@ for (const dc of demoCases) {
     body, [dc.combo, ...lifeStars]);
 }
 
+// 8. 輔星、煞曜、雜曜、四組十二神與四化
+// 這一批的收錄範圍以「命盤上實際會顯示的星曜」為準（94 顆），使用者點到任何一顆都查得到，
+// 不會出現看得到卻查不到的空白。解讀觀點以三合派（南派）為主；自化、宮干飛化、來因宮
+// 屬於飛星派（北派）的方法，資料裡已標成獨立類別，這裡照原樣輸出，不混進南派的說法。
+const glossary = await json('star-glossary.json');
+const glossaryEntries = glossary['詞條'];
+const glossaryTerms = Object.keys(glossaryEntries);
+const glossaryByCategory = {};
+for (const [term, item] of Object.entries(glossaryEntries)) {
+  (glossaryByCategory[item['類別']] ??= []).push(term);
+}
+const SCHOOL_NOTE = glossary['派別說明'];
+
+for (const [term, item] of Object.entries(glossaryEntries)) {
+  const category = item['類別'];
+  const sameCategory = (glossaryByCategory[category] ?? []).filter((t) => t !== term);
+  const isFlying = category === '飛星派補充';
+  const body = [
+    para('一句話理解', item['核心']),
+    para('', item['白話']),
+    isFlying
+      ? `<div class="card" style="border-left:3px solid var(--red)"><strong style="color:var(--red)">派別提醒　</strong>${esc(item['南派看法'])}</div>`
+      : `<h2>三合派（南派）怎麼看</h2>${para('', item['南派看法'])}`,
+    item['落在不同宮位'] ? `<h2>落在不同宮位</h2>${para('', item['落在不同宮位'])}` : '',
+    item['怎麼看'] ? `<h2>怎麼看</h2>${para('', item['怎麼看'])}` : '',
+    item['要留意'] ? `<h2>要留意</h2>${para('', item['要留意'])}` : '',
+    `<h2>派別說明</h2>${para('南派（三合派）', SCHOOL_NOTE['南派'])}${para('北派（飛星派）', SCHOOL_NOTE['北派'])}${para('本站的做法', SCHOOL_NOTE['本站的做法'])}`,
+  ].join('');
+  emit(term, `紫微斗數・${category}`, `紫微斗數${term}是什麼：${item['核心']}。${item['白話'].slice(0, 60)}`,
+    body, sameCategory.slice(0, 10));
+}
+
 // ---------- 索引頁 ----------
 const byCat = {};
 for (const e of entries) (byCat[e.category] ??= []).push(e.term);

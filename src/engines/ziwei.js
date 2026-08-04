@@ -1,4 +1,4 @@
-// src/engines/ziwei.js — 紫微斗數排盤引擎（iztro,中州派）
+// src/engines/ziwei.js — 紫微斗數排盤引擎（iztro；四化採欽天／飛星版，見 compose-annual.js FLOW_SIHUA）
 // convertToZiWei(input) → 統一 schema 的 ziWei 物件
 import { astro } from 'iztro';
 
