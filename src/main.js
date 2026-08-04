@@ -1036,13 +1036,76 @@ function learningStepSynthesisHtml(evidence) {
 
 function learningEmptyGuideHtml(guide) {
   if (!guide) return '';
+  const rule = guide.borrowRule;
+
+  // 借過來的星要連同廟旺與生年四化一起顯示：那兩項是星的屬性，會跟著走。
+  // 只列星名的話，使用者不會知道「借」到底借了什麼。
+  const borrowedHtml = guide.borrowedStars.length ? `
+    <div class="borrow-block">
+      <b class="borrow-title">實際從${esc(guide.borrowedFrom)}借到什麼</b>
+      <ul class="learn-star-list">${guide.borrowedStars.map((s) => `<li>${starChip(s)}<span>
+        <b>${esc(s.core)}</b>
+        ${s.brightness ? `　亮度「${esc(s.brightness)}」：${esc(s.brightnessNote)}` : ''}
+        ${s.transformation ? `<em class="borrow-hua">連同生年化${esc(s.transformation)}一起借過來</em>` : ''}
+      </span></li>`).join('')}</ul>
+    </div>` : '';
+
+  // 借來的是雙星時，讀法與本宮自坐雙星相同，但要多說明「這是借來的」意味著什麼
+  const doubleHtml = guide.borrowedDouble ? `
+    <div class="borrow-block">
+      <b class="borrow-title">${esc(guide.borrowedDouble.title)}：${esc(guide.borrowedDouble.pair)}</b>
+      ${guide.borrowedDouble.combined ? `<p class="learn-layer-lead">${esc(guide.borrowedDouble.combined)}</p>` : ''}
+      <p>${esc(guide.borrowedDouble.body)}</p>
+      <p>這一組裡<b>${esc(guide.borrowedDouble.lead)}</b>入廟或帶生年四化，多半由它主導，另一顆負責修飾方向。</p>
+      <p class="learn-caution">${esc(guide.borrowedDouble.extra)}</p>
+    </div>` : '';
+
+  const listBlock = (title, items) => `<div class="borrow-col">
+    <b>${esc(title)}</b>
+    <ul>${items.map((i) => `<li>${typeof i === 'string' ? esc(i) : `<b>${esc(i.label)}</b>${esc(i.why)}`}</li>`).join('')}</ul>
+  </div>`;
+
   return `<div class="learn-empty-guide">
     <b>${esc(guide.headline)}</b>
     <p class="learn-empty-correct">${esc(guide.correction)}</p>
     <p>${esc(guide.lead)}</p>
-    <ol class="learn-empty-steps">${guide.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+
+    <div class="borrow-block">
+      <b class="borrow-title">${esc(rule.headline)}</b>
+      <p>${esc(rule.principle)}</p>
+      <div class="borrow-two-col">
+        ${listBlock(rule.carried.title, rule.carried.items)}
+        ${listBlock(rule.notCarried.title, rule.notCarried.items)}
+      </div>
+    </div>
+
+    ${borrowedHtml}
+    ${guide.notCarriedActual.length ? `<div class="borrow-block">
+      <b class="borrow-title">這些留在${esc(guide.borrowedFrom)}，不跟著過來</b>
+      <ul>${guide.notCarriedActual.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+    </div>` : ''}
+    ${doubleHtml}
+
+    <div class="borrow-block">
+      <b class="borrow-title">${esc(rule.ownFirst.title)}</b>
+      <p>${esc(rule.ownFirst.body)}</p>
+      <p>你這一宮自己有：${esc(guide.ownMarks.join('；') || '沒有額外的輔星或標記')}。</p>
+    </div>
+
+    ${guide.hasOwnAuxiliary ? `<div class="borrow-block borrow-dispute">
+      <b class="borrow-title">${esc(rule.dispute.title)}</b>
+      <p>${esc(rule.dispute.body)}</p>
+      <p class="learn-caution">${esc(rule.dispute.advice)}</p>
+    </div>` : ''}
+
+    <div class="borrow-block">
+      <b class="borrow-title">${esc(rule.application.title)}</b>
+      <ol class="learn-empty-steps">${rule.application.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+      <p class="learn-caution">${esc(rule.application.caution)}</p>
+    </div>
+
     <div class="learn-table-wrap"><table class="learn-table"><tbody>${guide.references.map((r) =>
-      `<tr><th>${esc(r.label)}</th><td>${esc(r.detail)}</td></tr>`).join('')}</tbody></table></div>
+    `<tr><th>${esc(r.label)}</th><td>${esc(r.detail)}</td></tr>`).join('')}</tbody></table></div>
     <p class="learn-caution">${esc(guide.caution)}</p>
   </div>`;
 }

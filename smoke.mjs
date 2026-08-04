@@ -682,6 +682,28 @@ if (emptyCell) {
   check('空宮提示先澄清「不是比較差」', $('#learn-card .learn-empty-guide').textContent.includes('不代表沒有個性'));
   check('空宮提示列出本宮/對宮/兩個三合宮四項參考', $$('#learn-card .learn-empty-guide .learn-table tbody tr').length === 4);
   check('空宮提示說明不能把對宮主星直接當本宮主星', $('#learn-card .learn-empty-guide').textContent.includes('不能直接當成本宮坐命的主星'));
+  // 使用者問過「借星到底是整組搬過來，還是只把主星套進來」——畫面當時只列星名，沒有回答。
+  // 以下守住：借的是星不是宮、什麼跟著走什麼不跟著、借來的星帶廟旺與四化、借來雙星怎麼讀。
+  const borrowText = $('#learn-card .learn-empty-guide').textContent;
+  check('借星教學說明「借的是星，不是宮」', borrowText.includes('借的是「星」，不是「宮」'));
+  check('借星教學分別列出跟著借與不跟著借的項目', (() => {
+    const cols = $$('#learn-card .borrow-col b').map((el) => el.textContent);
+    return cols.some((t) => t.includes('會跟著借過來')) && cols.some((t) => t.includes('不會跟著借過來'));
+  })());
+  check('借來的星附上廟旺，不只有星名', (() => {
+    const items = $$('#learn-card .learn-empty-guide .learn-star-list li').map((el) => el.textContent);
+    return items.length > 0 && items.some((t) => t.includes('亮度'));
+  })());
+  check('借星教學指出本宮自己的東西優先看', borrowText.includes('本宮自己的東西優先看'));
+  check('借星教學說明實際怎麼用', (() => {
+    const steps = $$('#learn-card .learn-empty-guide .learn-empty-steps li');
+    return steps.length >= 4 && borrowText.includes('放回') && borrowText.includes('主題重新');
+  })());
+  check('借來的是雙星時說明怎麼讀', (() => {
+    const stars = $$('#learn-card .learn-empty-guide .learn-star-list li').length;
+    // 只有借到兩顆時才會出現雙星說明；借到一顆的盤不該出現
+    return stars === 2 ? borrowText.includes('借來的是兩顆星時') : !borrowText.includes('借來的是兩顆星時');
+  })());
 } else {
   check('這張測試命盤找不到空宮（案例覆蓋不足）', false);
 }

@@ -1332,3 +1332,25 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font: 500 11px/1.7 var(--sans); color: var(--gold);
   background: rgba(138, 109, 59, .1); text-decoration: none; white-space: nowrap;
 }
+
+/* 空宮借星教學：借到什麼、留下什麼、怎麼用 */
+.borrow-block { border-top: 1px dashed rgba(166, 61, 47, .3); padding-top: 10px; margin-top: 4px; }
+.borrow-title { display: block; font: 700 13px/1.7 var(--sans); color: var(--red); margin-bottom: 6px; }
+.borrow-block p { margin: 0 0 6px; font: 400 13px/1.9 var(--sans); color: var(--ink-60); }
+.borrow-block > ul { margin: 0; padding-left: 18px; }
+.borrow-block > ul li { font: 400 13px/1.9 var(--sans); color: var(--ink-60); margin-bottom: 4px; }
+.borrow-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.borrow-col b { display: block; font: 600 12.5px/1.7 var(--sans); color: var(--gold); margin-bottom: 4px; }
+.borrow-col ul { margin: 0; padding-left: 16px; }
+.borrow-col li { font: 400 12.5px/1.8 var(--sans); color: var(--ink-60); margin-bottom: 5px; }
+.borrow-col li b { display: inline; color: var(--ink); margin-right: 4px; }
+.borrow-hua {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 9px;
+  font: 600 11.5px/1.7 var(--sans); font-style: normal;
+  color: var(--red); background: rgba(166, 61, 47, .1);
+}
+.borrow-dispute { background: rgba(138, 109, 59, .07); border-radius: 8px; padding: 10px 12px; border-top: none; }
+
+@media (max-width: 700px) {
+  .borrow-two-col { grid-template-columns: 1fr; gap: 8px; }
+}

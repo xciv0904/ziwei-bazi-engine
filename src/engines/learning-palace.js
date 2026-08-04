@@ -18,6 +18,7 @@ import {
   AUSPICIOUS_MINOR,
   AUSPICIOUS_RULE,
   BIRTH_MUTAGEN_PLAIN,
+  BORROW_RULE,
   BRIGHTNESS_NOTE,
   DOUBLE_STAR_TEACHING,
   EMPTY_PALACE_GUIDE,
@@ -404,7 +405,12 @@ function glossaryTermsFor({ isEmpty, stepSelf, stepMutagen }) {
   return [...wanted].filter((term) => GLOSSARY[term]).map((term) => ({ term, text: GLOSSARY[term] }));
 }
 
-/** 空宮專屬教學:順序固定,參考對象由本盤填入 */
+/**
+ * 空宮專屬教學:順序固定,參考對象由本盤填入。
+ *
+ * 借過來的星要連同它的廟旺與生年四化一起列出——那兩項是星的屬性，會跟著走。
+ * 只列星名的話，使用者會不知道「借」到底借了什麼，也分不清哪些東西留在對宮。
+ */
 function buildEmptyGuide({ palaceName, opposite, triad, stepSelf }) {
   const triadOnly = (triad?.members ?? []).filter((m) => m.role === 'triad');
   const ownMarks = [
@@ -415,14 +421,60 @@ function buildEmptyGuide({ palaceName, opposite, triad, stepSelf }) {
     stepSelf.isLaiyin ? '來因宮' : '',
     stepSelf.birthMutagens.length ? stepSelf.birthMutagens.map((f) => `生年${f.star}化${f.mutagen}`).join('、') : '',
   ].filter(Boolean);
+
+  // 借來的星：帶著廟旺與生年四化，因為那是星身上的屬性
+  const borrowedStars = (opposite?.majorStars ?? []).map((s) => ({
+    name: s.name,
+    brightness: s.brightness ?? '',
+    brightnessNote: s.brightness ? (BRIGHTNESS_NOTE[s.brightness] ?? '') : '',
+    transformation: s.transformation ? String(s.transformation).replace(/^化/, '') : '',
+    core: starMeanings[s.name]?.core ?? '',
+    label: starLabel(s),
+    glossary: glossaryOf(s.name),
+  }));
+
+  // 借來的是雙星時，讀法與本宮自坐雙星相同：先看誰主導
+  const borrowedDouble = borrowedStars.length === 2 ? {
+    pair: borrowedStars.map((s) => s.name).join('、'),
+    combined: lookupDoubleStar(borrowedStars.map((s) => s.name)),
+    lead: (borrowedStars.find((s) => s.transformation)
+      ?? borrowedStars.find((s) => ['廟', '旺'].includes(s.brightness))
+      ?? borrowedStars[0]).name,
+    ...BORROW_RULE.doubleBorrowed,
+  } : null;
+
+  // 本宮已經有吉星或煞星時，才需要提醒「是否仍要借星」各家講法不同
+  const hasOwnAuxiliary = stepSelf.auspiciousStars.length > 0 || stepSelf.maleficStars.length > 0;
+
   return {
     ...EMPTY_PALACE_GUIDE,
     headline: `${palaceName}本身沒有十四主星，稱為空宮。`,
     lead: `${palaceName}本身無十四主星，不代表沒有內容。請共同參考${palaceName}本身、對宮${opposite?.name ?? ''}，以及三合的${triadOnly.map((m) => m.name).join('與')}。`,
     ownMarks,
+    borrowRule: BORROW_RULE,
+    borrowedFrom: opposite?.name ?? '',
+    borrowedStars,
+    borrowedDouble,
+    hasOwnAuxiliary,
+    // 這一宮實際借到什麼、實際留在對宮什麼，用本盤資料講具體，不是只給通則
+    carriedActual: borrowedStars.length
+      ? borrowedStars.map((s) => `${s.name}${s.brightness ? `（亮度${s.brightness}）` : ''}${s.transformation ? `，並帶著生年化${s.transformation}` : ''}`)
+      : [],
+    notCarriedActual: [
+      (opposite?.minorStars ?? []).length
+        ? `${opposite.name}的輔星煞曜與雜曜（${(opposite.minorStars ?? []).slice(0, 6).map((x) => bareStarName(x)).join('、')}…）留在${opposite.name}，不會跟著過來`
+        : '',
+      opposite ? `${opposite.name}的宮干${opposite.position?.[0] ?? ''}與它的飛化留在${opposite.name}；${palaceName}的飛化一律用自己的宮干${stepSelf.stem}` : '',
+      opposite ? `${opposite.name}在講的主題（${palaceMeanings[opposite.name] ?? ''}）不跟著搬，借來的星要放回${palaceName}的主題重新理解` : '',
+    ].filter(Boolean),
     references: [
       { label: `本宮 ${palaceName}`, detail: ownMarks.join('；') || '目前沒有可用的輔星或特殊標記' },
-      { label: `對宮 ${opposite?.name ?? ''}`, detail: starNamesOf(opposite).join('、') || '對宮同樣沒有主星，需再往三合宮找' },
+      {
+        label: `對宮 ${opposite?.name ?? ''}（借主星）`,
+        detail: borrowedStars.length
+          ? borrowedStars.map((s) => s.label).join('、')
+          : '對宮同樣沒有主星，需再往三合宮找',
+      },
       ...triadOnly.map((m, i) => ({
         label: `第${i + 1}個三合宮 ${m.name}`,
         detail: m.stars.join('、') || '此宮同樣為空宮',

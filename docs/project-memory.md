@@ -108,4 +108,6 @@ palaces, stars, transformations, or limits.
 | 2026-08-04 | Every technical line carries a plain-language twin, shown per reading mode | Correct terminology alone taught nothing: users could not tell what a flying transformation meant for their life |
 | 2026-08-04 | Conclusions are written as 因為…所以… with a source tag per sentence | The conclusion previously listed phenomena then jumped to star keywords, so readers could not follow the reasoning |
 | 2026-08-04 | `conclusion` holds display strings only; structured data lives beside it | Putting an object array in `conclusion` leaked "[object Object]" into user-facing text |
+| 2026-08-04 | Borrowed stars carry brightness and birth transformation; palace-level stars, stem and flights stay behind | 借星安宮 borrows the star, not the palace. Listing only star names left users unable to tell what was actually borrowed |
+| 2026-08-04 | Where schools disagree (borrowing when the palace already has 吉煞), state both and pick neither | The site is not a lineage; presenting one reading as the only one would mislead learners |
 
