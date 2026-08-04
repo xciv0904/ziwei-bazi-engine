@@ -105,4 +105,7 @@ palaces, stars, transformations, or limits.
 | 2026-08-04 | Wiki drops 常見命盤組合 and 案例解讀 in favour of the 23 double-star pairs | Users reported both were unreadable: one mixed structural formations with same-palace pairs, the other dumped engine output without context |
 | 2026-08-04 | Wiki has four levels: index → section → category → term | Category links used to point at the section page, so every category showed the whole section |
 | 2026-08-04 | Wiki term names must be unique; `emit()` throws on collision | Bazi 神煞 and Zi Wei stars share five names (孤辰、空亡、喪門、劫煞、將星) and silently overwrote each other's pages |
+| 2026-08-04 | Every technical line carries a plain-language twin, shown per reading mode | Correct terminology alone taught nothing: users could not tell what a flying transformation meant for their life |
+| 2026-08-04 | Conclusions are written as 因為…所以… with a source tag per sentence | The conclusion previously listed phenomena then jumped to star keywords, so readers could not follow the reasoning |
+| 2026-08-04 | `conclusion` holds display strings only; structured data lives beside it | Putting an object array in `conclusion` leaked "[object Object]" into user-facing text |
 

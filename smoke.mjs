@@ -575,6 +575,20 @@ check('學習模式沒有蓋掉原本的命盤與小教室', $$('.palace-cell').
 $$('#learn-card [data-learn-step]').find((b) => b.dataset.learnStep === 'mutagen').click();
 await settle();
 check('點第四步會展開四化內容', $('#learn-card .learn-step.open .learn-step-title').textContent.includes('看四化與自化'));
+// 使用者回報看不懂四化，追到底是每句術語後面都缺一句「所以呢」。
+// 宮干是第一個卡住的地方（命盤上只看到地支，怎麼冒出天干），所以先解釋它。
+check('第四步先解釋「宮干」是什麼', (() => {
+  const text = $('#learn-card .learn-step.open .learn-step-body').textContent;
+  return text.includes('先搞懂「宮干」') && text.includes('除了地支') && text.includes('把能量送到哪裡');
+})());
+check('每條四化都附白話翻譯，不只有術語', (() => {
+  const items = $$('#learn-card .learn-mut-group li');
+  return items.length > 0 && items.some((li) => li.querySelector('.line-plain') && li.querySelector('.line-tech'));
+})());
+check('四化白話講的是生活裡會怎樣，不是宮位名稱', (() => {
+  const plain = $$('#learn-card .learn-mut-group .line-plain').map((el) => el.textContent).join('');
+  return /金錢|收入|感情|工作|身體|朋友|家庭|長輩|晚輩|外出|內心/.test(plain);
+})());
 check('四化說明含祿權科忌的初學者關鍵字', (() => {
   const text = $('#learn-card .learn-step.open .learn-step-body').textContent;
   return text.includes('增加、靠近、投入、取得') && text.includes('掌握、推動、承擔、主導')
@@ -604,6 +618,14 @@ check('結論採四段式（看到什麼→怎麼互相影響→可能出現什�
     && text.includes('3. 可能出現在什麼情況') && text.includes('4. 還需要什麼才能確認');
 })());
 check('結論附判讀限制', $('#learn-card .learn-step.open .learn-step-body').textContent.includes('判讀限制'));
+check('結論寫成因果句，看得出是怎麼推的', (() => {
+  const text = $('#learn-card .learn-conclusion').textContent;
+  return text.includes('因為') && text.includes('所以');
+})());
+check('結論每句標出依據來自第幾步', (() => {
+  const tags = $$('#learn-card .learn-conclusion .conclusion-source').map((el) => el.textContent);
+  return tags.length > 0 && tags.every((t) => /第[一二三四五]步/.test(t));
+})());
 
 // 把剩下兩步也讀過：五步都讀完，這一宮才算學完（每一步展開後就地驗內容，收合後 body 會被移除）
 const openLearnStep = async (stepId) => {
@@ -617,6 +639,11 @@ check('第二步說明對宮軸線關係（不是只列星曜）',
 const triadBody = await openLearnStep('triad');
 check('第三步列出本宮/對宮/兩個三合宮共四宮', triadBody.querySelectorAll('.learn-table tbody tr').length === 4);
 check('第三步說明三方四正是共同描述同一個主題', triadBody.textContent.includes('共同描述同一個主題'));
+check('第三步不只列表格，還要說出這四宮合起來在講什麼', (() => {
+  const text = triadBody.textContent;
+  return text.includes('這四宮合起來在說什麼') && text.includes('這四件事是同一組')
+    && text.includes('不能只看那一宮');
+})());
 check('讀完五步後進度加一', $('#learn-card .learn-progress').textContent.includes('1／12'));
 
 // 練習題：先自己判斷

@@ -954,22 +954,51 @@ function learningStepTriadHtml(data) {
     const role = { self: '本宮', opposite: '對宮', triad: '三合宮' }[m.role] ?? m.role;
     return `<tr><th>${esc(role)}</th><td>${esc(m.name)}（${esc(m.position)}）</td><td>${esc(m.stars.join('、') || '空宮')}</td></tr>`;
   }).join('');
+  // 只給表格的話，讀者看完會問「所以呢」。這一段把四宮合起來說成一件事。
+  const synthesis = data.synthesis?.length
+    ? `<div class="learn-layer"><b class="learn-layer-title">這四宮合起來在說什麼</b>
+        ${data.synthesis.map((line) => `<p class="learn-layer-lead">${esc(line)}</p>`).join('')}</div>`
+    : '';
   return `
-    <div class="learn-note"><p>${esc(data.what)}</p><p>${esc(data.why)}</p><p>${esc(data.how)}</p></div>
+    <div class="learn-note"><p>${esc(data.what)}</p><p>${esc(data.why)}</p><p>${esc(data.how)}</p>
+      <p><b>${esc(data.meaning)}</b></p><p>${esc(data.practical)}</p></div>
     <div class="learn-table-wrap"><table class="learn-table"><thead><tr><th>角色</th><th>宮位</th><th>主星</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="learn-hint">左側命盤已用虛線框同步標出這四個宮位。</p>`;
+    <p class="learn-hint">左側命盤已用虛線框同步標出這四個宮位。</p>
+    ${synthesis}`;
+}
+
+/**
+ * 一條命理陳述要怎麼呈現，由閱讀模式決定：
+ *   白話模式：只給白話句——初學者要的是「所以我的生活裡會怎樣」。
+ *   學習模式：白話在前、術語緊跟在後——邊讀邊認術語。
+ *   專業模式：只給術語句。
+ * 沒有白話翻譯時一律退回術語句，不會留空白。
+ */
+function bilingualLine(item) {
+  const mode = state.readingMode;
+  if (!item.plain) return `<span class="line-tech">${esc(item.sentence)}</span>`;
+  if (mode === 'public') return `<span class="line-plain">${esc(item.plain)}</span>`;
+  if (mode === 'study') return `<span class="line-tech">${esc(item.sentence)}</span>`;
+  return `<span class="line-plain">${esc(item.plain)}</span>
+    <span class="line-tech"><b>命理說法：</b>${esc(item.sentence)}</span>`;
 }
 
 function learningMutagenGroup(title, items, emptyText) {
   if (!items.length) return `<div class="learn-mut-group"><b>${esc(title)}</b><p class="learn-empty">${esc(emptyText)}</p></div>`;
-  return `<div class="learn-mut-group"><b>${esc(title)}</b><ul>${items.map((x) => `<li>${esc(x.sentence)}</li>`).join('')}</ul></div>`;
+  return `<div class="learn-mut-group"><b>${esc(title)}</b>
+    <ul>${items.map((x) => `<li>${bilingualLine(x)}</li>`).join('')}</ul></div>`;
 }
 
 function learningStepMutagenHtml(data) {
   const basics = Object.entries(data.basics)
     .map(([key, v]) => `<li><span class="mut-chip ${MUT_CLASS[key]}">${esc(key)}</span>${esc(v.keywords)}——${esc(v.plain)}</li>`).join('');
+  // 宮干是初學者第一個卡住的地方：命盤上只看到地支，怎麼突然冒出一個天干。
+  // 飛化的內容全部建立在宮干上，所以先解釋它，後面才讀得懂。
+  const stemIntro = data.stemIntro ? `<div class="learn-note"><b>先搞懂「宮干」</b>
+    <p>${esc(data.stemIntro.what)}</p><p>${esc(data.stemIntro.why)}</p><p>${esc(data.stemIntro.how)}</p></div>` : '';
   return `
     <div class="learn-note"><b>先認識四化在講什麼</b><ul class="learn-mut-basics">${basics}</ul><p class="learn-caution">${esc(data.caution)}</p></div>
+    ${stemIntro}
     ${learningMutagenGroup('生年四化（一輩子）', data.birth, '這一宮沒有生年四化。')}
     ${learningMutagenGroup('宮干飛化（本宮飛出去）', data.palace, '這一宮沒有可對應的宮干飛化。')}
     ${learningMutagenGroup('向心自化（由對宮化入）', data.selfIncoming, '這一宮沒有向心自化。')}
@@ -993,7 +1022,12 @@ function learningStepSynthesisHtml(evidence) {
     ${learningEvidenceListHtml('暫時不採用', evidence.unused, '沒有被排除的資料。')}
     <div class="learn-conclusion">
       <div><span>1. 盤面看到什麼</span><p>${esc(c.observed)}</p></div>
-      <div><span>2. 這些資料怎麼互相影響</span><p>${esc(c.interaction)}</p></div>
+      <div><span>2. 這些資料怎麼互相影響</span>
+        ${evidence.interactionSteps?.length
+    // 每句都寫成「因為…所以…」並標出來源步驟，讀者才追得回去是從哪裡推出來的
+    ? evidence.interactionSteps.map((p) => `<p>${esc(p.text)}<span class="conclusion-source" title="這句話的依據在${esc(p.source)}">← ${esc(p.source)}</span></p>`).join('')
+    : `<p>${esc(c.interaction)}</p>`}
+      </div>
       <div><span>3. 可能出現在什麼情況</span><p>${esc(c.behavior)}</p></div>
       <div><span>4. 還需要什麼才能確認</span><p>${esc(c.pending)}</p></div>
     </div>
@@ -1180,7 +1214,11 @@ function whyPanelHtml(lesson) {
     <div class="analysis-card__panel--technical" style="margin-top:10px">
       <div class="tech-block"><b>主要依據</b><ul>${list(evidence.primary) || '<li>目前沒有可用的主要依據。</li>'}</ul></div>
       <div class="tech-block"><b>輔助依據</b><ul>${list(evidence.supporting) || '<li>目前沒有輔助依據。</li>'}</ul></div>
-      <div class="tech-block"><b>推導過程</b><p>${esc(evidence.conclusion.observed)}${esc(evidence.conclusion.interaction)}${esc(evidence.conclusion.behavior)}</p></div>
+      <div class="tech-block"><b>推導過程</b>
+        <p>${esc(evidence.conclusion.observed)}</p>
+        ${(evidence.interactionSteps ?? []).map((p) => `<p>${esc(p.text)}<span class="conclusion-source">← ${esc(p.source)}</span></p>`).join('')
+    || `<p>${esc(evidence.conclusion.interaction)}</p>`}
+        <p>${esc(evidence.conclusion.behavior)}</p></div>
       <div class="tech-block"><b>還需要確認的部分</b><p>${esc(evidence.conclusion.pending)}</p></div>
     </div>
   </details>`;

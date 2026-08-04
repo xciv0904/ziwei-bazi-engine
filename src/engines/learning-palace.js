@@ -17,23 +17,34 @@ import {
   AUSPICIOUS_EFFECT,
   AUSPICIOUS_MINOR,
   AUSPICIOUS_RULE,
+  BIRTH_MUTAGEN_PLAIN,
   BRIGHTNESS_NOTE,
   DOUBLE_STAR_TEACHING,
   EMPTY_PALACE_GUIDE,
+  FLYING_PLAIN,
   GLOSSARY,
   LESSON_STEPS,
   MALEFIC_EFFECT,
   MALEFIC_MINOR,
   MALEFIC_RULE,
   MINOR_STAR_RULE,
+  MUTAGEN_ACTION_WORD,
   MUTAGEN_BASICS,
   MUTAGEN_CAUTION,
   MUTAGEN_LAYERS,
   PALACE_AXES,
+  PALACE_LIFE_WORD,
+  PALACE_STEM_INTRO,
+  PERIOD_MUTAGEN_PLAIN,
   READING_ORDER,
   SELF_MUTAGEN_NOTE,
+  SELF_MUTAGEN_PLAIN,
   TRIAD_NOTE,
+  TRIAD_SYNTHESIS,
 } from '../data/learning-mode.js';
+
+/** 宮名 → 生活用語。四化的白話翻譯要講「這代表生活裡的什麼」,不能只講宮名。 */
+const lifeWord = (palaceName) => PALACE_LIFE_WORD[palaceName] ?? palaceName;
 
 const DOUBLE_STAR_COMBOS = doubleStarDb['雙主星組合'];
 const STAR_GLOSSARY = starGlossary['詞條'];
@@ -274,11 +285,29 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
   } : null;
 
   // ---- 第三步:三方四正 ----
+  // 三方四正不能只給一張四宮表格。初學者看完表格會問「所以呢」——
+  // 這裡把四宮合成一段話：這四件事是同一組、誰比較有定性、判斷時要怎麼用。
+  const triadMembers = triad?.members ?? [];
+  const triadOnly = triadMembers.filter((m) => m.role === 'triad');
+  const oppositeMember = triadMembers.find((m) => m.role === 'opposite');
+  const triadSynthesis = triadMembers.length ? [
+    TRIAD_SYNTHESIS.lead(
+      lifeWord(palaceName),
+      oppositeMember ? lifeWord(oppositeMember.name) : '對宮',
+      triadOnly.map((m) => lifeWord(m.name)),
+    ),
+    ...triadMembers.map((m) => (m.stars.length
+      ? TRIAD_SYNTHESIS.starred(m.name, m.stars.join('、'))
+      : TRIAD_SYNTHESIS.empty(m.name))),
+    TRIAD_SYNTHESIS.closing(lifeWord(palaceName)),
+  ] : [];
+
   const stepTriad = {
     id: 'triad',
     ...TRIAD_NOTE,
-    members: triad?.members ?? [],
+    members: triadMembers,
     branches: triad?.branches ?? [],
+    synthesis: triadSynthesis,
   };
 
   // ---- 第四步:四化與自化 ----
@@ -287,24 +316,50 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
   const palaceFlights = layerFlights(ziWei, stem, 'palace', `${palaceName}宮干${stem}`, palaceName);
   const decadalFlights = layerFlights(ziWei, decadalStem, 'decadal', `大限${majorLimit?.ganZhi ?? ''}天干${decadalStem ?? ''}`, palaceName);
   const annualFlights = layerFlights(ziWei, annualStem, 'annual', `${year}年天干${annualStem ?? ''}`, palaceName);
+  // 每一條四化都同時給「術語句」與「白話句」。
+  // 術語句是正確的命理陳述，白話句回答的是初學者真正想問的「所以我的生活裡會怎樣」。
+  // 兩者由閱讀模式決定顯示哪一個（白話模式只給白話，學習模式並列，專業模式只給術語）。
+  const selfWord = lifeWord(palaceName);
+  const oppositeWord = opposite ? lifeWord(opposite.name) : '對宮';
   const stepMutagen = {
     id: 'mutagen',
     basics: MUTAGEN_BASICS,
     caution: MUTAGEN_CAUTION,
     layers: MUTAGEN_LAYERS,
     selfNote: SELF_MUTAGEN_NOTE,
-    birth: birthMutagens.map((f) => ({ ...f, sentence: `生年四化（一輩子）：出生年天干使${f.star}化${f.mutagen}，就坐在${palaceName}。` })),
-    palace: palaceFlights.map((f) => ({ ...f, sentence: describeFlight(f) })),
+    stemIntro: PALACE_STEM_INTRO,
+    birth: birthMutagens.map((f) => ({
+      ...f,
+      sentence: `生年四化（一輩子）：出生年天干使${f.star}化${f.mutagen}，就坐在${palaceName}。`,
+      plain: BIRTH_MUTAGEN_PLAIN[f.mutagen]?.(f.star, selfWord) ?? '',
+    })),
+    palace: palaceFlights.map((f) => ({
+      ...f,
+      sentence: describeFlight(f),
+      plain: FLYING_PLAIN[f.mutagen]?.(selfWord, lifeWord(f.landing)) ?? '',
+    })),
     selfOutgoing: (selfT?.outgoing ?? []).map((x) => ({
-      star: x.star, mutagen: x.mutagen,
+      star: x.star,
+      mutagen: x.mutagen,
       sentence: `離心自化↓：${palaceName}宮干${stem}使${x.star}化${x.mutagen}，而${x.star}就在${palaceName}，能量往外散。`,
+      plain: SELF_MUTAGEN_PLAIN.outgoing(selfWord),
     })),
     selfIncoming: (selfT?.incoming ?? []).map((x) => ({
-      star: x.star, mutagen: x.mutagen,
+      star: x.star,
+      mutagen: x.mutagen,
       sentence: `向心自化↑：對宮${opposite?.name ?? ''}宮干${opposite?.position?.[0] ?? ''}使${x.star}化${x.mutagen}，而${x.star}在${palaceName}，能量由對宮灌入。`,
+      plain: SELF_MUTAGEN_PLAIN.incoming(selfWord, oppositeWord),
     })),
-    decadal: decadalFlights.map((f) => ({ ...f, sentence: describeFlight(f) })),
-    annual: annualFlights.map((f) => ({ ...f, sentence: describeFlight(f) })),
+    decadal: decadalFlights.map((f) => ({
+      ...f,
+      sentence: describeFlight(f),
+      plain: PERIOD_MUTAGEN_PLAIN.decadal(MUTAGEN_ACTION_WORD[f.mutagen] ?? '', lifeWord(f.landing)),
+    })),
+    annual: annualFlights.map((f) => ({
+      ...f,
+      sentence: describeFlight(f),
+      plain: PERIOD_MUTAGEN_PLAIN.annual(MUTAGEN_ACTION_WORD[f.mutagen] ?? '', lifeWord(f.landing)),
+    })),
   };
 
   // ---- 第五步:整合(證據鏈) ----
@@ -492,6 +547,9 @@ export function buildEvidenceChain({ palaceName, palace, opposite, isEmpty, step
     supporting,
     unused,
     conclusion: buildConclusion({ palaceName, isEmpty, opposite, stepSelf, stepTriad, stepMutagen, primary, supporting, year, majorLimit }),
+    // 第二段的結構化版本：每句附上它來自哪一步，畫面可以標成可回查的標籤。
+    // 刻意不放進 conclusion，那裡只收畫面直接印的字串。
+    interactionSteps: buildInteractionSteps({ palaceName, isEmpty, opposite, stepTriad, stepMutagen }),
     limits: buildLimits({ palaceName, isEmpty, stepMutagen, year, majorLimit }),
   };
 }
@@ -500,6 +558,53 @@ export function buildEvidenceChain({ palaceName, palace, opposite, isEmpty, step
  * 四段式結論:盤面看到什麼 → 資料之間怎麼互相影響 → 可能出現在什麼行為或情境 → 還需要什麼才能確認。
  * 每一句都只引用上面已列出的證據,不引入新的命理判斷。
  */
+/**
+ * 第二段的推導：每一句寫成「因為某項盤面事實 → 所以會怎樣」，並記下它來自哪一步。
+ * 使用者反映看不懂結論從哪來，關鍵就是這層因果與來源標註。
+ */
+function buildInteractionSteps({ palaceName, isEmpty, opposite, stepTriad, stepMutagen }) {
+  const domainWord = lifeWord(palaceName);
+  const oppositeDomain = opposite ? lifeWord(opposite.name) : '對宮';
+  const steps = [];
+  for (const f of stepMutagen.birth) {
+    steps.push({
+      text: `因為${f.star}帶著出生就有的化${f.mutagen}坐在這裡，所以${domainWord}這一塊${MUTAGEN_BASICS[f.mutagen]?.plain ?? ''}而且這是一輩子的底色，不會隨時間消失。`,
+      source: '第一步：生年四化',
+    });
+  }
+  if (stepMutagen.selfOutgoing.length) {
+    steps.push({
+      text: `因為這一宮有離心自化，所以${domainWord}的能量比較留不住：你在這裡投入的東西常常做了就過去，需要重新再來一次。`,
+      source: '第四步：離心自化',
+    });
+  }
+  if (stepMutagen.selfIncoming.length) {
+    steps.push({
+      text: `因為這一宮有向心自化，所以${domainWord}的狀態很受${oppositeDomain}牽動：${oppositeDomain}一有變化，這裡通常就跟著動。`,
+      source: '第四步：向心自化',
+    });
+  }
+  if (isEmpty) {
+    steps.push({
+      text: `因為本宮沒有主星，所以${domainWord}沒有固定的預設模式，表現主要跟著對宮與三合宮走，也就比較會隨環境與你的選擇改變。`,
+      source: '第一步：空宮',
+    });
+  } else if (opposite) {
+    steps.push({
+      text: `因為${opposite.name}是同一條軸線的另一端，所以判斷${domainWord}時要連著${oppositeDomain}一起看，只取一邊容易失準。`,
+      source: '第二步：對宮',
+    });
+  }
+  const triadNames = stepTriad.members.filter((m) => m.role === 'triad').map((m) => m.name);
+  if (triadNames.length) {
+    steps.push({
+      text: `因為三合連到${triadNames.join('與')}，所以${triadNames.map((n) => lifeWord(n)).join('或')}一有變化，${domainWord}通常也會跟著受影響。`,
+      source: '第三步：三方四正',
+    });
+  }
+  return steps;
+}
+
 function buildConclusion({ palaceName, isEmpty, opposite, stepSelf, stepTriad, stepMutagen, primary, supporting, year, majorLimit }) {
   const topic = palaceMeanings[palaceName] ?? palaceName;
   const mainStars = isEmpty ? starNamesOf(opposite) : stepSelf.majorStarFunctions.map((s) => s.name);
@@ -519,33 +624,20 @@ function buildConclusion({ palaceName, isEmpty, opposite, stepSelf, stepTriad, s
   if (stepSelf.isBodyPalace) observedParts.push('此宮同時是身宮');
   const observed = `${observedParts.join('，')}。`;
 
-  const interactionParts = [];
-  const birthList = stepMutagen.birth;
-  if (birthList.length) {
-    interactionParts.push(`${birthList.map((f) => `${f.star}帶生年化${f.mutagen}`).join('、')}，${birthList.map((f) => MUTAGEN_BASICS[f.mutagen]?.keywords).filter(Boolean).join('；')}這幾種傾向會一直附著在${palaceName}上`);
-  }
-  if (stepMutagen.selfOutgoing.length) {
-    interactionParts.push(`同時有離心自化，${palaceName}的能量比較留不住，容易做了就過去、需要重新再來一次`);
-  }
-  if (stepMutagen.selfIncoming.length) {
-    interactionParts.push(`有向心自化，${palaceName}的狀態較受對宮${opposite?.name ?? ''}牽動`);
-  }
-  if (isEmpty) {
-    interactionParts.push(`因為本宮沒有主星，這個領域的表現主要跟著對宮與三合宮走，也就比較會隨環境與經驗改變`);
-  } else if (opposite) {
-    interactionParts.push(`對宮${opposite.name}是同一條軸線的另一端，${palaceName}的判斷要連著它一起看，不能只取一邊`);
-  }
-  const triadNames = stepTriad.members.filter((m) => m.role === 'triad').map((m) => m.name);
-  if (triadNames.length) {
-    interactionParts.push(`三合的${triadNames.join('與')}再把這個主題延伸到其他生活場景`);
-  }
-  const interaction = interactionParts.length ? `${interactionParts.join('；')}。` : '這一宮目前的資料之間沒有特別強的互相牽動。';
+  const interactionParts = buildInteractionSteps({ palaceName, isEmpty, opposite, stepTriad, stepMutagen });
+  const interaction = interactionParts.length
+    ? interactionParts.map((p) => p.text).join('')
+    : '這一宮目前的資料之間沒有特別強的互相牽動。';
 
+  // 第三段要看得出是從哪幾顆星推來的，不能只把星曜的關鍵詞貼上去。
+  const leadStarNames = isEmpty ? starNamesOf(opposite) : mainStars;
   const behaviorLead = cores.length
-    ? `把上面幾項合起來看，${topic}這個部分可能較容易出現${cores.join('、')}這一類的反應`
-    : `把上面幾項合起來看，${topic}這個部分目前沒有特別突出的固定模式`;
-  const behaviorTail = keywords.length ? `具體一點說，遇到跟${keywords.join('、')}有關的情況時，這些傾向會比平常明顯。` : '';
-  const behavior = `${behaviorLead}。${behaviorTail}`;
+    ? `因為這一宮的主要力量來自${leadStarNames.join('與')}（${cores.join('；')}），所以${topic}這個部分可能較容易出現這幾種反應。`
+    : `這一宮目前沒有特別突出的固定模式，${topic}的表現會比較隨環境與經驗改變。`;
+  const behaviorTail = keywords.length
+    ? `落到日常裡，最容易在跟${keywords.join('、')}有關的情況下看到——那是這幾顆星最常起作用的場合。`
+    : '';
+  const behavior = `${behaviorLead}${behaviorTail}`;
 
   const pendingParts = [];
   if (isEmpty) pendingParts.push(`空宮的判斷一定要把對宮與兩個三合宮一起看完，只憑對宮主星就下定論容易失準`);

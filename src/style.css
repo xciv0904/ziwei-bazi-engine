@@ -1316,3 +1316,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .learn-order ol { margin: 4px 0 0; padding-left: 20px; }
 .learn-order li { font: 400 13px/1.85 var(--sans); color: var(--ink-60); margin-bottom: 3px; }
 .learn-order li b { color: var(--ink); margin-right: 4px; }
+
+/* 白話句與命理術語句：由閱讀模式決定顯示哪一個（見 main.js bilingualLine） */
+.line-plain { display: block; font: 400 13.5px/1.9 var(--sans); color: var(--ink); }
+.line-tech {
+  display: block; margin-top: 4px; padding-left: 10px;
+  border-left: 2px solid var(--border);
+  font: 400 12.5px/1.8 var(--sans); color: var(--ink-45);
+}
+.line-tech b { color: var(--gold); font-weight: 600; }
+
+/* 結論每句標出依據來自哪一步，可以往回查 */
+.conclusion-source {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 8px;
+  font: 500 11px/1.7 var(--sans); color: var(--gold);
+  background: rgba(138, 109, 59, .1); text-decoration: none; white-space: nowrap;
+}
