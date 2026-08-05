@@ -126,4 +126,6 @@ palaces, stars, transformations, or limits.
 | 2026-08-05 | Two reading modes only: plain and learn. 'study' survives as an internal composer value, not a user-facing mode | Three modes produced only two distinct screens, and the third leaked jargon into plain mode |
 | 2026-08-05 | Plain mode hides every technical block site-wide, including collapsed ones | A collapsed block still renders its text; users reported seeing 廟旺 while in plain mode |
 | 2026-08-05 | Learn mode never replaces plain text — it appends the source chain | The old study mode swapped plain out for jargon, so each mode was missing half of what a learner needs |
+| 2026-08-06 | Decadal/annual mutagens are split into lands-here vs lands-elsewhere | They are per-decade/per-year, not per-palace; listing all four flat made every palace look identical and users read it as a bug |
+| 2026-08-06 | Quiz questions retire as they are answered: concept after 1, drill after 3, chart never | Twelve palaces asking the same template felt like revising the same thing twelve times |
 

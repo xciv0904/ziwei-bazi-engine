@@ -858,6 +858,19 @@ function learningChartKey() {
   return R.chartKeyOf(state.data?.input);
 }
 
+/**
+ * 這一宮現在該出哪幾題。
+ *
+ * 使用者回報「幾乎每個宮位的學習問題都一樣，一套做下來感覺是複習了十二次」。
+ * 題目會依你已經答對過幾次逐步退場：通則題答對一次、基本功題答對三宮，
+ * 之後名額讓給這一宮才有的內容。作答紀錄依命盤分開存，換命盤會重新開始。
+ */
+function currentQuiz(lesson) {
+  return R.buildPalaceQuiz(lesson, state.data.ziWei, {
+    mastery: R.quizMastery(state.learningProgress),
+  });
+}
+
 function currentLesson() {
   const { ziWei } = state.data;
   const { limit, year } = currentLuckSelection();
@@ -1040,6 +1053,45 @@ function learningMutagenGroup(title, items, emptyText) {
     <ul>${items.map((x) => `<li>${bilingualLine(x)}</li>`).join('')}</ul></div>`;
 }
 
+/**
+ * 大限四化與流年四化跟上面幾組不一樣：它們是「這十年」「這一年」共通的四條，
+ * 由大限天干與流年天干決定，不會因為你正在看哪一宮而改變。
+ *
+ * 先前這裡直接把四條全部列出來，於是每個宮位看到的內容一字不差，
+ * 使用者合理地懷疑是 bug。資料沒錯，錯在呈現：判讀某一宮時真正要看的是
+ * 「這四條裡有沒有落在這一宮」，其餘三條屬於背景資訊。
+ *
+ * 所以改成兩層：落在本宮的先講（沒有就明講沒有，那本身就是一個判斷），
+ * 其餘收合，並註明它們為什麼在每一宮都一樣。
+ */
+function learningPeriodGroup(title, items, palaceName, scopeNote, emptyText) {
+  if (!items.length) return `<div class="learn-mut-group"><b>${esc(title)}</b><p class="learn-empty">${esc(emptyText)}</p></div>`;
+  const here = items.filter((x) => x.landsHere);
+  const elsewhere = items.filter((x) => !x.landsHere);
+  return `<div class="learn-mut-group"><b>${esc(title)}</b>
+    ${here.length
+    ? `<p class="learn-mut-lead">落在${esc(palaceName)}的有 ${here.length} 條，判讀這一宮時要看的就是這幾條：</p>
+       <ul>${here.map((x) => `<li>${bilingualLine(x)}</li>`).join('')}</ul>`
+    : `<p class="learn-mut-lead learn-mut-none">${esc(scopeNote.none(palaceName))}</p>`}
+    ${elsewhere.length ? `<details class="learn-mut-rest">
+      <summary>另外 ${elsewhere.length} 條落在別的宮位（每一宮看到的都一樣）</summary>
+      <p class="learn-hint">${esc(scopeNote.why)}</p>
+      <ul>${elsewhere.map((x) => `<li><span class="mut-landing">落入${esc(x.landing)}</span>${bilingualLine(x)}</li>`).join('')}</ul>
+    </details>` : ''}
+  </div>`;
+}
+
+const PERIOD_SCOPE_NOTE = {
+  decadal: {
+    none: (palace) => `這十年的四化沒有一條落在${palace}。這一宮不是這十年被明顯牽動的地方——這本身就是一個判斷，不是資料缺漏。`,
+    why: '大限四化由大限天干決定，是這十年共通的四條，不會因為你看哪一宮而改變。列在這裡是為了讓你看得到全貌，判讀這一宮時以上面那幾條為準。',
+  },
+  annual: {
+    none: (palace) => `今年的四化沒有一條落在${palace}。這一宮今年不是被特別引動的地方。`,
+    why: '流年四化由這一年的天干決定，是今年共通的四條，每一宮看到的都一樣。判讀這一宮時以上面那幾條為準。',
+  },
+};
+
 function learningStepMutagenHtml(data) {
   const show = currentLevel().show;
   const basics = Object.entries(data.basics)
@@ -1055,8 +1107,8 @@ function learningStepMutagenHtml(data) {
     ${show.flying ? learningMutagenGroup('宮干飛化（本宮飛出去）', data.palace, '這一宮沒有可對應的宮干飛化。') : ''}
     ${show.selfMutagen ? learningMutagenGroup('向心自化（由對宮化入）', data.selfIncoming, '這一宮沒有向心自化。') : ''}
     ${show.selfMutagen ? learningMutagenGroup('離心自化（能量往外散）', data.selfOutgoing, '這一宮沒有離心自化。') : ''}
-    ${show.period ? learningMutagenGroup('大限四化（這十年）', data.decadal, '目前大限沒有可對應的四化。') : ''}
-    ${show.period ? learningMutagenGroup('流年四化（這一年）', data.annual, '目前流年沒有可對應的四化。') : ''}
+    ${show.period ? learningPeriodGroup('大限四化（這十年）', data.decadal, data.palaceName, PERIOD_SCOPE_NOTE.decadal, '目前大限沒有可對應的四化。') : ''}
+    ${show.period ? learningPeriodGroup('流年四化（這一年）', data.annual, data.palaceName, PERIOD_SCOPE_NOTE.annual, '目前流年沒有可對應的四化。') : ''}
     ${show.flying
     ? '<p class="learn-hint">上面每一條都標了層次：生年是一輩子、大限是這十年、流年只有這一年，判讀時不要混在一起。</p>'
     : '<p class="learn-hint">宮干飛化、自化與大限流年四化屬於高級階段，切到「高級」才會顯示。</p>'}`;
@@ -1204,6 +1256,18 @@ function learningEmptyGuideHtml(guide) {
 function learningQuizHtml(lesson, questions) {
   if (!questions.length) return '';
   const answers = state.learning.answers[lesson.palaceName] ?? {};
+  // 題目退場時要說一聲，否則使用者會以為是漏題。
+  // 這也是在告訴他「你已經會了」——不然十二宮出一樣的題只是在浪費時間。
+  const mastery = R.quizMastery(state.learningProgress);
+  const retiredKinds = [
+    ['reading-order', '判讀順序'], ['minor-priority', '雜曜的角色'],
+    ['malefic-rule', '煞星怎麼看'], ['double-star', '雙星怎麼讀'],
+    ['self-stars', '本宮主星'], ['opposite', '對宮'], ['triad', '三合宮'], ['is-empty', '空宮判定'],
+  ].filter(([id]) => (mastery.get(id) ?? 0) > 0 && !questions.some((q) => q.id === id))
+    .map(([, label]) => label);
+  const retired = retiredKinds.length
+    ? `已經答對過的題型不再重複出：${retiredKinds.join('、')}。這幾宮的練習會集中在這一宮才有的內容。`
+    : '';
   const body = questions.map((q) => {
     const picked = answers[q.id];
     const options = q.options.map((opt) => {
@@ -1220,6 +1284,7 @@ function learningQuizHtml(lesson, questions) {
   return `<details class="learn-quiz" data-dashboard-detail="learn-quiz"${state.dashboardOpenDetails.has('learn-quiz') ? ' open' : ''}>
     <summary>先自己判斷（${questions.length} 題，答完才看答案）</summary>
     <p class="learn-hint">這些題目都可以直接從上面的盤面資料查證，不考流派爭議，也不考模糊的命理解釋。</p>
+    ${retired ? `<p class="learn-hint quiz-progress">${esc(retired)}</p>` : ''}
     ${body}
     <button type="button" class="mini-btn" id="learn-quiz-reset">重做這一宮的練習</button>
   </details>`;
@@ -1229,7 +1294,7 @@ function renderLearningPanel() {
   if (state.readingMode !== 'learn') return '';
   const lesson = currentLesson();
   if (!lesson) return '';
-  const questions = R.buildPalaceQuiz(lesson, state.data.ziWei);
+  const questions = currentQuiz(lesson);
   // 切階段後，原本展開的步驟可能已經不在這一階段裡，退回第一步避免整區空白
   const levelSteps = currentLevel().steps;
   if (state.learning.openStep && !levelSteps.includes(state.learning.openStep)) {
@@ -1338,7 +1403,7 @@ function bindLearningPanel() {
       const questionId = btn.dataset.quiz;
       const picked = btn.dataset.quizOption;
       const lesson = currentLesson();
-      const question = R.buildPalaceQuiz(lesson, state.data.ziWei).find((q) => q.id === questionId);
+      const question = currentQuiz(lesson).find((q) => q.id === questionId);
       if (!question) return;
       (state.learning.answers[state.selectedPalace] ??= {})[questionId] = picked;
       state.learningProgress = R.recordQuizAnswer(storage, chartKey, state.selectedPalace, questionId, picked === question.answer);

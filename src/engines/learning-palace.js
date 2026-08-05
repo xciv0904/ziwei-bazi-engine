@@ -210,6 +210,11 @@ export function describeFlight(flight) {
   return `${scope}：${flight.fromLabel}使${flight.star}化${flight.mutagen}，落入${flight.landing}。`;
 }
 
+/** 從候選裡取 n 個，同一張盤同一宮永遠取到同一組（不會每次重繪就換選項） */
+function pickWithSeed(pool, n, seed) {
+  return shuffleWithSeed([...new Set(pool)], seed).slice(0, n);
+}
+
 /** 建立一筆證據,key 用來去重,避免同一份資料在主要與輔助依據各算一次 */
 const evidenceItem = (key, kind, text) => ({ key, kind, text });
 
@@ -374,6 +379,8 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
   const oppositeWord = opposite ? lifeWord(opposite.name) : '對宮';
   const stepMutagen = {
     id: 'mutagen',
+    // 畫面要用它把「落在本宮」與「落在別宮」分開，所以這裡帶上宮名
+    palaceName,
     basics: MUTAGEN_BASICS,
     caution: MUTAGEN_CAUTION,
     layers: MUTAGEN_LAYERS,
@@ -789,21 +796,40 @@ const shuffleWithSeed = (items, seed) => {
 
 const seedOf = (text) => [...String(text)].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 2147483647, 7);
 
-function choiceQuestion({ id, prompt, answer, distractors, explain, seed }) {
+function choiceQuestion({ id, kind = 'chart', prompt, answer, distractors, explain, seed }) {
   const pool = [...new Set([answer, ...distractors])].slice(0, 4);
   if (pool.length < 2) return null;
-  return { id, prompt, options: shuffleWithSeed(pool, seed), answer, explain };
+  // kind: 'chart' 這一宮專屬（每宮都不同）／'concept' 通則（答對一次就不再出）
+  return { id, kind, prompt, options: shuffleWithSeed(pool, seed), answer, explain };
 }
 
 /**
  * 依當前命盤動態產生選擇題。
  * 只出「可以由盤面資料直接驗證」的題目:不考流派爭議,也不考模糊的命理解釋。
  *
- * @param {object} lesson buildPalaceLesson() 的輸出
- * @param {object} ziWei  convertToZiWei() 輸出(取其他宮位當誘答選項)
+ * 題目分三類，這個分類是使用者回報「一套做下來感覺是複習了十二次」之後才加的：
+ *
+ *   concept 通則題，答案跟看哪一宮無關（判讀順序、雜曜的角色、煞星怎麼看）。
+ *           答對一次就代表懂了，之後不再出。
+ *   drill   基本功題（本宮主星、對宮、三合宮、是不是空宮）。答案每宮不同，
+ *           但題型一字不差，連問十二次會變成抄寫練習。答對三宮之後退場。
+ *   chart   這一宮真正專屬的題目（生年四化、廟旺、這一宮在看什麼、
+ *           這顆星放在這一宮怎麼發揮、空宮借星…）。永遠優先，也永遠不退場。
+ *
+ * 退場之後名額讓給 chart 類，所以愈往後的宮位，題目愈是這一宮才有的東西。
+ *
+ * @param {object} lesson              buildPalaceLesson() 的輸出
+ * @param {object} ziWei               convertToZiWei() 輸出(取其他宮位當誘答選項)
+ * @param {object} [options]
+ * @param {Map<string, number>} [options.mastery] 每種題目已經答對過幾宮
+ * @param {number} [options.max]       一次最多出幾題（預設 5，太多題會讓人放棄）
  */
-export function buildPalaceQuiz(lesson, ziWei) {
+export function buildPalaceQuiz(lesson, ziWei, options = {}) {
   if (!lesson) return [];
+  const mastery = options.mastery ?? new Map();
+  const maxQuestions = options.max ?? 5;
+  // 退場門檻：通則題答對一次就夠，基本功題要答對三宮才算熟
+  const RETIRE_AT = { concept: 1, drill: 3 };
   const seed = seedOf(`${lesson.palaceName}${lesson.position}`);
   const otherPalaces = PALACE_ORDER.filter((n) => n !== lesson.palaceName);
   const allStars = [...new Set(ziWei.palaces.flatMap((p) => p.majorStars.map((s) => s.name)))];
@@ -819,6 +845,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
   const selfStarAnswer = self.majorStars.length ? self.majorStars.map((s) => s.split('（')[0]).join('、') : '無主星（空宮）';
   questions.push(choiceQuestion({
     id: 'self-stars',
+    kind: 'drill',
     prompt: `${lesson.palaceName}本身的主星是什麼？`,
     answer: selfStarAnswer,
     distractors: [
@@ -835,6 +862,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
   if (opposite) {
     questions.push(choiceQuestion({
       id: 'opposite',
+      kind: 'drill',
       prompt: `${lesson.palaceName}的對宮是哪一宮？`,
       answer: opposite.name,
       distractors: otherPalaces.filter((n) => n !== opposite.name).slice(0, 3),
@@ -851,6 +879,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
       .slice(0, 6);
     questions.push(choiceQuestion({
       id: 'triad',
+      kind: 'drill',
       prompt: `${lesson.palaceName}的兩個三合宮是哪兩宮？`,
       answer,
       distractors: [
@@ -866,6 +895,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
   // 4) 是否為空宮
   questions.push(choiceQuestion({
     id: 'is-empty',
+    kind: 'drill',
     prompt: `${lesson.palaceName}是不是空宮？`,
     answer: lesson.isEmpty ? '是，沒有十四主星' : '不是，有十四主星坐守',
     distractors: [lesson.isEmpty ? '不是，有十四主星坐守' : '是，沒有十四主星'],
@@ -909,6 +939,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
   // 7) 判讀順序:初學者最常見的錯誤是看到煞星就先下結論，這題直接考先後
   questions.push(choiceQuestion({
     id: 'reading-order',
+    kind: 'concept',
     prompt: '三合派判讀一個宮位時，下面哪一項應該最先看？',
     answer: '主星（沒有主星就借對宮）',
     distractors: ['同宮的煞曜', '雜曜', '大限與流年'],
@@ -920,6 +951,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
   if (self.doubleStar?.combined) {
     questions.push(choiceQuestion({
       id: 'double-star',
+    kind: 'concept',
       prompt: `${lesson.palaceName}是${self.doubleStar.pair}同宮。判讀雙星時，正確的做法是什麼？`,
       answer: '當成一個新的組合來讀，看哪一顆主導、另一顆往哪個方向修飾',
       distractors: [
@@ -949,6 +981,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
   if (self.maleficDetail?.length) {
     questions.push(choiceQuestion({
       id: 'malefic-rule',
+    kind: 'concept',
       prompt: `${lesson.palaceName}見到${self.maleficDetail[0].name}，判斷時該怎麼看？`,
       answer: '看主星是否入廟：入廟時煞星轉成力道，落陷時才容易變成問題',
       distractors: [
@@ -965,6 +998,7 @@ export function buildPalaceQuiz(lesson, ziWei) {
   if (self.otherStars?.length) {
     questions.push(choiceQuestion({
       id: 'minor-priority',
+    kind: 'concept',
       prompt: '雜曜在判讀裡的角色是什麼？',
       answer: '排在最後，主結構讀完後用來補「以什麼形式呈現」',
       distractors: [
@@ -992,5 +1026,77 @@ export function buildPalaceQuiz(lesson, ziWei) {
     }));
   }
 
-  return questions.filter(Boolean);
+  // 13) 這一宮在看什麼——十二宮各不相同，而且是判讀的前提：
+  //     不知道田宅宮管什麼，看到再多星曜也接不回自己的生活。
+  const topicAnswer = palaceMeanings[lesson.palaceName];
+  if (topicAnswer) {
+    questions.push(choiceQuestion({
+      id: 'palace-topic',
+      prompt: `${lesson.palaceName}主要看的是什麼？`,
+      answer: topicAnswer,
+      distractors: otherPalaces.slice(0, 6).map((n) => palaceMeanings[n]).filter(Boolean).slice(0, 3),
+      explain: `${lesson.palaceName}對應的是${topicAnswer}。先確定這一宮在講哪一塊生活，星曜的解釋才有地方放。`,
+      seed: seed + 12,
+    }));
+  }
+
+  // 14) 這顆主星放在這一宮怎麼發揮——誘答刻意取同一顆星在別宮的說法，
+  //     因為初學者最容易犯的錯就是把星的通性直接套到每一宮。
+  //     這一題每一宮的題目與選項都不同，是解決「十二宮出同一份題目」的主力。
+  const appStar = self.majorStarFunctions.find((st) => st.application?.['發揮']);
+  if (appStar) {
+    const otherPalaceApps = otherPalaces
+      .map((n) => MAJOR_APPLICATION[n]?.[appStar.name]?.['發揮'])
+      .filter(Boolean);
+    questions.push(choiceQuestion({
+      id: 'star-application',
+      prompt: `${appStar.name}坐${lesson.palaceName}，最能發揮的是下面哪一項？`,
+      answer: appStar.application['發揮'],
+      distractors: pickWithSeed(otherPalaceApps, 3, seed + 13),
+      explain: `同一顆${appStar.name}放在不同宮位，發揮的地方完全不同——其他選項都是${appStar.name}真的會有的樣子，只是不在${lesson.palaceName}。星的性質是固定的，落在哪一宮決定它用在哪裡。`,
+      seed: seed + 13,
+    }));
+  }
+
+  // 15) 空宮才出：借星到底借了什麼。這題只有空宮的宮位會遇到，
+  //     所以不會變成每一宮都出的通則題。
+  if (lesson.isEmpty && lesson.emptyGuide?.borrowedFrom) {
+    questions.push(choiceQuestion({
+      id: 'borrow',
+      prompt: `${lesson.palaceName}是空宮，要借${lesson.emptyGuide.borrowedFrom}的星來看。下面哪一項會跟著借過來？`,
+      answer: '主星本身、它的廟旺，以及它帶的生年四化',
+      distractors: [
+        `${lesson.emptyGuide.borrowedFrom}的輔星與煞曜也一起搬過來`,
+        `${lesson.emptyGuide.borrowedFrom}的宮干與飛化也一起搬過來`,
+        `整個${lesson.emptyGuide.borrowedFrom}的宮位主題取代${lesson.palaceName}`,
+      ],
+      explain: `借的是「星」不是「宮」：廟旺與生年四化是星自己的屬性，跟著走；輔星煞曜、宮干飛化、宮位主題是宮位的東西，留在${lesson.emptyGuide.borrowedFrom}。`,
+      seed: seed + 14,
+    }));
+  }
+
+  const usable = questions.filter(Boolean);
+
+  // 已經練熟的題型退場，名額讓給這一宮專屬的內容
+  const filtered = usable.filter((q) => {
+    const limit = RETIRE_AT[q.kind];
+    return !limit || (mastery.get(q.id) ?? 0) < limit;
+  });
+
+  // 配比：每一份練習固定「最多 2 題基本功 + 最多 1 題通則 + 其餘全是這一宮專屬」。
+  //
+  // 不是單純把專屬題排前面就好——那樣前幾宮會完全沒有基本功題，初學者連
+  // 對宮怎麼找都還沒熟就先被問應用。反過來把基本功排前面，前三宮又會被
+  // 四題同樣的題型佔滿，回到使用者原本抱怨的那個樣子。
+  // 固定配比讓每一宮都同時有「熟練」與「這一宮才有」的題目，
+  // 而基本功與通則會隨著答對次數自然退場，名額自動讓給專屬題。
+  const take = (kind, n) => filtered.filter((q) => q.kind === kind).slice(0, n);
+  const drills = take('drill', 2);
+  const concepts = take('concept', 1);
+  const charts = take('chart', Math.max(1, maxQuestions - drills.length - concepts.length));
+  // 顯示順序：先基本功（確認看得懂盤面）→ 再這一宮專屬（應用）→ 最後通則
+  const picked = [...drills, ...charts, ...concepts].slice(0, maxQuestions);
+
+  // 全部退場時不留空白：回頭給這一宮專屬的題目，練習區不能變成空的
+  return picked.length ? picked : usable.filter((q) => q.kind === 'chart').slice(0, maxQuestions);
 }

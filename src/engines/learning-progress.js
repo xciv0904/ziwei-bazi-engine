@@ -127,6 +127,28 @@ export function progressSummary(entry, totalSteps = 5) {
   };
 }
 
+/**
+ * 每一種題目已經在幾個宮位答對過。
+ *
+ * 使用者回報「幾乎每個宮位的學習問題都一樣，一套做下來像複習了十二次」。
+ * 追下去是兩層問題：
+ *   1. 通則題（判讀順序、雜曜的角色、煞星怎麼看）的答案跟看哪一宮無關，十二宮出同一題。
+ *   2. 基本功題（本宮主星、對宮、三合宮、是不是空宮）雖然答案每宮不同，
+ *      但題型一字不差，連問十二次就變成抄寫練習。
+ *
+ * 兩種都該退場，只是時機不同：通則答對一次就夠，基本功答對幾次才熟。
+ * 這個函式回傳次數，由 buildPalaceQuiz 決定各自的退場門檻。
+ */
+export function quizMastery(entry) {
+  const counts = new Map();
+  for (const slot of Object.values(entry?.palaces ?? {})) {
+    for (const [id, correct] of Object.entries(slot.quiz ?? {})) {
+      if (correct) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 /** 下一個還沒學完的宮位(給「繼續上次學習」用) */
 export function nextPalaceToLearn(entry, totalSteps = 5) {
   if (entry?.lastPalace && !isPalaceComplete(entry, entry.lastPalace, totalSteps)) return entry.lastPalace;

@@ -40,6 +40,7 @@ export { buildLifeManual } from './life-manual.js';
 export { LEARNING_LEVELS, stepOrdinal } from '../data/learning-mode.js';
 export {
   LEARNING_PROGRESS_KEY,
+  quizMastery,
   chartKeyOf,
   isPalaceComplete,
   loadProgress,

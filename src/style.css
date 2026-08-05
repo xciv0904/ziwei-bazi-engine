@@ -1217,6 +1217,22 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .learn-why .tech-block li { margin-bottom: 6px; }
 .learn-why .tech-block li b { display: inline-block; margin-right: 6px; color: var(--gold); }
 
+/* 大限/流年四化：落在本宮的先講，其餘收合並註明「每一宮看到的都一樣」 */
+.learn-mut-lead { font: 600 12.5px/1.7 var(--sans); color: var(--gold); margin: 4px 0 6px; }
+.learn-mut-none { color: var(--muted); font-weight: 400; }
+.learn-mut-rest { margin-top: 6px; }
+.learn-mut-rest > summary {
+  cursor: pointer; list-style: none; font: 400 12px/1.7 var(--sans); color: var(--muted);
+  display: flex; align-items: center; gap: 5px;
+}
+.learn-mut-rest > summary::-webkit-details-marker { display: none; }
+.learn-mut-rest > summary::before { content: '▸'; font-size: 9px; transition: transform .15s; }
+.learn-mut-rest[open] > summary::before { transform: rotate(90deg); }
+.mut-landing {
+  display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 4px;
+  background: rgba(0, 0, 0, .05); font: 600 11px/1.6 var(--sans); color: var(--muted);
+}
+
 /* 來源鏈：重點解讀與完整報告每一段下方的「這段話的依據從哪裡來」。
    視覺沿用 .learn-why，但獨立一個 class——那兩個位置的收合狀態與檢查各自獨立。 */
 .source-chain { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }

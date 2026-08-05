@@ -681,6 +681,17 @@ await settle();
 check('點第四步會展開四化內容', $('#learn-card .learn-step.open .learn-step-title').textContent.includes('看四化與自化'));
 // 使用者回報看不懂四化，追到底是每句術語後面都缺一句「所以呢」。
 // 宮干是第一個卡住的地方（命盤上只看到地支，怎麼冒出天干），所以先解釋它。
+// 使用者回報大限/流年四化在每個宮位都一樣。四條由大限天干決定，本來就是這十年共通的，
+// 但畫面必須標出哪幾條落在正在讀的這一宮，其餘收起來並說明為什麼每宮都一樣。
+check('大限四化分成「落在本宮」與「落在別宮」兩層', (() => {
+  const decadal = $$('#learn-card .learn-mut-group')
+    .find((g) => g.textContent.includes('大限四化'));
+  if (!decadal) return false;
+  const text = decadal.textContent;
+  const hasLead = text.includes('判讀這一宮時要看的就是這幾條') || text.includes('沒有一條落在');
+  const rest = decadal.querySelector('.learn-mut-rest');
+  return hasLead && (!rest || rest.textContent.includes('每一宮看到的都一樣'));
+})());
 check('第四步先解釋「宮干」是什麼', (() => {
   const text = $('#learn-card .learn-step.open .learn-step-body').textContent;
   return text.includes('先搞懂「宮干」') && text.includes('除了地支') && text.includes('把能量送到哪裡');

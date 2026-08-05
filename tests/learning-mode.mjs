@@ -10,6 +10,7 @@ import { convertToZiWei } from '../src/engines/ziwei.js';
 import { computeSelfTransformations, flyingOfStem } from '../src/engines/compose-annual.js';
 import { PALACE_ORDER, buildPalaceLesson, buildPalaceQuiz, triadOf } from '../src/engines/learning-palace.js';
 import { LEARNING_LEVELS, LESSON_STEPS, stepOrdinal } from '../src/data/learning-mode.js';
+import { quizMastery } from '../src/engines/learning-progress.js';
 import {
   chartKeyOf,
   isPalaceComplete,
@@ -346,7 +347,103 @@ ok('學習進度:依命盤分開儲存、可重設、重新讀取仍在、儲存
   if (!orphan) ok(`推導來源都指向真實步驟（初階會濾掉其中 ${hidden} 句指向未顯示步驟的推導）`);
 }
 
-// ---------- 6. triadOf 對所有宮位都要回傳四宮 ----------
+// ---------- 6. 大限／流年四化必須分出「落在本宮」與「落在別宮」 ----------
+// 使用者回報：大限四化跟流年四化在每個宮位都顯示一樣的東西，懷疑是 bug。
+// 資料沒錯——那四條由大限天干／流年天干決定，本來就是這十年、這一年共通的；
+// 錯在呈現，把四條全部平鋪，讀者看不出哪一條跟他正在讀的這一宮有關。
+// 這一節守住兩件事：landsHere 標記正確，以及它真的區分得出宮位。
+{
+  const ziWei = convertToZiWei(fixture.cases[0].input);
+  const limit = ziWei.majorLimits[4];
+  const signatures = new Set();
+  let hereTotal = 0;
+  for (const palaceName of PALACE_ORDER) {
+    const lesson = buildPalaceLesson({ ziWei, palaceName, year: 2026, majorLimit: limit });
+    const mutagen = lesson.steps.find((s) => s.id === 'mutagen').data;
+
+    if (mutagen.palaceName !== palaceName) fail(`${palaceName} 的四化步驟沒有帶上宮名，畫面無法分組`);
+
+    for (const layer of ['decadal', 'annual']) {
+      for (const flight of mutagen[layer]) {
+        const expected = flight.landing === palaceName;
+        if (flight.landsHere !== expected) {
+          fail(`${palaceName} 的${layer}四化 ${flight.star}化${flight.mutagen} landsHere 標錯（落點 ${flight.landing}）`);
+        }
+      }
+    }
+    hereTotal += mutagen.decadal.filter((f) => f.landsHere).length;
+    signatures.add(mutagen.decadal.map((f) => `${f.star}${f.mutagen}${f.landsHere ? '★' : ''}`).join(','));
+  }
+  // 十二宮的大限四化「內容」相同是對的（那四條本來就是這十年共通的），
+  // 但「落在本宮」的標記必須讓十二宮的呈現長得不一樣。
+  // 四條四化最多落在四個宮位，所以分組結果至少會有「有落點」與「沒落點」兩種以上。
+  if (signatures.size < 3) {
+    fail(`十二宮的大限四化分組結果只有 ${signatures.size} 種，落點標記沒有發揮作用`);
+  }
+  if (hereTotal !== 4) fail(`大限四化落在本宮的總數是 ${hereTotal}，應該剛好等於四條四化各落一宮`);
+  else ok(`大限／流年四化有標出落在本宮的那幾條（四條各落一宮，分組結果 ${signatures.size} 種）`);
+}
+
+// ---------- 7. 練習題不能十二宮出同一份 ----------
+// 使用者回報：「幾乎每個宮位的學習問題都一樣，一套做下來感覺是複習了十二次」。
+// 通則題（判讀順序、雜曜的角色）答案跟宮位無關，基本功題（本宮主星、對宮）題型一字不差。
+// 現在兩者都會隨著答對次數退場，名額讓給這一宮才有的題目。
+{
+  const ziWei = convertToZiWei(fixture.cases[0].input);
+  const limit = ziWei.majorLimits[4];
+
+  // 模擬一路答對走完十二宮，記錄每一宮實際出到的題目
+  const mastery = new Map();
+  const perPalace = [];
+  for (const palaceName of PALACE_ORDER) {
+    const lesson = buildPalaceLesson({ ziWei, palaceName, year: 2026, majorLimit: limit });
+    const questions = buildPalaceQuiz(lesson, ziWei, { mastery });
+    perPalace.push({ palaceName, questions });
+    for (const q of questions) mastery.set(q.id, (mastery.get(q.id) ?? 0) + 1);
+  }
+
+  if (perPalace.some(({ questions }) => !questions.length)) {
+    fail('有宮位一題都出不出來，練習區會變成空的');
+  }
+
+  // 通則題最多只能出現一次
+  for (const id of ['reading-order', 'minor-priority', 'malefic-rule', 'double-star']) {
+    const times = perPalace.filter(({ questions }) => questions.some((q) => q.id === id)).length;
+    if (times > 1) fail(`通則題 ${id} 出現在 ${times} 個宮位，答對一次就該退場`);
+  }
+
+  // 基本功題最多三次
+  for (const id of ['self-stars', 'opposite', 'triad', 'is-empty']) {
+    const times = perPalace.filter(({ questions }) => questions.some((q) => q.id === id)).length;
+    if (times > 3) fail(`基本功題 ${id} 出現在 ${times} 個宮位，超過三次就變成抄寫練習`);
+  }
+
+  // 後半段必須以「這一宮才有」的題目為主。
+  // 不要求百分之百，因為有些通則題要等到遇得到那個結構才會第一次出現
+  // （例如雙星怎麼讀，只有雙星同宮的宮位才有），那是第一次出現，不是重複。
+  const later = perPalace.slice(6);
+  for (const { palaceName, questions } of later) {
+    const repeats = questions.filter((q) => q.kind !== 'chart').length;
+    if (repeats > 1) fail(`${palaceName} 仍有 ${repeats} 題基本功／通則題，重複感沒有解決`);
+  }
+  const chartRatio = later.flatMap(({ questions }) => questions).filter((q) => q.kind === 'chart').length
+    / later.flatMap(({ questions }) => questions).length;
+  if (chartRatio < 0.8) fail(`後六宮只有 ${Math.round(chartRatio * 100)}% 是這一宮專屬的題目`);
+
+  // 十二宮的題目組合不得全部相同
+  const combos = new Set(perPalace.map(({ questions }) => questions.map((q) => q.id).sort().join(',')));
+  if (combos.size < 4) fail(`十二宮的題目組合只有 ${combos.size} 種，還是像複習十二次`);
+  else ok(`練習題不重複：十二宮共 ${combos.size} 種組合，第七宮之後只出這一宮才有的題目`);
+
+  // quizMastery 要能從真實的進度結構算出次數（畫面就是靠它決定出哪些題）
+  const entry = { palaces: { 命宮: { steps: [], quiz: { 'reading-order': true, 'self-stars': false } },
+    兄弟宮: { steps: [], quiz: { 'reading-order': true } } } };
+  const counts = quizMastery(entry);
+  if (counts.get('reading-order') !== 2) fail('quizMastery 沒有正確累計答對次數');
+  if (counts.has('self-stars')) fail('quizMastery 把答錯的也算進去了');
+}
+
+// ---------- 8. triadOf 對所有宮位都要回傳四宮 ----------
 {
   const ziWei = convertToZiWei(fixture.cases[0].input);
   for (const palaceName of PALACE_ORDER) {
