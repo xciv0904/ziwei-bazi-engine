@@ -1217,13 +1217,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .learn-why .tech-block li { margin-bottom: 6px; }
 .learn-why .tech-block li b { display: inline-block; margin-right: 6px; color: var(--gold); }
 
-/* 主題分析：主星答案後面追加的「這一宮還有其他星」修正層 */
-.topic-modifier {
-  margin-top: 10px; padding: 10px 12px; border-left: 3px solid var(--gold);
-  background: rgba(0, 0, 0, .02); border-radius: 0 8px 8px 0;
+/* 修正層：主星結論之後、依據之前的「你的盤上還有這些」。
+   四個頁面共用同一組樣式，讀者在任何一頁看到的份量與語氣才會一致。
+   視覺刻意比正文輕一點（左側金線＋淡底），因為它是補充而不是新的結論。 */
+.modifier-block {
+  margin-top: 12px; padding: 11px 14px; border-left: 3px solid var(--gold);
+  background: rgba(0, 0, 0, .022); border-radius: 0 8px 8px 0;
 }
-.topic-modifier > b { display: block; font: 600 12.5px/1.7 var(--sans); color: var(--gold); margin-bottom: 4px; }
-.topic-modifier p { margin: 3px 0; font-size: 13px; }
+.modifier-block > b {
+  display: block; font: 600 12.5px/1.7 var(--sans); color: var(--gold);
+  margin-bottom: 5px; letter-spacing: .01em;
+}
+.modifier-block p { margin: 5px 0; font-size: 13.5px; line-height: 1.85; }
+.modifier-block p:last-child { margin-bottom: 0; }
 
 /* 大限/流年四化：落在本宮的先講，其餘收合並註明「每一宮看到的都一樣」 */
 .learn-mut-lead { font: 600 12.5px/1.7 var(--sans); color: var(--gold); margin: 4px 0 6px; }

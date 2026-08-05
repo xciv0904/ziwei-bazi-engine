@@ -857,6 +857,39 @@ check('命盤依據列出真實盤面事實', (() => {
 })());
 // 使用者要求輔星與四化也要進到解讀，不能只看主星。
 // 命盤依據原本只列星名（「擎羊、天刑」），讀者看到也不知道它改變了什麼。
+// 第一版把修正句 push 進 explanation 陣列，結果三個頁面（命盤總覽取前 2 句、
+// 重點解讀取前 1 句、完整報告取前 3 句）全部把它截掉，只有主題分析剛好看得到。
+// 使用者回報「只有主題分析有改到」。這一條就是守住四個頁面都真的渲染得出來。
+check('四個頁面都看得到修正層', async () => {
+  const seen = {};
+  for (const [view, selector] of [['dashboard', '#classroom-card .modifier-block'],
+    ['report', '#view-report .modifier-block'],
+    ['comprehensive', '#view-comprehensive .modifier-block'],
+    ['topics', '#view-topics .modifier-block']]) {
+    await nav(view);
+    seen[view] = !!$(selector);
+  }
+  await nav('topics');
+  const missing = Object.entries(seen).filter(([, ok]) => !ok).map(([v]) => v);
+  if (missing.length) console.log(`   （沒有修正層的頁面：${missing.join('、')}）`);
+  return !missing.length;
+});
+check('完整報告用敘事版，不跟重點解讀印出同一句', async () => {
+  await nav('report');
+  const reportText = $('#view-report .modifier-block')?.textContent ?? '';
+  await nav('comprehensive');
+  const deepText = $('#view-comprehensive .modifier-block')?.textContent ?? '';
+  await nav('topics');
+  if (!reportText || !deepText) return true;
+  return reportText !== deepText;
+});
+check('修正層用讀者聽得懂的話，不出現宮位與星名', async () => {
+  await nav('report');
+  const text = $('#view-report .modifier-block')?.textContent ?? '';
+  await nav('topics');
+  if (!text) return true;
+  return !/宮|紫微|天機|左輔|右弼|擎羊|陀羅|化祿|化忌/.test(text.replace(/不只是這樣.*?還有這些/, ''));
+});
 check('命盤依據說明輔星煞曜改變了什麼，不只列星名', (() => {
   const labels = $$('#view-topics .topic-basis-list li b').map((el) => el.textContent);
   if (!labels.includes('同宮輔星煞曜')) return true; // 這一題對應的宮位剛好沒有輔星

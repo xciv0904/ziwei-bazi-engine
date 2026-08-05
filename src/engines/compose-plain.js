@@ -322,10 +322,12 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain: forced
   const reflection = mode === 'domain' ? DOMAIN_REFLECTION[domain] : STAR_PROFILES[primary].reflection;
   const tagLabel = names.map((n) => `${n}(${STAR_PROFILES[n]?.tag ?? ''})`).join('、');
 
-  // 主星的結論寫完之後，把輔星、煞曜、雜曜與四化的修正接上去。
-  // 順序很重要：先讓讀者看懂主星在講什麼，再說「但實際上還要算進這些」。
+  // 主星的結論寫完之後，把輔星、煞曜、雜曜與四化的修正算出來。
+  //
+  // 刻意不再 push 進 card.explanation：第一版就是那樣做的，結果三個頁面
+  // （命盤總覽取前 2 句、重點解讀取前 1 句、完整報告取前 3 句）全部把它截掉了，
+  // 只有主題分析看得到。修正層自己一個欄位，由畫面各自決定怎麼呈現。
   const modifiers = modifiersOf(palace, borrowed, opposite);
-  if (modifiers?.plainLines.length) card.explanation.push(...modifiers.plainLines);
 
   return finalizeCard({
     key, title: `${PALACE_HEADING[palaceName] ?? title}・${STAR_PROFILES[primary].tag}`, letter, color, borrowed,

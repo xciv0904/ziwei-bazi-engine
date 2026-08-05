@@ -815,6 +815,7 @@ function renderClassroom() {
       <div class="palace-topic">${esc(palaceMeanings[state.selectedPalace] ?? '')}</div>
       <p class="palace-takeaway">${esc(card.summary)}</p>
       <div class="palace-explain">${explanationHtml}</div>
+      ${modifierBlockHtml(card.modifiers)}
       ${whyPanelHtml(isLearnMode() ? null : currentLesson())}
       ${isLearnMode() ? `<details class="palace-technical" data-dashboard-detail="classroom-technical"${state.dashboardOpenDetails.has('classroom-technical') ? ' open' : ''}>
         <summary>專業資料</summary>
@@ -1827,18 +1828,38 @@ function topicChartBasisHtml(report) {
   </details>`;
 }
 
+/**
+ * 修正層區塊。四個頁面共用同一個元件，語氣與位置才會一致。
+ *
+ * 位置固定在「主星結論之後、依據之前」：先讓讀者看懂主星在講什麼，
+ * 再告訴他實際上還要算進哪些東西。標題用讀者聽得懂的話，不出現「宮」「星」。
+ *
+ * 第一版把這些句子 push 進 explanation 陣列，結果三個頁面
+ * （命盤總覽取前 2 句、重點解讀取前 1 句、完整報告取前 3 句）全部截掉了，
+ * 只有主題分析剛好看得到。所以現在是獨立區塊，不再寄生在別人的陣列裡。
+ */
+function modifierBlockHtml(modifiers, { title = '不只是這樣——你的盤上還有這些', variant = 'list' } = {}) {
+  // 完整報告是連貫長文，用敘事版；其餘頁面是條列式卡片，用逐條版。
+  // 兩頁若印出一模一樣的句子，就會回到「這兩頁根本一樣」那個老問題
+  // （readability.mjs 有一條檢查專門擋這件事）。
+  const lines = variant === 'narrative'
+    ? [modifiers?.narrative].filter(Boolean)
+    : (modifiers?.plainLines ?? []);
+  if (!lines.length) return '';
+  return `<section class="modifier-block">
+    <b>${esc(title)}</b>
+    ${lines.map((line) => `<p>${esc(line)}</p>`).join('')}
+  </section>`;
+}
+
 function topicDirectAnswerHtml(report) {
   const answer = report.directAnswer;
   // 答案本身取自「題目 × 主星」的答案庫，扣題但只看主星。
   // 同宮的吉星煞星與四化會實際改變這一題的答案，所以在後面補一層修正。
-  const notes = answer.modifierNote ?? [];
   return `<section class="topic-answer topic-answer--combined">
     <b>簡單回答</b>
     <p>${esc(answer.answer)}</p>
-    ${notes.length ? `<div class="topic-modifier">
-      <b>這一宮還有其他星，會這樣調整</b>
-      ${notes.map((n) => `<p>${esc(n)}</p>`).join('')}
-    </div>` : ''}
+    ${modifierBlockHtml(report.modifiers, { title: '同樣的答案，在你身上會這樣走' })}
   </section>`;
 }
 
@@ -1982,6 +2003,7 @@ function renderReport() {
       </button>
       ${open ? `<div class="analysis-card__content" id="${panelId}">
         ${analysisPlainPanelHtml(it, false)}
+        ${modifierBlockHtml(it.modifiers)}
         ${reportCardSourceHtml(it, isZiwei)}
         ${jumpNote}
       </div>` : ''}
@@ -2250,6 +2272,7 @@ function renderComprehensive() {
         <div class="palace-explain">${plainParagraphs.slice(0, source ? 3 : plainParagraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
         ${source ? deepListHtml('現實中可能怎麼出現', source.lifeExamples, 'deep-strengths') : ''}
         ${source ? deepListHtml('容易反覆出現的課題', source.challenges, 'deep-challenges') : ''}
+        ${modifierBlockHtml(source?.modifiers, { title: '這一塊實際上是什麼局面', variant: 'narrative' })}
         ${sectionSourceHtml(s.title, studyByTitle[s.title] ?? s.text)}
       </div>`;
       return `

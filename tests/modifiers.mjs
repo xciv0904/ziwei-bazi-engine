@@ -139,19 +139,31 @@ const bare = (raw) => String(raw).replace(/[(（].*$/, '').trim();
   const ziWei = convertToZiWei(testCase.input);
   const baZi = convertToBaZi(testCase.input);
 
-  // 4a 重點解讀卡片
+  // 4a 重點解讀卡片：修正層是獨立欄位，不再 push 進 explanation。
+  //    第一版是 push 進去的，結果三個頁面（命盤總覽取前 2 句、重點解讀取前 1 句、
+  //    完整報告取前 3 句）全部把它截掉，只有主題分析剛好看得到。
+  //    這裡守住「卡片算得出修正層，而且逐條版與敘事版都有內容」，
+  //    畫面上有沒有渲染由 smoke.mjs 在 DOM 上驗。
   const cards = generatePlainZiweiTopics(ziWei, composeZiWeiLuck(ziWei, { mode: 'public' }));
   const withMod = cards.filter((c) => c.modifiers?.hasSignal);
   if (!withMod.length) fail('重點解讀卡片沒有帶上修正層');
-  else {
-    const applied = withMod.filter((c) =>
-      c.modifiers.plainLines.some((line) => c.explanation.includes(line)));
-    if (applied.length !== withMod.length) {
-      fail(`${withMod.length - applied.length} 張卡片算了修正層卻沒有寫進解讀文字`);
+  for (const card of withMod) {
+    if (!card.modifiers.plainLines.length) fail(`${card.title} 有修正項卻產不出逐條版句子`);
+    if (!card.modifiers.narrative) fail(`${card.title} 有修正項卻產不出完整報告用的敘事版`);
+    if (card.modifiers.plainLines.some((line) => card.explanation.includes(line))) {
+      fail(`${card.title} 又把修正句塞回 explanation 了，三個頁面會再次把它截掉`);
     }
   }
 
-  // 4b 主題分析：命盤依據要說明「這些星怎麼改變判斷」，不是只列星名
+  // 4b 兩頁不得印出一樣的句子：重點摘要與完整報告取的是同一張卡，
+  //    逐條版與敘事版必須真的是兩種寫法（readability.mjs 也有一條擋這件事）。
+  for (const card of withMod) {
+    if (card.modifiers.plainLines.some((line) => card.modifiers.narrative.includes(line))) {
+      fail(`${card.title} 的敘事版直接沿用逐條版的句子，兩頁會讀起來一樣`);
+    }
+  }
+
+  // 4c 主題分析：命盤依據要說明「這些星怎麼改變判斷」，不是只列星名
   const contract = TOPIC_CONTRACTS[0];
   const report = buildTopicReport({ contract, ziWei, ziweiCard: cards[0], baziCards: [] });
   const resolved = resolveTopicStar(contract, ziWei);
@@ -164,7 +176,7 @@ const bare = (raw) => String(raw).replace(/[(（].*$/, '').trim();
     }
   }
 
-  // 4c AI 提示詞：資料與指示都要在。只給資料而不要求使用，AI 一樣會只挑主星講。
+  // 4d AI 提示詞：資料與指示都要在。只給資料而不要求使用，AI 一樣會只挑主星講。
   const fullPrompt = formatChartForAI({ input: testCase.input, ziWei, baZi });
   if (!fullPrompt.includes('判讀修正：')) fail('完整命盤 AI 提示詞沒有帶上每宮的判讀修正');
   if (!fullPrompt.includes('不得只用主星下結論')) fail('完整命盤 AI 提示詞沒有要求把輔星煞曜算進去');
