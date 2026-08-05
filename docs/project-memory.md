@@ -36,6 +36,7 @@ Calculations run in the browser.
 | `smoke.mjs` | happy-dom UI flow smoke test |
 | `tests/star-application.mjs` | Application data coverage, per-palace variation and level gating |
 | `tests/double-star-palace.mjs` | Double-star per-palace coverage, pairwise non-duplication, end-to-end lookup |
+| `tests/reading-modes.mjs` | Plain mode must contain zero jargon; learn mode must differ from plain and stay chart-grounded |
 | `tests/wiki-structure.mjs` | Wiki page hierarchy, category isolation, no broken links, no name collisions |
 | `tests/star-glossary.mjs` | Glossary covers every star the engine can output; schools kept separate |
 | `tests/life-manual.mjs` | Life manual stage coverage, personalisation and chart-derived facts |
@@ -87,6 +88,7 @@ palaces, stars, transformations, or limits.
 - `npm run wiki-structure`: rebuilds the wiki then checks its page hierarchy and links
 - `npm run star-application`: star-in-palace application coverage and learning level gating
 - `npm run double-star`: double-star per-palace coverage and 552-line pairwise similarity
+- `npm run reading-modes`: the two-mode boundary (no jargon in plain, sourced jargon in learn)
 - `npm run star-glossary`: glossary coverage against engine output and school separation
 - `npm run life-manual`: life manual stage coverage and per-chart narrative checks
 - `npm run learning-mode`: learning mode lessons, evidence chain and progress storage
@@ -121,4 +123,7 @@ palaces, stars, transformations, or limits.
 | 2026-08-04 | Minor stars are written per palace group, not per palace | Same-group palaces differ too little to justify 480 near-duplicate lines |
 | 2026-08-05 | Double stars ARE written per palace (not per group) | Unlike minor stars, the same pair reads completely differently in 命宮 vs 夫妻宮; the whole complaint was that the generic line is unreadable |
 | 2026-08-05 | Step numbers are derived from display order, never stored | Storing them caused 初階 to render 1, 2, 5 |
+| 2026-08-05 | Two reading modes only: plain and learn. 'study' survives as an internal composer value, not a user-facing mode | Three modes produced only two distinct screens, and the third leaked jargon into plain mode |
+| 2026-08-05 | Plain mode hides every technical block site-wide, including collapsed ones | A collapsed block still renders its text; users reported seeing 廟旺 while in plain mode |
+| 2026-08-05 | Learn mode never replaces plain text — it appends the source chain | The old study mode swapped plain out for jargon, so each mode was missing half of what a learner needs |
 

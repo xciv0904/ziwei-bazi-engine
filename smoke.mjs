@@ -133,12 +133,17 @@ check('完整命盤 AI 提示包含正式人生解讀規則', copiedFullPrompt.i
 check('大限流年瀏覽器有年度一句話重點', !!$('.luck-detail .palace-takeaway')?.textContent.length);
 check('大限流年瀏覽器有有利方向/需要留意其中之一', $$('.luck-detail .analysis-card__section-title').some((t) => t.textContent === '有利方向' || t.textContent === '需要留意'));
 check('流年顯示該年度人生階段與年齡語境', !!$('.luck-detail .life-stage-note') && $('.luck-detail .life-stage-note').textContent.includes('主要關注'));
-check('專業運勢依據預設收合，展開後紫微/八字分開標示', (() => {
+// 白話模式下整塊不出現；切到學習模式才給，且仍預設收合、紫微八字分開標示
+check('白話模式的大限流年不出現專業運勢依據', !$('.luck-detail .palace-technical'));
+check('學習模式的專業運勢依據預設收合，展開後紫微/八字分開標示', (() => {
+  $('.mode-pill[data-mode="learn"]').click();
   const details = $('.luck-detail .palace-technical');
   if (!details || details.open) return false;
   details.setAttribute('open', '');
   const labels = $$('.luck-detail .palace-technical .tech-block b').map((b) => b.textContent);
-  return labels.some((l) => l.includes('紫微')) && labels.some((l) => l.includes('八字'));
+  const passed = labels.some((l) => l.includes('紫微')) && labels.some((l) => l.includes('八字'));
+  $('.mode-pill[data-mode="public"]').click();
+  return passed;
 })());
 check('宮位 AI 提示詞按鈕', !!$('#copy-palace-prompt'));
 check('流年 AI 提示詞按鈕', !!$('#copy-annual-prompt'));
@@ -319,11 +324,10 @@ check('命宮卡片採快速摘要結構（重點/近期訊號/行動/專業依�
     && !!card.querySelector('.analysis-card__explanation')
     && card.textContent.includes('現在可能出現')
     && card.textContent.includes('接下來可以做')
-    && !card.querySelector('.analysis-card__reflection')
-    && !!card.querySelector('[data-report-panel="technical"]');
+    && !card.querySelector('.analysis-card__reflection');
 })());
-check('專業依據面板預設收合（白話摘要模式）', $$('#view-report [data-report-panel="technical"]').every((p) => p.hidden));
-check('白話面板預設顯示（白話摘要模式）', $$('#view-report [data-report-panel="plain"]').every((p) => !p.hidden));
+check('白話模式的重點解讀不出現來源鏈與術語區塊', !$('#view-report .source-chain') && !$('#view-report .analysis-card__panel--technical'));
+check('白話面板預設顯示', $$('#view-report [data-report-panel="plain"]').every((p) => !p.hidden));
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('金錢與資源')).click();
 check('重點解讀同時間只展開一張卡片', $$('#view-report .analysis-card.open').length === 1);
 $$('#view-report .analysis-card__header').find((r) => r.textContent.includes('大限・流年重點')).click();
@@ -352,7 +356,8 @@ check('八字財官段改用白話標題',
   $('#view-comprehensive').textContent.includes('金錢與事業的流向')
   && !$('#view-comprehensive').textContent.includes('財官流向'));
 check('含全盤概覽段', $('#view-comprehensive').textContent.includes('全盤概覽'));
-check('含地支關係段', $('#view-comprehensive').textContent.includes('地支關係'));
+// 白話模式看到的是白話標題；術語標題只在學習模式出現（內部識別字仍是「四、地支關係」）
+check('含地支關係段（白話模式顯示白話標題）', $('#view-comprehensive').textContent.includes('各領域之間的牽動'));
 check('神煞段改用白話標題',
   $('#view-comprehensive').textContent.includes('加分與要留意的地方')
   && !$('#view-comprehensive').textContent.includes('五、神煞'));
@@ -360,7 +365,6 @@ check('深度解析具備完整內容層級', (() => {
   const text = $('#view-comprehensive').textContent;
   return text.includes('現實中可能怎麼出現')
     && text.includes('容易反覆出現的課題')
-    && text.includes('專業命理依據')
     && !text.includes('與其他人生主題的關聯');
 })());
 
@@ -452,6 +456,13 @@ $('#dashboard-detail').dispatchEvent(new w.Event('toggle'));
 $('#open-monthly')?.click();
 check('展開流月後完整命盤不會自動收合', $('#dashboard-detail').open);
 check('流月 chips 12 個', $$('[data-month]').length === 12);
+check('白話模式的流月不出現專業依據', !$('.monthly-plain .palace-technical'));
+// 以下這段驗的是「切換流月不會把展開狀態弄丟」，需要一個可展開的收合區塊，
+// 流月專業依據只在學習模式出現，所以這一段整段在學習模式下跑。
+$('.mode-pill[data-mode="learn"]').click();
+$('#dashboard-detail').open = true;
+$('#dashboard-detail').dispatchEvent(new w.Event('toggle'));
+$('#open-monthly')?.click();
 $('.monthly-plain .palace-technical').open = true;
 $('.monthly-plain .palace-technical').dispatchEvent(new w.Event('toggle'));
 let monthScrollIntoViewCalls = 0;
@@ -471,6 +482,10 @@ check('流月專業依據切換月份後維持原本展開狀態', (() => {
   return details && details.open && details.textContent.includes('紫微流月命宮與四化')
     && details.textContent.includes('八字流月干支與引動');
 })());
+// 這一段的學習模式任務完成，切回白話讓後面的檢查回到預設狀態
+$('.mode-pill[data-mode="public"]').click();
+$('#dashboard-detail').open = true;
+$('#dashboard-detail').dispatchEvent(new w.Event('toggle'));
 await nav('share');
 $$('#view-share [data-card]').find((t) => t.dataset.card === 'annual')?.click();
 check('流年命卡切換', $('#view-share').textContent.includes('流年卡') && $('.fate-birth').textContent.includes('運勢重點'));
@@ -494,27 +509,45 @@ check('命卡有五行色徽章', !!$('.fate-el-chip')?.textContent.trim());
 check('命宮主星標籤（空宮借星）', $('.fate-tags').textContent.includes('借'));
 check('日主標籤 乙木', $('.fate-tags').textContent.includes('乙木'));
 
-// --- 大眾版/學習版切換(命盤總覽/深度解析用共用的 state.readingMode;重點解讀另外用分頁各自的
-//     state.reportViewMode,見下面單獨的區塊——命盤小教室與深度解析的「專業資料/專業命理依據」
-//     現在永遠是完整內容，收合、不受開關影響，開關只影響上面白話段落的引用詳略程度) ---
+// --- 白話/學習兩段式切換 ---
+// 使用者回報：三段模式裡 learn 在組裝文字時等於 public，所以除了命盤總覽以外
+// 學習模式和白話模式一模一樣；而「專業命理依據」不分模式照常顯示，
+// 白話模式反而混進了廟旺、四化這些術語。現在的界線是：
+//   白話模式 — 全站看不到任何術語區塊
+//   學習模式 — 術語與依據都給，但每一塊都必須說明它從命盤哪裡來
 await nav('dashboard');
-check('預設大眾版，小教室白話段落不含依據句', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
-check('小教室的專業資料永遠是完整內容，不受開關影響', $('.palace-technical').textContent.includes('亮度') || $('.palace-technical').textContent.includes('借對宮'));
-$('.mode-pill[data-mode="study"]').click();
-check('切學習版，小教室白話段落仍維持白話（不因開關混入依據句）', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
+check('預設白話模式，小教室白話段落不含依據句', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
+check('白話模式下小教室完全不出現專業資料區塊', !$('.palace-technical'));
+$('.mode-pill[data-mode="learn"]').click();
+await settle();
+check('切學習模式，小教室白話段落仍維持白話（結論不因模式退化成術語）', !$('.palace-takeaway').textContent.includes('亮度是') && !$('.palace-explain').textContent.includes('亮度是'));
+check('學習模式才出現專業資料，且是完整內容', !!$('.palace-technical')
+  && ($('.palace-technical').textContent.includes('亮度') || $('.palace-technical').textContent.includes('借對宮')));
 await nav('comprehensive');
-check('學習版命盤解析：一般版文字仍白話，依據放在專業區', !$$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
-check('深度解析的專業命理依據永遠是完整內容，不受開關影響', $$('#view-comprehensive .palace-technical').length > 0);
+check('學習模式的完整報告：白話段落仍是白話', !$$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
+// 這是這次改版的重點：完整報告原本只有一塊「專業命理依據」，倒出一長串
+// 「天同的亮度是廟…」——那是把術語列出來，不是說明來源。改成來源鏈。
+check('完整報告每段附來源鏈，寫明用到的盤面資料與推導', (() => {
+  const chains = $$('#view-comprehensive .source-chain');
+  if (!chains.length) return false;
+  const text = chains[0].textContent;
+  return text.includes('這段話的依據從哪裡來') && text.includes('用到的盤面資料');
+})());
+check('紫微段落的來源鏈可以跳回命盤總覽對應的那一宮', (() => {
+  const jumps = $$('#view-comprehensive [data-jump-palace]').map((b) => b.dataset.jumpPalace);
+  return jumps.includes('命宮') && jumps.includes('夫妻宮') && jumps.includes('官祿宮');
+})());
 $('.mode-pill[data-mode="public"]').click();
-check('切回大眾版，白話段落不再含十神依據', !$$('#view-comprehensive .palace-explain').some((el) => el.textContent.includes('細節上')));
+await settle();
+check('切回白話模式，完整報告不再出現任何術語區塊', !$('#view-comprehensive .palace-technical') && !$('#view-comprehensive .source-chain'));
 
 // --- 學習模式（三段式閱讀模式的中間那一段） ---
 // 這一區驗的是「按鈕按下去真的有東西可以用」，不是只有畫面長出來：
 // 步驟能展開、答題有回饋、進度會累積、重設會清乾淨、換宮位內容跟著換。
 await nav('dashboard');
-check('閱讀模式是三段式（白話/學習/專業）', (() => {
+check('閱讀模式是兩段式（白話/學習）', (() => {
   const modes = $$('#reading-mode-toggle .mode-pill').map((p) => p.dataset.mode);
-  return modes.length === 3 && modes.join(',') === 'public,learn,study';
+  return modes.length === 2 && modes.join(',') === 'public,learn';
 })());
 check('命盤總覽也能切換閱讀模式（不是只有重點摘要頁才有）', !$('#reading-mode-toggle').hidden);
 check('白話模式下白話結論附有「為什麼這樣判斷」可展開', !!$('.learn-why') && $('.learn-why summary').textContent.includes('為什麼這樣判斷'));
@@ -821,11 +854,36 @@ await nav('dashboard');
 // 重點解讀的「白話摘要／專業依據」是分頁各自獨立的狀態（state.reportViewMode），要先切到這個頁面，
 // 開關才會改到它、而不是改到命盤總覽/深度解析共用的 state.readingMode(見 currentReadingMode())
 await nav('report');
-$('.mode-pill[data-mode="study"]').click();
-check('專業命盤模式：解讀報告已展開卡片直接顯示專業依據面板', $$('#view-report [data-report-panel="technical"]').length > 0 && $$('#view-report [data-report-panel="technical"]').every((p) => !p.hidden));
-check('專業命盤模式：白話面板改為隱藏', $$('#view-report [data-report-panel="plain"]').every((p) => p.hidden));
+$$('#view-report .report-tab').find((t) => t.dataset.tab === 'ziwei')?.click();
+// 前面的檢查把展開的卡片留在「大限・流年重點」，那張跨多宮沒有單一來源宮位
+// （它本來就有自己的跳轉按鈕），所以先展開命宮那張再驗來源鏈
+$$('#view-report .analysis-card__header').find((r) => r.textContent.includes('做決定時的基本反應'))?.click();
+$('.mode-pill[data-mode="learn"]').click();
+await settle();
+// 原本這裡是二選一：切到專業，白話整段消失、換成一整塊術語。
+// 結果兩個模式各缺一半——看術語的人失去結論，看結論的人查不到依據。
+check('學習模式：白話面板仍然顯示（不再是二選一）', $$('#view-report [data-report-panel="plain"]').every((p) => !p.hidden));
+check('學習模式：紫微卡片附來源鏈，列出用到的盤面資料', (() => {
+  const chain = $('#view-report .source-chain');
+  return !!chain && chain.textContent.includes('用到的盤面資料')
+    && chain.textContent.includes('怎麼從這些資料推到上面那段話');
+})());
+check('重點解讀的來源鏈也能跳回對應宮位', !!$('#view-report [data-jump-palace]'));
+// 八字沒有宮位可跳，但一樣不能只丟術語——要標明這段依據是什麼
+$$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi')?.click();
+$('.mode-pill[data-mode="learn"]').click();
+await settle();
+check('八字卡片也有來源鏈，並說明為什麼沒有宮位可跳', (() => {
+  const chain = $('#view-report .source-chain');
+  return !!chain && chain.textContent.includes('沒有對應的宮位可以跳')
+    && !chain.querySelector('[data-jump-palace]');
+})());
 $('.mode-pill[data-mode="public"]').click();
-check('切回白話摘要模式：解讀報告的專業依據面板恢復預設收合', $$('#view-report [data-report-panel="technical"]').every((p) => p.hidden));
+$$('#view-report .report-tab').find((t) => t.dataset.tab === 'ziwei')?.click();
+$('.mode-pill[data-mode="public"]').click();
+await settle();
+check('切回白話模式：重點解讀不再出現來源鏈', !$('#view-report .source-chain'));
+check('切回白話模式：白話面板仍然顯示', $$('#view-report [data-report-panel="plain"]').every((p) => !p.hidden));
 
 // --- 重新排盤（換男生日期） ---
 await nav('dashboard');
@@ -1000,15 +1058,15 @@ check('切換按鈕是原生 button,鍵盤可操作（無 tabindex=-1、無攔�
 check('切換按鈕有 aria-pressed 標示目前狀態', $$('#reading-mode-toggle .mode-pill').every((p) => p.hasAttribute('aria-pressed')));
 check('切換按鈕群組有 aria-controls 指向目前頁面', $('#reading-mode-toggle').hasAttribute('aria-controls'));
 
-// 紫微/八字分頁各自記住「白話摘要／專業依據」狀態，互不影響
+// 紫微/八字分頁各自記住「白話／學習」狀態，互不影響
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'ziwei')?.click();
 $('.mode-pill[data-mode="public"]').click();
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi')?.click();
-$('.mode-pill[data-mode="study"]').click();
+$('.mode-pill[data-mode="learn"]').click();
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'ziwei')?.click();
-check('紫微分頁不受剛剛八字分頁切換專業依據影響，仍是白話摘要', $('.mode-pill[data-mode="public"]').classList.contains('active'));
+check('紫微分頁不受剛剛八字分頁切換模式影響，仍是白話模式', $('.mode-pill[data-mode="public"]').classList.contains('active'));
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi')?.click();
-check('切回八字分頁，記得剛剛切的專業依據', $('.mode-pill[data-mode="study"]').classList.contains('active'));
+check('切回八字分頁，記得剛剛切的學習模式', $('.mode-pill[data-mode="learn"]').classList.contains('active'));
 $('.mode-pill[data-mode="public"]').click();
 
 // --- 白話模式的可讀性防迴歸檢查 ---

@@ -83,8 +83,15 @@ export function composePalaceReading(palace, opposite = null, { mode = 'public' 
   } else if (opposite?.majorStars.length) {
     // 空宮 → 借對宮星曜，文案採「對宮情境」的解釋（借星安命的邏輯，推廣到各宮）
     borrowed = true;
-    if (name === '命宮') lines.push(db['命宮_空宮規則']['開頭句']);
-    else lines.push(`${name}無主星，借對宮（${opposite.name}）星曜參看。`);
+    if (name === '命宮') {
+      lines.push(mode === 'study'
+        ? db['命宮_空宮規則']['開頭句']
+        : db['命宮_空宮規則']['開頭句_白話']);
+    }
+    // 白話模式不能出現「借對宮」這種術語——同一句話換成一般人讀得懂的說法。
+    // 學習模式才用術語，因為那一頁本來就要教這個名詞（小百科也查得到）。
+    else if (mode === 'study') lines.push(`${name}無主星，借對宮（${opposite.name}）星曜參看。`);
+    else lines.push(`${name}本身沒有主星，要看它對面的${opposite.name}來理解。`);
 
     for (const star of opposite.majorStars) {
       const line = composeStar(opposite.name, star, { borrowed: true, mode });

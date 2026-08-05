@@ -221,12 +221,15 @@ const state = {
   chartTab: 'ziwei', // 手機版：命盤總覽一次只顯示一張卡
   cal: 'solar',
   gender: 'female',
-  // 閱讀模式（單一狀態，三段式）:
-  //   'public' 白話模式——只給結論與生活化說明（預設）
-  //   'learn'  學習模式——白話文字不變，另外展開「逐步判讀」教學區，說明結論是怎麼從盤面推出來的
-  //   'study'  專業模式——解讀文字附上亮度/四化/十神/五行的完整依據
-  // 'learn' 在組裝解讀文字時等同 'public'(見 composerMode()),差別只在畫面多出教學區塊，
-  // 這樣才不會為了學習模式再長出第二套跟白話/專業互相衝突的文案。
+  // 閱讀模式（單一狀態，兩段式）:
+  //   'public' 白話模式——只給結論與生活化說明，全站不出現任何命理術語（預設）
+  //   'learn'  學習模式——術語與完整依據都給，但每一條都必須說明它從命盤哪裡來
+  //
+  // 原本還有第三段「專業模式」，已經併進學習模式。原因是使用者實測時發現：
+  // learn 在組裝文字時等同 public，所以除了命盤總覽以外，學習模式和白話模式一模一樣；
+  // 而「專業命理依據」那塊不分模式照常顯示，白話模式反而混進了廟旺、四化這些術語。
+  // 三段名義上存在、實際上只有兩種畫面，還把術語漏進了不該有術語的那一段。
+  // 現在的界線很單純：白話模式不出現術語，學習模式出現術語就一定要交代來源。
   readingMode: 'public',
   selectedPalace: '命宮',
   // 學習模式：目前展開到第幾步、練習題作答狀況（答案本身不進 localStorage,只存對錯）
@@ -240,7 +243,7 @@ const state = {
   expandedBazi: ['zhu'],
   // 重點解讀頁的「白話摘要／專業依據」切換：紫微/八字分頁各自獨立記住自己的模式，
   // 跟命盤總覽/深度解析共用的 state.readingMode 分開，互不影響（見 currentReadingMode()/setReadingMode()）
-  reportViewMode: { ziwei: 'public', bazi: 'public' }, // 沿用跟 readingMode 一樣的值域（'public'/'study'），對應按鈕 data-mode
+  reportViewMode: { ziwei: 'public', bazi: 'public' }, // 沿用跟 readingMode 一樣的值域（'public'/'learn'），對應按鈕 data-mode
   // 深度解析（綜合報告）裡，地支關係/神煞屬於補充細節，預設收合，點開才展開（避免資訊量過載）;
   // 用 Set 存已展開的段落標題，彼此獨立（可同時展開兩個），跟主要 4 段區隔開來
   expandedComprehensiveDetails: new Set(),
@@ -354,12 +357,18 @@ async function computeAllInner(parsed) {
 // 依目前 state.readingMode 重新組裝所有「會受大眾版/學習版影響」的解讀資料。
 // 排盤完成後呼叫一次；之後使用者切換大眾版/學習版開關時，不用重新排盤，只要重跑這個函式再重繪畫面。
 /**
- * 解讀組裝層只認得 'public' / 'study' 兩種詳略程度。
- * 學習模式刻意沿用白話文案（教學內容另外由 learning-palace.js 產生）,
- * 所以這裡把 'learn' 對應回 'public',避免每個 compose 函式都要多認一種模式。
+ * 解讀組裝層只認得 'public' / 'study' 兩種詳略程度，這是引擎層的用詞，跟畫面上的模式名稱不同。
+ * 對應關係：白話模式 → 'public'（不含術語）、學習模式 → 'study'（含完整依據）。
+ * 學習模式拿到完整依據之後，畫面再負責替每一條標出它從命盤哪裡來——
+ * 光給術語而不說來源，就是先前「專業模式」看不懂的原因。
  */
 function composerMode(mode = state.readingMode) {
-  return mode === 'study' ? 'study' : 'public';
+  return mode === 'learn' ? 'study' : 'public';
+}
+
+/** 現在這一頁是不是學習模式（要顯示術語、依據與來源鏈） */
+function isLearnMode() {
+  return currentReadingMode() === 'learn';
 }
 
 function applyReadingMode() {
@@ -387,11 +396,10 @@ function setReadingMode(mode) {
   if (state.view === 'report') state.reportViewMode[state.reportTab] = mode;
   else state.readingMode = mode;
 }
-// 三段式閱讀模式的按鈕定義（標籤與說明集中一份，不要在各 renderer 各寫一次）
+// 兩段式閱讀模式的按鈕定義（標籤與說明集中一份，不要在各 renderer 各寫一次）
 const READING_MODES = [
-  { mode: 'public', label: '白話模式', hint: '只看結論與生活化說明' },
-  { mode: 'learn', label: '學習模式', hint: '加上逐步判讀，看結論怎麼從盤面推出來' },
-  { mode: 'study', label: '專業模式', hint: '解讀文字附上完整命盤依據' },
+  { mode: 'public', label: '白話模式', hint: '只看結論，完全不出現命理術語' },
+  { mode: 'learn', label: '學習模式', hint: '每一句都告訴你依據從命盤哪裡來' },
 ];
 
 /** 哪幾頁需要這組切換：命盤總覽（逐步判讀在這裡）、重點解讀與完整報告 */
@@ -775,7 +783,7 @@ function renderClassroom() {
 
   // 學習版：附上飛星資訊（自化與來因宮，已用文墨天機命盤交叉驗證）
   let advancedLine = '';
-  if (state.readingMode === 'study') {
+  if (isLearnMode()) {
     const selfT = R.computeSelfTransformations(state.data.ziWei).find((r) => r.palaceName === state.selectedPalace);
     const laiyin = R.computeLaiyinPalace(state.data.ziWei);
     const parts = [];
@@ -807,8 +815,8 @@ function renderClassroom() {
       <div class="palace-topic">${esc(palaceMeanings[state.selectedPalace] ?? '')}</div>
       <p class="palace-takeaway">${esc(card.summary)}</p>
       <div class="palace-explain">${explanationHtml}</div>
-      ${whyPanelHtml(state.readingMode === 'learn' ? null : currentLesson())}
-      <details class="palace-technical" data-dashboard-detail="classroom-technical"${state.dashboardOpenDetails.has('classroom-technical') ? ' open' : ''}>
+      ${whyPanelHtml(isLearnMode() ? null : currentLesson())}
+      ${isLearnMode() ? `<details class="palace-technical" data-dashboard-detail="classroom-technical"${state.dashboardOpenDetails.has('classroom-technical') ? ' open' : ''}>
         <summary>專業資料</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
           <div class="tech-block"><b>星曜</b><p>${esc(stars)}</p></div>
@@ -816,7 +824,7 @@ function renderClassroom() {
           <div class="tech-block"><b>專業判斷</b><p>${esc(card.technical.judgment)}</p></div>
           ${advancedLine}
         </div>
-      </details>
+      </details>` : ''}
     </div>
   </div>`;
 }
@@ -1014,14 +1022,14 @@ function learningStepTriadHtml(data) {
  * 一條命理陳述要怎麼呈現，由閱讀模式決定：
  *   白話模式：只給白話句——初學者要的是「所以我的生活裡會怎樣」。
  *   學習模式：白話在前、術語緊跟在後——邊讀邊認術語。
- *   專業模式：只給術語句。
- * 沒有白話翻譯時一律退回術語句，不會留空白。
+ *
+ * 只給術語句的那一段（原本的專業模式）已經拿掉了。
+ * 一句術語沒有跟著白話，讀者就沒有辦法把它接回自己的生活，這正是先前看不懂的原因。
+ * 沒有白話翻譯時才退回術語句，不會留空白。
  */
 function bilingualLine(item) {
-  const mode = state.readingMode;
   if (!item.plain) return `<span class="line-tech">${esc(item.sentence)}</span>`;
-  if (mode === 'public') return `<span class="line-plain">${esc(item.plain)}</span>`;
-  if (mode === 'study') return `<span class="line-tech">${esc(item.sentence)}</span>`;
+  if (state.readingMode === 'public') return `<span class="line-plain">${esc(item.plain)}</span>`;
   return `<span class="line-plain">${esc(item.plain)}</span>
     <span class="line-tech"><b>命理說法：</b>${esc(item.sentence)}</span>`;
 }
@@ -1373,6 +1381,50 @@ function bindLearningPanel() {
  * 內容是專業資料，沿用 .palace-technical 這個既有的收合樣式與語意，
  * 讓它跟命盤小教室的「專業資料」在視覺與可讀性檢查上都屬於同一類。
  */
+/**
+ * 來源鏈：重點解讀與完整報告的每一段，都要能回答「這段話的依據從命盤哪裡來」。
+ *
+ * 先前這兩頁只有一塊收合的「專業命理依據」，裡面是一長串「天同的亮度是廟…」——
+ * 那是把術語倒出來，不是說明來源。使用者的原話是「學習模式是真的要教會這些根據
+ * 是從哪裡得來的結論」，所以這裡直接沿用命盤總覽那套證據鏈：
+ * 主要依據列出用到的盤面事實，推導寫成「因為…所以…」，最後給一顆按鈕跳回
+ * 命盤總覽的那一宮，接著用逐步判讀把同一件事完整走一遍。
+ *
+ * 不重算任何命盤事實：evidence 全部來自 learning-palace.js 對既有排盤結果的整理。
+ */
+function sourceChainHtml(palaceName, { title = '這段話的依據從哪裡來' } = {}) {
+  if (!isLearnMode() || !state.data?.ziWei || !palaceName) return '';
+  const { limit, year } = currentLuckSelection();
+  const lesson = R.buildPalaceLesson({ ziWei: state.data.ziWei, palaceName, year, majorLimit: limit });
+  if (!lesson) return '';
+  const { evidence } = lesson;
+  const facts = evidence.primary.map((e) => `<li><b>${esc(e.kind)}</b>${esc(e.text)}</li>`).join('');
+  const steps = (evidence.interactionSteps ?? []).map((p) => `<p>${esc(p.text)}</p>`).join('');
+  return `<details class="source-chain" data-source-chain="${esc(palaceName)}">
+    <summary>${esc(title)}（${esc(palaceName)}）</summary>
+    <div class="source-chain-body">
+      <div class="tech-block"><b>用到的盤面資料</b>
+        <ul>${facts || `<li>${esc(palaceName)}目前沒有可作為主要依據的資料。</li>`}</ul></div>
+      ${steps ? `<div class="tech-block"><b>怎麼從這些資料推到上面那段話</b>${steps}</div>` : ''}
+      <button type="button" class="mini-btn" data-jump-palace="${esc(palaceName)}">
+        到命盤總覽的${esc(palaceName)}，一步一步走一次 →</button>
+    </div>
+  </details>`;
+}
+
+/** 八字段落沒有宮位可跳，只列出它用到的命盤資料，一樣不給無來源的術語 */
+function baziSourceChainHtml(text, label) {
+  if (!isLearnMode() || !text) return '';
+  return `<details class="source-chain">
+    <summary>這段話的依據從哪裡來（八字${label ? `・${esc(label)}` : ''}）</summary>
+    <div class="source-chain-body">
+      <div class="tech-block"><p>${esc(text)}</p></div>
+      <p class="source-chain-note">八字看的是四柱干支與十神，沒有對應的宮位可以跳，
+        名詞可以到命理小百科的八字分區查。</p>
+    </div>
+  </details>`;
+}
+
 function whyPanelHtml(lesson) {
   if (!lesson) return '';
   const { evidence } = lesson;
@@ -1515,13 +1567,13 @@ function renderLuckBrowser() {
       <p class="palace-explain" style="margin:0 0 4px">${esc(adaptToLifeStage(bzCard.summary, lifeStage))}</p>
       ${themeList('有利方向', favorable)}
       ${themeList('需要留意', cautions)}
-      <details class="palace-technical" data-dashboard-detail="annual-technical"${state.dashboardOpenDetails.has('annual-technical') ? ' open' : ''}>
+      ${isLearnMode() ? `<details class="palace-technical" data-dashboard-detail="annual-technical"${state.dashboardOpenDetails.has('annual-technical') ? ' open' : ''}>
         <summary>專業運勢依據</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
           <div class="tech-block"><b>紫微（大限重心：${esc(daxianPalace)}／流年命宮：${esc(liunianPalace)}）</b><p>${esc(zwCard.technical.judgment)}</p></div>
           <div class="tech-block"><b>八字</b><p>${esc(bzCard.technical.judgment)}</p></div>
         </div>
-      </details>
+      </details>` : ''}
       ${renderMonthlyBrowser(sel.year)}
     </div>
   </div>`;
@@ -1574,13 +1626,13 @@ function renderMonthlyBrowser(year) {
       ${list('這個月可以把握', favorable)}
       ${list('這個月需要留意', cautions)}
       <p class="monthly-action">先選一件與「${esc(domain)}」有關、能在本月完成的小事；遇到變化時先確認資訊，再調整步調。</p>
-      <details class="palace-technical" data-dashboard-detail="monthly-technical"${state.dashboardOpenDetails.has('monthly-technical') ? ' open' : ''}>
+      ${isLearnMode() ? `<details class="palace-technical" data-dashboard-detail="monthly-technical"${state.dashboardOpenDetails.has('monthly-technical') ? ' open' : ''}>
         <summary>查看流月專業依據</summary>
         <div class="analysis-card__panel--technical" style="margin-top:10px">
           <div class="tech-block"><b>紫微流月命宮與四化</b><p>${esc(flat(zwMonthly.text))}</p></div>
           <div class="tech-block"><b>八字流月干支與引動</b><p>${esc(flat(detail.text))}</p></div>
         </div>
-      </details>
+      </details>` : ''}
     </div>`;
 }
 
@@ -1802,22 +1854,27 @@ function analysisPlainPanelHtml(it, hidden) {
   </div>`;
 }
 
+
 /**
- * 專業依據面板（data-report-panel="technical"）：對應宮位/主星借星/三方四正/四化、大限流年小限、
- * 八字日主十神五行喜忌等命盤原始判斷依據，以及白話結論與專業依據的對照。
- * 固定 4 小節：命盤資料 / 專業判斷 / 白話對應 / 限制與需綜合參考處。
- * 這裡永遠是完整內容（compose-plain.js 內部固定用 mode:'study' 組裝 technical.judgment）,
- * 由外層的 hidden 屬性決定要不要顯示，不是靠內容本身的詳略來切換。
+ * 重點解讀每張卡片對應命盤的哪一宮。大限流年那張跨多宮，沒有單一來源，
+ * 它本來就有「到命盤總覽切換查看」的按鈕，不重複給來源鏈。
  */
-function analysisTechnicalPanelHtml(technical, hidden) {
-  if (!technical) return '';
-  const warnings = technical.warnings ?? [];
-  return `<div class="analysis-card__panel analysis-card__panel--technical" data-report-panel="technical"${hidden ? ' hidden' : ''}>
-    <div class="tech-block"><b>命盤資料</b><p>${esc(technical.chartData || '—')}</p></div>
-    <div class="tech-block"><b>專業判斷</b><p>${esc(technical.judgment || '—')}</p></div>
-    <div class="tech-block"><b>白話對應</b><p>${esc(technical.plainMapping || '—')}</p></div>
-    ${warnings.length ? `<div class="tech-block"><b>限制與需綜合參考處</b><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
-  </div>`;
+const REPORT_CARD_PALACE = {
+  ming: '命宮', caibo: '財帛宮', guanlu: '官祿宮', fuqi: '夫妻宮', jie: '疾厄宮',
+};
+
+/**
+ * 卡片的來源鏈。原本這裡是「白話摘要／專業依據」二選一：切到專業，白話整段消失，
+ * 換成一整塊術語。結果是兩個模式各缺一半，看術語的人失去了結論，看結論的人查不到依據。
+ * 改成白話永遠在，學習模式在下面追加來源鏈。
+ */
+function reportCardSourceHtml(it, isZiwei) {
+  if (!isLearnMode()) return '';
+  if (isZiwei) {
+    const palace = REPORT_CARD_PALACE[it.key];
+    return palace ? sourceChainHtml(palace) : '';
+  }
+  return baziSourceChainHtml(it.technical?.judgment, it.title);
 }
 
 function renderReport() {
@@ -1826,7 +1883,7 @@ function renderReport() {
   const items = isZiwei ? ziwei : bazi;
   const expandedKeys = isZiwei ? state.expandedZiwei : state.expandedBazi;
   // 紫微斗數/八字兩個分頁各自記住自己選的是「白話摘要」還是「專業依據」(見 state.reportViewMode)
-  const isStudy = state.reportViewMode[state.reportTab] === 'study';
+  const isStudy = state.reportViewMode[state.reportTab] === 'learn';
 
   const intro = isZiwei
     ? '<b>這頁是一張一張的重點卡片，挑你在意的點開就好，不用全部讀完。</b>每張卡都是「重點一句話 → 現在可能出現 → 需要留意 → 接下來可以做」。想從頭讀完一份完整的人生分析，去<button type="button" class="link-jump" data-goto="comprehensive">完整報告</button>（約 15 分鐘）；想自己切換宮位或年份查資料，去<button type="button" class="link-jump" data-goto="dashboard">命盤總覽</button>。'
@@ -1852,8 +1909,8 @@ function renderReport() {
         <div class="acc-chevron">›</div>
       </button>
       ${open ? `<div class="analysis-card__content" id="${panelId}">
-        ${analysisPlainPanelHtml(it, isStudy)}
-        ${analysisTechnicalPanelHtml(it.technical, !isStudy)}
+        ${analysisPlainPanelHtml(it, false)}
+        ${reportCardSourceHtml(it, isZiwei)}
         ${jumpNote}
       </div>` : ''}
     </div>`;
@@ -1908,7 +1965,7 @@ const PLAIN_SECTION_TITLE = {
   '三、人際健康與行動建議': '三、人際、健康與可以怎麼做',
 };
 /** 顯示用標題：大眾版換成白話，專業命盤模式維持原本的術語標題（學習者需要對得上書上的名詞） */
-const displayTitle = (title) => (state.readingMode === 'study' ? title : (PLAIN_SECTION_TITLE[title] ?? title));
+const displayTitle = (title) => (state.readingMode === 'learn' ? title : (PLAIN_SECTION_TITLE[title] ?? title));
 
 // 深度解析的長文段落沿用 comprehensive.js 既有的組裝結果（不重寫那套模板邏輯），但這裡做兩件事：
 // 1) 把「從命宮來看」「官祿宮顯示」「日主丁（火日生）」這類白話模式不該出現的宮位/術語開頭句型
@@ -1982,6 +2039,25 @@ function deepSourceCard(title, { ziWei, baziCards }) {
     case '三、人際健康與行動建議': return bazi('shishen') || bazi('dayun');
     default: return null;
   }
+}
+
+/**
+ * 完整報告每一段對應命盤的哪一宮——來源鏈要跳回去，就得先知道跳到哪。
+ * 這份對照跟 deepSourceCard 取白話卡片用的是同一個宮位，不會出現
+ * 「上面講夫妻宮、跳過去卻是命宮」這種對不起來的情況。
+ */
+const DEEP_SECTION_PALACE = {
+  '一、性格與才華': '命宮',
+  '二、事業與金錢': '官祿宮',
+  '三、戀愛與婚姻': '夫妻宮',
+  '四、健康、家庭與人際': '疾厄宮',
+};
+
+/** 完整報告的段落來源：紫微段落給宮位來源鏈與跳轉，八字段落只給依據 */
+function sectionSourceHtml(title, studyText) {
+  const palace = DEEP_SECTION_PALACE[title];
+  if (palace) return sourceChainHtml(palace);
+  return baziSourceChainHtml(studyText, displayTitle(title));
 }
 
 function deepListHtml(title, items, className = '') {
@@ -2102,12 +2178,7 @@ function renderComprehensive() {
         <div class="palace-explain">${plainParagraphs.slice(0, source ? 3 : plainParagraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
         ${source ? deepListHtml('現實中可能怎麼出現', source.lifeExamples, 'deep-strengths') : ''}
         ${source ? deepListHtml('容易反覆出現的課題', source.challenges, 'deep-challenges') : ''}
-        <details class="palace-technical">
-          <summary>專業命理依據</summary>
-          <div class="analysis-card__panel--technical" style="margin-top:10px">
-            <div class="tech-block"><p>${esc(studyByTitle[s.title] ?? s.text)}</p></div>
-          </div>
-        </details>
+        ${sectionSourceHtml(s.title, studyByTitle[s.title] ?? s.text)}
       </div>`;
       return `
       <div class="acc-item${open ? ' open' : ''}">
@@ -3117,6 +3188,17 @@ function setupControls() {
   $('#main-content').addEventListener('click', (e) => {
     const gotoBtn = e.target.closest('[data-goto]');
     if (gotoBtn) switchView(gotoBtn.dataset.goto);
+
+    // 來源鏈的「到命盤總覽的○宮，一步一步走一次」：跳過去之前先把宮位選好、
+    // 逐步判讀開回第一步，使用者落地就是在對的那一宮，不用自己再找一次。
+    const jumpPalace = e.target.closest('[data-jump-palace]');
+    if (jumpPalace) {
+      e.stopPropagation();
+      state.selectedPalace = jumpPalace.dataset.jumpPalace;
+      state.learning.openStep = 'self';
+      state.readingMode = 'learn';
+      switchView('dashboard');
+    }
   });
 
   $('#reading-mode-toggle').addEventListener('click', (e) => {
@@ -3125,8 +3207,8 @@ function setupControls() {
     setReadingMode(btn.dataset.mode);
     syncModeToggleUI();
     if (state.view === 'report') {
-      // 重點解讀的專業依據永遠是預先算好的完整版本(compose-plain.js 內部固定用 mode:'study'
-      // 組裝 technical),切換白話/專業只是換哪個面板可見，不需要整頁 renderAll,避免不必要的重繪與捲動風險
+      // 重點解讀的白話卡片內容不受模式影響（永遠顯示），切換只是要不要追加來源鏈，
+      // 所以重繪這一頁就夠，不需要整頁 renderAll，避免不必要的重繪與捲動風險
       renderReport();
     } else {
       applyReadingMode();

@@ -1217,6 +1217,24 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .learn-why .tech-block li { margin-bottom: 6px; }
 .learn-why .tech-block li b { display: inline-block; margin-right: 6px; color: var(--gold); }
 
+/* 來源鏈：重點解讀與完整報告每一段下方的「這段話的依據從哪裡來」。
+   視覺沿用 .learn-why，但獨立一個 class——那兩個位置的收合狀態與檢查各自獨立。 */
+.source-chain { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.source-chain > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+  font: 600 12.5px/1.6 var(--sans); color: var(--red);
+}
+.source-chain > summary::-webkit-details-marker { display: none; }
+.source-chain > summary::before { content: '▸'; font-size: 10px; transition: transform .15s; }
+.source-chain[open] > summary::before { transform: rotate(90deg); }
+.source-chain-body { margin-top: 10px; padding: 12px 14px; background: var(--paper-2, rgba(0, 0, 0, .02)); border-radius: 10px; }
+.source-chain-body .tech-block { margin-bottom: 10px; }
+.source-chain-body .tech-block ul { padding-left: 16px; margin: 4px 0 0; }
+.source-chain-body .tech-block li { margin-bottom: 6px; }
+.source-chain-body .tech-block li b { display: inline-block; margin-right: 6px; color: var(--gold); }
+.source-chain-body .tech-block p { margin: 4px 0; }
+.source-chain-note { font: 400 12px/1.7 var(--sans); color: var(--muted); margin: 6px 0 0; }
+
 /* 桌面版：命盤與逐步判讀並排，手機版維持直向卡片(預設就是直向，不必另外覆寫) */
 @media (min-width: 1180px) {
   .dashboard-details__body .learn-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 24px; align-items: start; }
