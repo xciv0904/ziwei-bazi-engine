@@ -13,6 +13,7 @@
 
 import doubleStarDb from '../data/double-star-combinations.json' with { type: 'json' };
 import starGlossary from '../data/star-glossary.json' with { type: 'json' };
+import starPalaceApp from '../data/star-palace-application.json' with { type: 'json' };
 import {
   AUSPICIOUS_EFFECT,
   AUSPICIOUS_MINOR,
@@ -49,6 +50,30 @@ const lifeWord = (palaceName) => PALACE_LIFE_WORD[palaceName] ?? palaceName;
 
 const DOUBLE_STAR_COMBOS = doubleStarDb['雙主星組合'];
 const STAR_GLOSSARY = starGlossary['詞條'];
+const MAJOR_APPLICATION = starPalaceApp['主星應用'];
+const AUX_APPLICATION = starPalaceApp['吉煞祿馬落宮'];
+const MINOR_APPLICATION = starPalaceApp['雜曜落宮'];
+const PALACE_GROUPS = starPalaceApp['宮位分類'];
+
+/** 宮位 → 分類（雜曜依分類撰寫，不逐宮窮舉） */
+function palaceGroupOf(palaceName) {
+  for (const [group, palaces] of Object.entries(PALACE_GROUPS)) {
+    if (palaces.includes(palaceName)) return group;
+  }
+  return null;
+}
+
+/** 這顆星落在這一宮的實際影響：主星給三項，吉煞祿馬逐宮，其餘雜曜依宮位分類 */
+function applicationOf(palaceName, starName) {
+  const major = MAJOR_APPLICATION[palaceName]?.[starName];
+  if (major) return { type: 'major', ...major };
+  const aux = AUX_APPLICATION[starName]?.[palaceName];
+  if (aux) return { type: 'aux', 影響: aux };
+  const group = palaceGroupOf(palaceName);
+  const minor = group ? MINOR_APPLICATION[starName]?.[group] : null;
+  if (minor) return { type: 'minor', group, 影響: minor };
+  return null;
+}
 
 /**
  * 雙主星組合說明。兩種順序都試——資料庫的鍵值只收一種寫法，
@@ -221,17 +246,25 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
     }
     : { pair: selfStarNames.join('、'), combined: null, single: DOUBLE_STAR_TEACHING.single, lead: selfStarNames[0] ?? null };
 
+  // 吉星煞星雜曜除了「這顆星是什麼」，還要給「落在這一宮會怎樣」——
+  // 使用者實際看的是自己的盤，通則幫不上忙，要的是這一格的影響。
   const auspiciousDetail = minor.auspicious.map((raw) => {
     const name = bareStarName(raw);
-    return { name, label: raw, effect: AUSPICIOUS_EFFECT[name] ?? '', glossary: glossaryOf(name) };
+    return {
+      name, label: raw, effect: AUSPICIOUS_EFFECT[name] ?? '',
+      glossary: glossaryOf(name), application: applicationOf(palaceName, name),
+    };
   });
   const maleficDetail = minor.malefic.map((raw) => {
     const name = bareStarName(raw);
-    return { name, label: raw, effect: MALEFIC_EFFECT[name] ?? '', glossary: glossaryOf(name) };
+    return {
+      name, label: raw, effect: MALEFIC_EFFECT[name] ?? '',
+      glossary: glossaryOf(name), application: applicationOf(palaceName, name),
+    };
   });
   const otherDetail = minor.others.map((raw) => {
     const name = bareStarName(raw);
-    return { name, label: raw, glossary: glossaryOf(name) };
+    return { name, label: raw, glossary: glossaryOf(name), application: applicationOf(palaceName, name) };
   });
 
   const stepSelf = {
@@ -250,6 +283,8 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
       brightness: s.brightness ?? '',
       brightnessNote: s.brightness ? (BRIGHTNESS_NOTE[s.brightness] ?? '') : '',
       glossary: glossaryOf(s.name),
+      // 這顆星落在這一宮怎麼發揮、要注意什麼、可以怎麼做
+      application: applicationOf(palaceName, s.name),
     })),
     doubleStar,
     auspiciousStars: minor.auspicious,
@@ -431,6 +466,8 @@ function buildEmptyGuide({ palaceName, opposite, triad, stepSelf }) {
     core: starMeanings[s.name]?.core ?? '',
     label: starLabel(s),
     glossary: glossaryOf(s.name),
+    // 借來的星要放回本宮的主題理解，所以應用資料查的是「本宮」而不是對宮
+    application: applicationOf(palaceName, s.name),
   }));
 
   // 借來的是雙星時，讀法與本宮自坐雙星相同：先看誰主導

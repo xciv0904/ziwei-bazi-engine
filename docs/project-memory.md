@@ -22,6 +22,7 @@ Calculations run in the browser.
 | `src/data/topic-star-answers.json` | 60 questions × 14 major stars: the on-question answer for each question |
 | `src/engines/life-manual.js` | Life manual narrative: opening, decade stages, recurring themes, turning points |
 | `src/data/life-manual.js` | Palace decade themes, star approaches, turning-point closers |
+| `src/data/star-palace-application.json` | 824 entries: how each star behaves in each palace |
 | `src/data/star-glossary.json` | 94 chart stars + 四化 + flying-star concepts, Southern-school glossary |
 | `src/data/life-stage-details.json` | 12 palaces × 14 major stars: what each decade actually looks like |
 | `src/engines/learning-palace.js` | Learning mode: five-step palace lesson, evidence chain, quiz |
@@ -32,6 +33,7 @@ Calculations run in the browser.
 | `cross-test.mjs` | Zi Wei independent-reference comparison |
 | `cross-test-bazi.mjs` | Bazi independent-reference comparison |
 | `smoke.mjs` | happy-dom UI flow smoke test |
+| `tests/star-application.mjs` | Application data coverage, per-palace variation and level gating |
 | `tests/wiki-structure.mjs` | Wiki page hierarchy, category isolation, no broken links, no name collisions |
 | `tests/star-glossary.mjs` | Glossary covers every star the engine can output; schools kept separate |
 | `tests/life-manual.mjs` | Life manual stage coverage, personalisation and chart-derived facts |
@@ -81,6 +83,7 @@ palaces, stars, transformations, or limits.
 - `node cross-test-bazi.mjs`: Bazi reference comparison
 - `npm run on-question`: topic answer coverage, on-question checks and text quality
 - `npm run wiki-structure`: rebuilds the wiki then checks its page hierarchy and links
+- `npm run star-application`: star-in-palace application coverage and learning level gating
 - `npm run star-glossary`: glossary coverage against engine output and school separation
 - `npm run life-manual`: life manual stage coverage and per-chart narrative checks
 - `npm run learning-mode`: learning mode lessons, evidence chain and progress storage
@@ -110,4 +113,7 @@ palaces, stars, transformations, or limits.
 | 2026-08-04 | `conclusion` holds display strings only; structured data lives beside it | Putting an object array in `conclusion` leaked "[object Object]" into user-facing text |
 | 2026-08-04 | Borrowed stars carry brightness and birth transformation; palace-level stars, stem and flights stay behind | 借星安宮 borrows the star, not the palace. Listing only star names left users unable to tell what was actually borrowed |
 | 2026-08-04 | Where schools disagree (borrowing when the palace already has 吉煞), state both and pick neither | The site is not a lineage; presenting one reading as the only one would mislead learners |
+| 2026-08-04 | Learning mode has three levels; the level is a personal preference stored separately from chart progress | Showing every layer at once made the page too long to learn from |
+| 2026-08-04 | Level flags must be monotonically increasing (basic ⊆ intermediate ⊆ advanced) | A lower level showing something a higher level hides would make levels incoherent; enforced by test |
+| 2026-08-04 | Minor stars are written per palace group, not per palace | Same-group palaces differ too little to justify 480 near-duplicate lines |
 

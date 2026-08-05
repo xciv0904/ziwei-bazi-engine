@@ -306,6 +306,89 @@ export const AUSPICIOUS_MINOR = new Set(['左輔', '右弼', '文昌', '文曲',
 export const MALEFIC_MINOR = new Set(['擎羊', '陀羅', '火星', '鈴星', '地空', '地劫']);
 
 /**
+ * 學習模式的三個階段。
+ *
+ * 使用者反映整體太長、難以入門——一次攤開五個步驟加上四化飛化，資訊量對初學者過重。
+ * 分階的原則是「先能用，再求全」:
+ *   初階只回答「我這一宮是什麼樣子」，三個步驟就結束；
+ *   進階補上判讀方法(廟旺、雙星、吉煞、三方四正)；
+ *   高級才進入四化飛化與完整證據鏈。
+ *
+ * steps 決定顯示哪幾步，show 決定每一步裡面顯示到多深。
+ */
+export const LEARNING_LEVELS = [
+  {
+    key: 'basic',
+    label: '初階',
+    subtitle: '認識你的命盤',
+    intro: '先看懂這一宮是什麼樣子就好。三個步驟，不碰四化與飛星。',
+    steps: ['self', 'opposite', 'synthesis'],
+    show: {
+      readingOrder: false,
+      brightness: false,
+      doubleStar: false,
+      auxiliary: false,
+      minorStars: false,
+      application: true,
+      birthMutagen: false,
+      flying: false,
+      selfMutagen: false,
+      period: false,
+      stemIntro: false,
+      triadSynthesis: false,
+      evidenceFull: false,
+      borrowDetail: false,
+    },
+  },
+  {
+    key: 'intermediate',
+    label: '進階',
+    subtitle: '學會判讀',
+    intro: '加上廟旺、雙星、六吉六煞與三方四正，學會判斷的先後順序。四化只看生年這一層。',
+    steps: ['self', 'opposite', 'triad', 'mutagen', 'synthesis'],
+    show: {
+      readingOrder: true,
+      brightness: true,
+      doubleStar: true,
+      auxiliary: true,
+      minorStars: false,
+      application: true,
+      birthMutagen: true,
+      flying: false,
+      selfMutagen: false,
+      period: false,
+      stemIntro: false,
+      triadSynthesis: true,
+      evidenceFull: false,
+      borrowDetail: true,
+    },
+  },
+  {
+    key: 'advanced',
+    label: '高級',
+    subtitle: '完整判讀',
+    intro: '全部展開：宮干飛化、向心與離心自化、大限流年四化、雜曜與完整證據鏈。',
+    steps: ['self', 'opposite', 'triad', 'mutagen', 'synthesis'],
+    show: {
+      readingOrder: true,
+      brightness: true,
+      doubleStar: true,
+      auxiliary: true,
+      minorStars: true,
+      application: true,
+      birthMutagen: true,
+      flying: true,
+      selfMutagen: true,
+      period: true,
+      stemIntro: true,
+      triadSynthesis: true,
+      evidenceFull: true,
+      borrowDetail: true,
+    },
+  },
+];
+
+/**
  * 三合派(南派)的判讀順序。
  *
  * 初學者最常見的問題不是不認識星，而是不知道先看哪一個——

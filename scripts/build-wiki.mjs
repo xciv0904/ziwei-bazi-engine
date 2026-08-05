@@ -17,6 +17,12 @@ const doubleStarDb = await json('double-star-combinations.json');
 const tenGodsDb = await json('ten-gods-meanings.json');
 const shenshaDb = await json('shensha-analysis.json');
 const branchRelDb = await json('branch-interactions-analysis.json');
+// 星曜落宮的實際應用。與學習模式共用同一份資料，兩邊不會有落差。
+const starApp = await json('star-palace-application.json');
+const MAJOR_APP = starApp['主星應用'];
+const AUX_APP = starApp['吉煞祿馬落宮'];
+const MINOR_APP = starApp['雜曜落宮'];
+const PALACE_GROUPS = starApp['宮位分類'];
 const { starMeanings } = await import('../src/data/star-meanings.js');
 const { palaceMeanings } = await import('../src/data/palace-meanings.js');
 const { PLAIN_SHENSHA } = await import('../src/engines/compose-shensha.js');
@@ -97,8 +103,18 @@ for (const star of starNames) {
     .map((k) => `${k.split('+')[0]}${k.split('+')[1]}同宮`);
   const body = [
     para('核心特質', `${m.core}。關鍵詞：${m.keywords.join('、')}。`),
-    '<h2>在十二宮的表現</h2>',
-    ...PALACE_ORDER.map((p) => (palaceStarDb[p]?.[star] ? para(p, palaceStarDb[p][star]) : '')),
+    '<h2>落入十二宮：怎麼發揮、要注意什麼</h2>',
+    ...PALACE_ORDER.map((p) => {
+      const base = palaceStarDb[p]?.[star];
+      const app = MAJOR_APP[p]?.[star];
+      if (!base && !app) return '';
+      return `<div class="card"><strong style="color:var(--red)">${esc(p)}</strong>
+        ${base ? `<div style="margin-top:6px">${esc(base)}</div>` : ''}
+        ${app ? `<div style="margin-top:8px"><strong style="color:var(--gold)">最能發揮　</strong>${esc(app['發揮'])}</div>
+        <div style="margin-top:4px"><strong style="color:var(--red)">要注意　</strong>${esc(app['注意'])}</div>
+        <div style="margin-top:4px"><strong style="color:var(--gold)">怎麼做　</strong>${esc(app['怎麼做'])}</div>` : ''}
+      </div>`;
+    }),
     '<h2>常見雙星組合</h2>',
     ...Object.entries(doubleStarDb['雙主星組合'])
       .filter(([k]) => k.includes(star))
@@ -114,8 +130,18 @@ for (const star of starNames) {
 for (const p of PALACE_ORDER) {
   const body = [
     para('宮位主題', palaceMeanings[p] ?? ''),
-    '<h2>十四主星入此宮</h2>',
-    ...starNames.map((s) => (palaceStarDb[p]?.[s] ? para(s, palaceStarDb[p][s]) : '')),
+    '<h2>十四主星入此宮：怎麼發揮、要注意什麼</h2>',
+    ...starNames.map((s) => {
+      const base = palaceStarDb[p]?.[s];
+      const app = MAJOR_APP[p]?.[s];
+      if (!base && !app) return '';
+      return `<div class="card"><strong style="color:var(--red)">${esc(s)}</strong>
+        ${base ? `<div style="margin-top:6px">${esc(base)}</div>` : ''}
+        ${app ? `<div style="margin-top:8px"><strong style="color:var(--gold)">最能發揮　</strong>${esc(app['發揮'])}</div>
+        <div style="margin-top:4px"><strong style="color:var(--red)">要注意　</strong>${esc(app['注意'])}</div>
+        <div style="margin-top:4px"><strong style="color:var(--gold)">怎麼做　</strong>${esc(app['怎麼做'])}</div>` : ''}
+      </div>`;
+    }),
   ].join('');
   emit(p, '紫微斗數・十二宮位', `紫微斗數${p}:${palaceMeanings[p] ?? ''}`, body, PALACE_ORDER.filter((x) => x !== p));
 }
@@ -215,6 +241,14 @@ for (const [term, item] of Object.entries(glossaryEntries)) {
       ? `<div class="card" style="border-left:3px solid var(--red)"><strong style="color:var(--red)">派別提醒　</strong>${esc(item['南派看法'])}</div>`
       : `<h2>三合派（南派）怎麼看</h2>${para('', item['南派看法'])}`,
     item['落在不同宮位'] ? `<h2>落在不同宮位</h2>${para('', item['落在不同宮位'])}` : '',
+    // 落入各宮位的實際影響。六吉六煞與祿存天馬逐宮列出；
+    // 其餘雜曜依宮位分類列出——同類宮位的差異很小，逐宮窮舉只會變成灌水。
+    AUX_APP[term]
+      ? `<h2>落入十二宮的影響</h2>${PALACE_ORDER.map((p) => para(p, AUX_APP[term][p])).join('')}`
+      : (MINOR_APP[term]
+        ? `<h2>落入各類宮位的影響</h2>${Object.entries(MINOR_APP[term])
+          .map(([group, text]) => para(`${group}（${PALACE_GROUPS[group].join('、')}）`, text)).join('')}`
+        : ''),
     item['怎麼看'] ? `<h2>怎麼看</h2>${para('', item['怎麼看'])}` : '',
     item['要留意'] ? `<h2>要留意</h2>${para('', item['要留意'])}` : '',
     `<h2>派別說明</h2>${para('南派（三合派）', SCHOOL_NOTE['南派'])}${para('北派（飛星派）', SCHOOL_NOTE['北派'])}${para('本站的做法', SCHOOL_NOTE['本站的做法'])}`,

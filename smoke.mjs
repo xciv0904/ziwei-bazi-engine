@@ -527,6 +527,48 @@ check('白話模式下不顯示逐步判讀教學區', !$('#learn-card'));
 $('.mode-pill[data-mode="learn"]').click();
 await settle();
 check('切到學習模式會出現逐步判讀教學區', !!$('#learn-card'));
+
+// 使用者反映一次攤開全部太長，難以入門。分成初階／進階／高級三個階段：
+// 初階只回答「這一宮是什麼樣子」，進階補判讀方法，高級才進四化飛化。
+check('提供初階／進階／高級三個階段', (() => {
+  const pills = $$('#learn-card [data-learn-level]').map((b) => b.dataset.learnLevel);
+  return pills.length === 3 && pills.join(',') === 'basic,intermediate,advanced';
+})());
+check('預設停在初階', $('#learn-card .level-pill.active b').textContent === '初階');
+check('初階只有三個步驟，不碰四化飛星', (() => {
+  const titles = $$('#learn-card .learn-step-title').map((el) => el.textContent);
+  return titles.length === 3 && titles[0].includes('先看本宮')
+    && titles[1].includes('看對宮') && titles[2].includes('整合成白話');
+})());
+check('初階不顯示判讀順序表與雜曜', (() => {
+  const text = $('#learn-card').textContent;
+  return !$('#learn-card .learn-order') && !text.includes('⑥ 雜曜');
+})());
+check('初階仍然給主星在這一宮怎麼發揮', (() => {
+  const tags = $$('#learn-card .app-tag').map((el) => el.textContent);
+  return tags.includes('最能發揮') && tags.includes('要注意') && tags.includes('怎麼做');
+})());
+
+$('#learn-card [data-learn-level="intermediate"]').click();
+await settle();
+check('進階變成五個步驟', $$('#learn-card .learn-step').length === 5);
+check('進階出現判讀順序與雙星、吉煞，但還沒有飛化', (() => {
+  const text = $('#learn-card').textContent;
+  return !!$('#learn-card .learn-order') && text.includes('雙星結構')
+    && text.includes('見吉') && !text.includes('宮干飛化（本宮飛出去）');
+})());
+
+$('#learn-card [data-learn-level="advanced"]').click();
+await settle();
+check('高級展開全部內容', (() => {
+  const text = $('#learn-card').textContent;
+  return text.includes('⑥ 雜曜') && $$('#learn-card .learn-step').length === 5;
+})());
+check('切換階段後選擇會被記住', () => {
+  const saved = w.localStorage.getItem('zwbz-learning-level');
+  return saved === 'advanced';
+});
+
 check('逐步判讀固定五個步驟', $$('#learn-card .learn-step').length === 5);
 check('五個步驟標題依序為本宮/對宮/三方四正/四化/整合', (() => {
   const titles = $$('#learn-card .learn-step-title').map((el) => el.textContent);
@@ -562,6 +604,11 @@ check('見吉見煞有說明怎麼改變判斷，不只列星名', (() => {
 check('雜曜改成說明何時才要看，不再只說不列入判斷', (() => {
   const text = $('#learn-card .learn-step.open .learn-step-body').textContent;
   return text.includes('雜曜什麼時候才要納入判斷') && text.includes('主結構');
+})());
+// 使用者要求吉星煞星雜曜也要有「落入各宮位有什麼影響」，不只是這顆星是什麼
+check('吉煞與雜曜都給落在這一宮的影響', (() => {
+  const lines = $$('#learn-card .star-app-line').map((el) => el.textContent);
+  return lines.length > 0 && lines.some((t) => t.includes('落在'));
 })());
 check('星名可點開連到命理小百科', (() => {
   const chips = $$('#learn-card .star-chip');
@@ -691,8 +738,12 @@ if (emptyCell) {
     return cols.some((t) => t.includes('會跟著借過來')) && cols.some((t) => t.includes('不會跟著借過來'));
   })());
   check('借來的星附上廟旺，不只有星名', (() => {
-    const items = $$('#learn-card .learn-empty-guide .learn-star-list li').map((el) => el.textContent);
+    const items = $$('#learn-card .learn-empty-guide .star-block').map((el) => el.textContent);
     return items.length > 0 && items.some((t) => t.includes('亮度'));
+  })());
+  check('借來的星也給「在本宮怎麼發揮」', (() => {
+    const tags = $$('#learn-card .learn-empty-guide .app-tag').map((el) => el.textContent);
+    return tags.includes('最能發揮') && tags.includes('要注意') && tags.includes('怎麼做');
   })());
   check('借星教學指出本宮自己的東西優先看', borrowText.includes('本宮自己的東西優先看'));
   check('借星教學說明實際怎麼用', (() => {
@@ -700,7 +751,7 @@ if (emptyCell) {
     return steps.length >= 4 && borrowText.includes('放回') && borrowText.includes('主題重新');
   })());
   check('借來的是雙星時說明怎麼讀', (() => {
-    const stars = $$('#learn-card .learn-empty-guide .learn-star-list li').length;
+    const stars = $$('#learn-card .learn-empty-guide .star-block').length;
     // 只有借到兩顆時才會出現雙星說明；借到一顆的盤不該出現
     return stars === 2 ? borrowText.includes('借來的是兩顆星時') : !borrowText.includes('借來的是兩顆星時');
   })());

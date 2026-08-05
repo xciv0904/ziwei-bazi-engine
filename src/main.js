@@ -230,7 +230,8 @@ const state = {
   readingMode: 'public',
   selectedPalace: '命宮',
   // 學習模式：目前展開到第幾步、練習題作答狀況（答案本身不進 localStorage,只存對錯）
-  learning: { openStep: 'self', quizOpen: false, answers: {} },
+  // level：初階／進階／高級。使用者反映一次攤開全部太長，分階讓初學者先看得完。
+  learning: { openStep: 'self', quizOpen: false, answers: {}, level: 'basic' },
   // 目前這張命盤的學習進度（由 localStorage 讀入，依命盤識別碼分開存）
   learningProgress: { palaces: {}, lastPalace: null },
   limitIdx: 0,
@@ -329,7 +330,8 @@ async function computeAllInner(parsed) {
   state.shareCard = 'life';
   // 換命盤就換一組學習進度與作答紀錄：進度依命盤識別碼分開存，
   // 不清乾淨的話會出現「換了一張盤卻沿用上一張的答對紀錄」
-  state.learning = { openStep: 'self', quizOpen: false, answers: {} };
+  // 階段是使用者的學習偏好，換命盤不該重設，所以從 localStorage 讀回來
+  state.learning = { openStep: 'self', quizOpen: false, answers: {}, level: loadLearningLevel() };
   state.learningProgress = R.loadProgress(safeLocalStorage(), R.chartKeyOf(input));
   // 姓名學分頁帶入目前排盤的姓名(使用者若在姓名學頁另外手動改過，下次重新排盤/切換命盤時仍會被目前這筆姓名蓋過——
   // 這是預期行為，「帶入」的意思就是跟著目前排盤的人走)
@@ -824,6 +826,26 @@ function renderClassroom() {
 // 這一段只負責把它排版成漸進式揭露的卡片：預設只展開目前這一步，其餘可點開。
 
 /** 目前這張命盤的進度儲存識別碼（由生辰算出的短雜湊，不含可讀的出生資料） */
+const LEARNING_LEVEL_KEY = 'zwbz-learning-level';
+
+/** 學習階段是跨命盤的個人偏好，單獨存一個 key，不跟著命盤進度走 */
+function loadLearningLevel() {
+  try {
+    const saved = safeLocalStorage().getItem(LEARNING_LEVEL_KEY);
+    return R.LEARNING_LEVELS.some((l) => l.key === saved) ? saved : 'basic';
+  } catch {
+    return 'basic';
+  }
+}
+function saveLearningLevel(level) {
+  try { safeLocalStorage().setItem(LEARNING_LEVEL_KEY, level); } catch { /* 無痕模式 */ }
+}
+
+/** 目前階段的顯示設定；查不到就退回初階，畫面不會空掉 */
+function currentLevel() {
+  return R.LEARNING_LEVELS.find((l) => l.key === state.learning.level) ?? R.LEARNING_LEVELS[0];
+}
+
 function learningChartKey() {
   return R.chartKeyOf(state.data?.input);
 }
@@ -864,20 +886,37 @@ function starChip(item) {
 }
 
 function learningStepSelfHtml(data) {
+  const show = currentLevel().show;
   const marks = [
     data.isBodyPalace ? '身宮' : '',
     data.isLaiyin ? '來因宮' : '',
     data.isEmpty ? '空宮' : '',
   ].filter(Boolean).join('、');
 
-  // 判讀順序放在最前面：初學者最常見的問題不是不認識星，而是不知道先看哪一個。
-  const orderHtml = `<div class="learn-note learn-order"><b>三合派的判讀順序</b>
+  // 判讀順序表只有進階以上才給：初階的人還沒有那麼多層要排先後。
+  const orderHtml = show.readingOrder ? `<div class="learn-note learn-order"><b>三合派的判讀順序</b>
     <ol>${data.readingOrder.map((o) => `<li><b>${esc(o.label)}</b>${esc(o.why)}</li>`).join('')}</ol>
-    <p class="learn-hint">下面就照這個順序排。看到煞星先別緊張，它排在第五層。</p></div>`;
+    <p class="learn-hint">下面就照這個順序排。看到煞星先別緊張，它排在第五層。</p></div>` : '';
 
-  // 第三層：雙星結構
+  // 主星在這一宮怎麼發揮：這是使用者最想知道的，各階段都給
+  const applicationHtml = (app) => (app && show.application ? `<div class="star-app">
+      <div><span class="app-tag app-good">最能發揮</span>${esc(app['發揮'])}</div>
+      <div><span class="app-tag app-warn">要注意</span>${esc(app['注意'])}</div>
+      <div><span class="app-tag app-do">怎麼做</span>${esc(app['怎麼做'])}</div>
+    </div>` : '');
+
+  const majorHtml = `<div class="learn-layer">
+      <b class="learn-layer-title">${show.brightness ? '①② 主星與廟旺' : '① 這一宮的主星'}</b>
+      ${data.majorStarFunctions.length
+    ? data.majorStarFunctions.map((s) => `<div class="star-block">
+        <div class="star-head">${starChip(s)}<span><b>${esc(s.core)}</b>${show.brightness && s.brightnessNote ? `　在${esc(data.branch)}為「${esc(s.brightness)}」：${esc(s.brightnessNote)}` : ''}</span></div>
+        ${applicationHtml(s.application)}
+      </div>`).join('')
+    : '<p class="learn-empty">這一宮沒有十四主星（空宮），主星要借對宮參看，見下方空宮提示。</p>'}
+    </div>`;
+
   const ds = data.doubleStar ?? {};
-  const doubleHtml = ds.combined ? `<div class="learn-layer">
+  const doubleHtml = show.doubleStar ? (ds.combined ? `<div class="learn-layer">
       <b class="learn-layer-title">③ 雙星結構：${esc(ds.pair)}</b>
       <p class="learn-layer-lead">${esc(ds.combined)}</p>
       <div class="learn-note"><b>怎麼讀雙星</b><p>${esc(ds.what)}</p><p>${esc(ds.how)}</p>
@@ -886,57 +925,55 @@ function learningStepSelfHtml(data) {
     </div>` : `<div class="learn-layer">
       <b class="learn-layer-title">③ 雙星結構</b>
       <p class="learn-layer-lead">${esc(ds.single ?? '這一宮沒有兩顆主星同宮。')}</p>
-    </div>`;
+    </div>`) : '';
 
-  // 第五層：見吉見煞
+  // 吉煞除了作用，也給「落在這一宮會怎樣」
   const auxList = (items, rule, mark) => `<div class="learn-layer">
       <b class="learn-layer-title">${mark}</b>
       ${items.length
-    ? `<ul class="learn-star-list">${items.map((i) => `<li>${starChip(i)}<span>${esc(i.effect)}</span></li>`).join('')}</ul>`
+    ? items.map((i) => `<div class="star-block">
+        <div class="star-head">${starChip(i)}<span>${esc(i.effect)}</span></div>
+        ${i.application?.['影響'] ? `<p class="star-app-line"><b>落在${esc(data.palaceName)}：</b>${esc(i.application['影響'])}</p>` : ''}
+      </div>`).join('')
     : '<p class="learn-empty">這一宮沒有。</p>'}
       <div class="learn-note"><b>${esc(rule.headline)}</b><p>${esc(rule.body)}</p>
         <p><b>三合派：</b>${esc(rule.southern)}</p>
         <p class="learn-caution">${esc(rule.caution)}</p></div>
     </div>`;
 
-  // 第六層：雜曜
-  const minorHtml = `<div class="learn-layer">
+  const minorHtml = show.minorStars ? `<div class="learn-layer">
       <b class="learn-layer-title">⑥ 雜曜</b>
       ${data.otherDetail.length
-    ? `<div class="learn-star-chips">${data.otherDetail.map(starChip).join('')}</div>`
+    ? data.otherDetail.map((o) => `<div class="star-block">
+        <div class="star-head">${starChip(o)}<span>${esc(o.glossary?.core ?? '')}</span></div>
+        ${o.application?.['影響'] ? `<p class="star-app-line"><b>落在${esc(data.palaceName)}這類宮位：</b>${esc(o.application['影響'])}</p>` : ''}
+      </div>`).join('')
     : '<p class="learn-empty">這一宮沒有雜曜。</p>'}
       <div class="learn-note"><b>${esc(data.minorStarRule.headline)}</b><p>${esc(data.minorStarRule.body)}</p>
         <ul>${data.minorStarRule.when.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
         <p class="learn-caution">${esc(data.minorStarRule.caution)}</p></div>
-    </div>`;
+    </div>` : '';
+
+  const mutagenRow = show.birthMutagen ? `<div class="learn-layer">
+      <b class="learn-layer-title">④ 生年四化${show.selfMutagen ? '與自化' : ''}</b>
+      ${learningFactRow('生年四化', data.birthMutagens.map((f) => `${f.star}化${f.mutagen}`).join('、') || '此宮沒有生年四化')}
+      ${show.selfMutagen ? learningFactRow('自化', [
+    ...data.selfMutagens.outgoing.map((x) => `${x}（離心↓）`),
+    ...data.selfMutagens.incoming.map((x) => `${x}（向心↑）`),
+  ].join('、') || '此宮沒有自化') : ''}
+      <p class="learn-hint">完整的四化分層在第四步。</p>
+    </div>` : '';
 
   return `
     ${orderHtml}
     ${learningFactRow('宮位主題', data.topic)}
     ${learningFactRow('宮干地支', data.position)}
     ${learningFactRow('特殊標記', marks || '無')}
-
-    <div class="learn-layer">
-      <b class="learn-layer-title">①② 主星與廟旺</b>
-      ${data.majorStarFunctions.length
-    ? `<ul class="learn-star-list">${data.majorStarFunctions.map((s) => `<li>${starChip(s)}<span><b>${esc(s.core)}</b>${s.brightnessNote ? `　在${esc(data.branch)}為「${esc(s.brightness)}」：${esc(s.brightnessNote)}` : ''}</span></li>`).join('')}</ul>`
-    : '<p class="learn-empty">這一宮沒有十四主星（空宮），主星要借對宮參看，見下方空宮提示。</p>'}
-    </div>
-
+    ${majorHtml}
     ${doubleHtml}
-
-    <div class="learn-layer">
-      <b class="learn-layer-title">④ 生年四化與自化</b>
-      ${learningFactRow('生年四化', data.birthMutagens.map((f) => `${f.star}化${f.mutagen}`).join('、') || '此宮沒有生年四化')}
-      ${learningFactRow('自化', [
-    ...data.selfMutagens.outgoing.map((x) => `${x}（離心↓）`),
-    ...data.selfMutagens.incoming.map((x) => `${x}（向心↑）`),
-  ].join('、') || '此宮沒有自化')}
-      <p class="learn-hint">完整的四化分層與飛化落點在第四步。</p>
-    </div>
-
-    ${auxList(data.auspiciousDetail, data.auspiciousRule, '⑤a 見吉（六吉星）')}
-    ${auxList(data.maleficDetail, data.maleficRule, '⑤b 見煞（六煞星）')}
+    ${mutagenRow}
+    ${show.auxiliary ? auxList(data.auspiciousDetail, data.auspiciousRule, '⑤a 見吉（六吉星）') : ''}
+    ${show.auxiliary ? auxList(data.maleficDetail, data.maleficRule, '⑤b 見煞（六煞星）') : ''}
     ${minorHtml}`;
 }
 
@@ -955,7 +992,7 @@ function learningStepTriadHtml(data) {
     return `<tr><th>${esc(role)}</th><td>${esc(m.name)}（${esc(m.position)}）</td><td>${esc(m.stars.join('、') || '空宮')}</td></tr>`;
   }).join('');
   // 只給表格的話，讀者看完會問「所以呢」。這一段把四宮合起來說成一件事。
-  const synthesis = data.synthesis?.length
+  const synthesis = (currentLevel().show.triadSynthesis && data.synthesis?.length)
     ? `<div class="learn-layer"><b class="learn-layer-title">這四宮合起來在說什麼</b>
         ${data.synthesis.map((line) => `<p class="learn-layer-lead">${esc(line)}</p>`).join('')}</div>`
     : '';
@@ -990,22 +1027,25 @@ function learningMutagenGroup(title, items, emptyText) {
 }
 
 function learningStepMutagenHtml(data) {
+  const show = currentLevel().show;
   const basics = Object.entries(data.basics)
     .map(([key, v]) => `<li><span class="mut-chip ${MUT_CLASS[key]}">${esc(key)}</span>${esc(v.keywords)}——${esc(v.plain)}</li>`).join('');
   // 宮干是初學者第一個卡住的地方：命盤上只看到地支，怎麼突然冒出一個天干。
-  // 飛化的內容全部建立在宮干上，所以先解釋它，後面才讀得懂。
-  const stemIntro = data.stemIntro ? `<div class="learn-note"><b>先搞懂「宮干」</b>
+  // 飛化的內容全部建立在宮干上，所以先解釋它，後面才讀得懂。只有高級會看到飛化，所以綁在一起。
+  const stemIntro = (show.stemIntro && data.stemIntro) ? `<div class="learn-note"><b>先搞懂「宮干」</b>
     <p>${esc(data.stemIntro.what)}</p><p>${esc(data.stemIntro.why)}</p><p>${esc(data.stemIntro.how)}</p></div>` : '';
   return `
     <div class="learn-note"><b>先認識四化在講什麼</b><ul class="learn-mut-basics">${basics}</ul><p class="learn-caution">${esc(data.caution)}</p></div>
     ${stemIntro}
     ${learningMutagenGroup('生年四化（一輩子）', data.birth, '這一宮沒有生年四化。')}
-    ${learningMutagenGroup('宮干飛化（本宮飛出去）', data.palace, '這一宮沒有可對應的宮干飛化。')}
-    ${learningMutagenGroup('向心自化（由對宮化入）', data.selfIncoming, '這一宮沒有向心自化。')}
-    ${learningMutagenGroup('離心自化（能量往外散）', data.selfOutgoing, '這一宮沒有離心自化。')}
-    ${learningMutagenGroup('大限四化（這十年）', data.decadal, '目前大限沒有可對應的四化。')}
-    ${learningMutagenGroup('流年四化（這一年）', data.annual, '目前流年沒有可對應的四化。')}
-    <p class="learn-hint">上面每一條都標了層次：生年是一輩子、大限是這十年、流年只有這一年，判讀時不要混在一起。</p>`;
+    ${show.flying ? learningMutagenGroup('宮干飛化（本宮飛出去）', data.palace, '這一宮沒有可對應的宮干飛化。') : ''}
+    ${show.selfMutagen ? learningMutagenGroup('向心自化（由對宮化入）', data.selfIncoming, '這一宮沒有向心自化。') : ''}
+    ${show.selfMutagen ? learningMutagenGroup('離心自化（能量往外散）', data.selfOutgoing, '這一宮沒有離心自化。') : ''}
+    ${show.period ? learningMutagenGroup('大限四化（這十年）', data.decadal, '目前大限沒有可對應的四化。') : ''}
+    ${show.period ? learningMutagenGroup('流年四化（這一年）', data.annual, '目前流年沒有可對應的四化。') : ''}
+    ${show.flying
+    ? '<p class="learn-hint">上面每一條都標了層次：生年是一輩子、大限是這十年、流年只有這一年，判讀時不要混在一起。</p>'
+    : '<p class="learn-hint">宮干飛化、自化與大限流年四化屬於高級階段，切到「高級」才會顯示。</p>'}`;
 }
 
 function learningEvidenceListHtml(title, items, emptyText) {
@@ -1016,10 +1056,12 @@ function learningEvidenceListHtml(title, items, emptyText) {
 
 function learningStepSynthesisHtml(evidence) {
   const c = evidence.conclusion;
+  const show = currentLevel().show;
+  // 初階只給主要依據與結論；輔助依據與「暫時不採用」是判讀訓練，進階以上才需要。
   return `
     ${learningEvidenceListHtml('主要依據', evidence.primary, '這一宮目前沒有可作為主要依據的資料。')}
-    ${learningEvidenceListHtml('輔助依據', evidence.supporting, '目前沒有補充用的輔助依據。')}
-    ${learningEvidenceListHtml('暫時不採用', evidence.unused, '沒有被排除的資料。')}
+    ${show.evidenceFull ? learningEvidenceListHtml('輔助依據', evidence.supporting, '目前沒有補充用的輔助依據。') : ''}
+    ${show.evidenceFull ? learningEvidenceListHtml('暫時不採用', evidence.unused, '沒有被排除的資料。') : ''}
     <div class="learn-conclusion">
       <div><span>1. 盤面看到什麼</span><p>${esc(c.observed)}</p></div>
       <div><span>2. 這些資料怎麼互相影響</span>
@@ -1037,17 +1079,25 @@ function learningStepSynthesisHtml(evidence) {
 function learningEmptyGuideHtml(guide) {
   if (!guide) return '';
   const rule = guide.borrowRule;
+  const showDetail = currentLevel().show.borrowDetail;
 
   // 借過來的星要連同廟旺與生年四化一起顯示：那兩項是星的屬性，會跟著走。
   // 只列星名的話，使用者不會知道「借」到底借了什麼。
   const borrowedHtml = guide.borrowedStars.length ? `
     <div class="borrow-block">
       <b class="borrow-title">實際從${esc(guide.borrowedFrom)}借到什麼</b>
-      <ul class="learn-star-list">${guide.borrowedStars.map((s) => `<li>${starChip(s)}<span>
-        <b>${esc(s.core)}</b>
-        ${s.brightness ? `　亮度「${esc(s.brightness)}」：${esc(s.brightnessNote)}` : ''}
-        ${s.transformation ? `<em class="borrow-hua">連同生年化${esc(s.transformation)}一起借過來</em>` : ''}
-      </span></li>`).join('')}</ul>
+      ${guide.borrowedStars.map((s) => `<div class="star-block">
+        <div class="star-head">${starChip(s)}<span>
+          <b>${esc(s.core)}</b>
+          ${s.brightness ? `　亮度「${esc(s.brightness)}」：${esc(s.brightnessNote)}` : ''}
+          ${s.transformation ? `<em class="borrow-hua">連同生年化${esc(s.transformation)}一起借過來</em>` : ''}
+        </span></div>
+        ${s.application ? `<div class="star-app">
+          <div><span class="app-tag app-good">最能發揮</span>${esc(s.application['發揮'])}</div>
+          <div><span class="app-tag app-warn">要注意</span>${esc(s.application['注意'])}</div>
+          <div><span class="app-tag app-do">怎麼做</span>${esc(s.application['怎麼做'])}</div>
+        </div>` : ''}
+      </div>`).join('')}
     </div>` : '';
 
   // 借來的是雙星時，讀法與本宮自坐雙星相同，但要多說明「這是借來的」意味著什麼
@@ -1073,14 +1123,14 @@ function learningEmptyGuideHtml(guide) {
     <div class="borrow-block">
       <b class="borrow-title">${esc(rule.headline)}</b>
       <p>${esc(rule.principle)}</p>
-      <div class="borrow-two-col">
+      ${showDetail ? `<div class="borrow-two-col">
         ${listBlock(rule.carried.title, rule.carried.items)}
         ${listBlock(rule.notCarried.title, rule.notCarried.items)}
-      </div>
+      </div>` : ''}
     </div>
 
     ${borrowedHtml}
-    ${guide.notCarriedActual.length ? `<div class="borrow-block">
+    ${showDetail && guide.notCarriedActual.length ? `<div class="borrow-block">
       <b class="borrow-title">這些留在${esc(guide.borrowedFrom)}，不跟著過來</b>
       <ul>${guide.notCarriedActual.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
     </div>` : ''}
@@ -1139,13 +1189,18 @@ function renderLearningPanel() {
   const lesson = currentLesson();
   if (!lesson) return '';
   const questions = R.buildPalaceQuiz(lesson, state.data.ziWei);
+  // 切階段後，原本展開的步驟可能已經不在這一階段裡，退回第一步避免整區空白
+  const levelSteps = currentLevel().steps;
+  if (state.learning.openStep && !levelSteps.includes(state.learning.openStep)) {
+    state.learning.openStep = levelSteps[0];
+  }
   const openStep = state.learning.openStep;
   // 目前展開的這一步就是使用者正在讀的內容，在算進度之前先記下來，
   // 否則進度條會永遠慢一次重繪（讀了第五步卻要再點一下別的地方才會更新）。
   if (openStep) {
     state.learningProgress = R.markStepRead(safeLocalStorage(), learningChartKey(), lesson.palaceName, openStep);
   }
-  const progress = R.progressSummary(state.learningProgress);
+  const progress = R.progressSummary(state.learningProgress, currentLevel().steps.length);
 
   const bodyOf = (step) => ({
     self: () => learningStepSelfHtml(step.data),
@@ -1155,7 +1210,11 @@ function renderLearningPanel() {
     synthesis: () => learningStepSynthesisHtml(step.data),
   }[step.id]());
 
-  const steps = lesson.steps.map((step, index) => {
+  // 初階只有三步，進階與高級五步。步驟編號依實際顯示的重新算，
+  // 否則初階會出現「1、2、5」這種跳號，看起來像少了東西。
+  const level = currentLevel();
+  const visibleSteps = lesson.steps.filter((step) => level.steps.includes(step.id));
+  const steps = visibleSteps.map((step, index) => {
     const open = step.id === openStep;
     const done = (state.learningProgress.palaces?.[lesson.palaceName]?.steps ?? []).includes(step.id);
     return `<section class="learn-step${open ? ' open' : ''}${done ? ' done' : ''}">
@@ -1183,6 +1242,14 @@ function renderLearningPanel() {
         <small>照著五個步驟讀一遍，就知道下面的結論是從盤面哪幾項資料推出來的。點左側命盤可換宮位。</small>
       </div>
     </div>
+    <div class="learn-levels">
+      <div class="learn-level-pills" role="group" aria-label="學習階段">
+        ${R.LEARNING_LEVELS.map((l) => `<button type="button" class="level-pill${l.key === level.key ? ' active' : ''}"
+          data-learn-level="${esc(l.key)}" aria-pressed="${l.key === level.key}">
+          <b>${esc(l.label)}</b><small>${esc(l.subtitle)}</small></button>`).join('')}
+      </div>
+      <p class="learn-level-intro">${esc(level.intro)}</p>
+    </div>
     <div class="learn-progress">
       <span>${esc(progress.label)}</span>
       <div class="learn-progress-bar"><i style="width:${(progress.completedCount / progress.total) * 100}%"></i></div>
@@ -1205,6 +1272,14 @@ function renderLearningPanel() {
 function bindLearningPanel() {
   const storage = safeLocalStorage();
   const chartKey = learningChartKey();
+
+  // 切換學習階段：內容深度跟著換，選擇記在 localStorage，換命盤也保留
+  $$('#view-dashboard [data-learn-level]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      state.learning.level = btn.dataset.learnLevel;
+      saveLearningLevel(state.learning.level);
+      renderDashboard();
+    }));
 
   $$('#view-dashboard [data-learn-step]').forEach((btn) =>
     btn.addEventListener('click', () => {

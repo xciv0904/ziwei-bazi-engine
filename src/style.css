@@ -1354,3 +1354,40 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 @media (max-width: 700px) {
   .borrow-two-col { grid-template-columns: 1fr; gap: 8px; }
 }
+
+/* 學習階段：初階／進階／高級 */
+.learn-levels { display: flex; flex-direction: column; gap: 6px; }
+.learn-level-pills {
+  display: flex; gap: 6px; background: var(--card-em); border-radius: 12px; padding: 4px;
+}
+.level-pill {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 8px 6px; border-radius: 9px; transition: background .15s, color .15s;
+}
+.level-pill b { font: 700 13px/1.4 var(--sans); color: var(--ink-60); }
+.level-pill small { font: 400 10.5px/1.4 var(--sans); color: var(--ink-40); }
+.level-pill.active { background: var(--red); }
+.level-pill.active b, .level-pill.active small { color: var(--cream); }
+.learn-level-intro { margin: 0; font: 400 12.5px/1.8 var(--sans); color: var(--ink-45); }
+
+/* 星曜落在這一宮的實際應用 */
+.star-block { margin-bottom: 12px; }
+.star-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.star-head > span { flex: 1; min-width: 180px; font: 400 13px/1.85 var(--sans); color: var(--ink-60); }
+.star-app { margin: 6px 0 0 4px; display: grid; gap: 5px; }
+.star-app > div { font: 400 13px/1.85 var(--sans); color: var(--ink); }
+.app-tag {
+  display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 9px;
+  font: 600 11px/1.7 var(--sans); white-space: nowrap;
+}
+.app-good { background: rgba(63, 125, 74, .13); color: var(--el-wood); }
+.app-warn { background: rgba(166, 61, 47, .1); color: var(--red); }
+.app-do { background: rgba(138, 109, 59, .12); color: var(--gold); }
+.star-app-line { margin: 4px 0 0 4px; font: 400 12.5px/1.8 var(--sans); color: var(--ink-60); }
+.star-app-line b { color: var(--gold); }
+
+@media (max-width: 700px) {
+  .level-pill { padding: 7px 4px; }
+  .level-pill b { font-size: 12px; }
+  .level-pill small { font-size: 9.5px; }
+}
