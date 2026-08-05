@@ -961,7 +961,7 @@ function learningStepSelfHtml(data) {
     ...data.selfMutagens.outgoing.map((x) => `${x}（離心↓）`),
     ...data.selfMutagens.incoming.map((x) => `${x}（向心↑）`),
   ].join('、') || '此宮沒有自化') : ''}
-      <p class="learn-hint">完整的四化分層在第四步。</p>
+      <p class="learn-hint">完整的四化分層在${esc(mutagenStepRef())}。</p>
     </div>` : '';
 
   return `
@@ -1048,15 +1048,38 @@ function learningStepMutagenHtml(data) {
     : '<p class="learn-hint">宮干飛化、自化與大限流年四化屬於高級階段，切到「高級」才會顯示。</p>'}`;
 }
 
+/** 「完整的四化分層在第 N 步」——N 依當前階段算，初階根本沒有那一步，改成指向階段本身 */
+function mutagenStepRef() {
+  const level = currentLevel();
+  const index = level.steps.indexOf('mutagen');
+  return index < 0 ? '進階階段' : `${R.stepOrdinal(index)}`;
+}
+
 function learningEvidenceListHtml(title, items, emptyText) {
   if (!items.length) return `<div class="learn-evi-group"><b>${esc(title)}</b><p class="learn-empty">${esc(emptyText)}</p></div>`;
   return `<div class="learn-evi-group"><b>${esc(title)}</b><ul>${items.map((e) =>
     `<li><span class="evi-kind">${esc(e.kind)}</span>${esc(e.text)}</li>`).join('')}</ul></div>`;
 }
 
+/**
+ * 把證據鏈記的步驟 id 換成這一階段畫面上實際的序號。
+ * 步驟不在當前階段時回傳 null，呼叫端會整句略過——
+ * 指向一個使用者看不到的步驟，比不標來源更難懂。
+ */
+function stepSourceLabel(source) {
+  if (!source) return null;
+  const level = currentLevel();
+  const index = level.steps.indexOf(source.step);
+  if (index < 0) return null;
+  return `${R.stepOrdinal(index)}：${source.label}`;
+}
+
 function learningStepSynthesisHtml(evidence) {
   const c = evidence.conclusion;
   const show = currentLevel().show;
+  const interactions = (evidence.interactionSteps ?? [])
+    .map((p) => ({ text: p.text, label: stepSourceLabel(p.source) }))
+    .filter((p) => p.label);
   // 初階只給主要依據與結論；輔助依據與「暫時不採用」是判讀訓練，進階以上才需要。
   return `
     ${learningEvidenceListHtml('主要依據', evidence.primary, '這一宮目前沒有可作為主要依據的資料。')}
@@ -1065,9 +1088,9 @@ function learningStepSynthesisHtml(evidence) {
     <div class="learn-conclusion">
       <div><span>1. 盤面看到什麼</span><p>${esc(c.observed)}</p></div>
       <div><span>2. 這些資料怎麼互相影響</span>
-        ${evidence.interactionSteps?.length
+        ${interactions.length
     // 每句都寫成「因為…所以…」並標出來源步驟，讀者才追得回去是從哪裡推出來的
-    ? evidence.interactionSteps.map((p) => `<p>${esc(p.text)}<span class="conclusion-source" title="這句話的依據在${esc(p.source)}">← ${esc(p.source)}</span></p>`).join('')
+    ? interactions.map((p) => `<p>${esc(p.text)}<span class="conclusion-source" title="這句話的依據在${esc(p.label)}">← ${esc(p.label)}</span></p>`).join('')
     : `<p>${esc(c.interaction)}</p>`}
       </div>
       <div><span>3. 可能出現在什麼情況</span><p>${esc(c.behavior)}</p></div>
@@ -1220,7 +1243,7 @@ function renderLearningPanel() {
     return `<section class="learn-step${open ? ' open' : ''}${done ? ' done' : ''}">
       <button type="button" class="learn-step-head" data-learn-step="${esc(step.id)}" aria-expanded="${open}" aria-controls="learn-step-${index}">
         <span class="learn-step-no">${index + 1}</span>
-        <span class="learn-step-title">${esc(step.title)}<small>${esc(step.hint)}</small></span>
+        <span class="learn-step-title">${esc(`${R.stepOrdinal(index)}：${step.name}`)}<small>${esc(step.hint)}</small></span>
         <i aria-hidden="true">${open ? '−' : '＋'}</i>
       </button>
       ${open ? `<div class="learn-step-body" id="learn-step-${index}">${bodyOf(step)}</div>` : ''}
@@ -1354,7 +1377,10 @@ function whyPanelHtml(lesson) {
       <div class="tech-block"><b>輔助依據</b><ul>${list(evidence.supporting) || '<li>目前沒有輔助依據。</li>'}</ul></div>
       <div class="tech-block"><b>推導過程</b>
         <p>${esc(evidence.conclusion.observed)}</p>
-        ${(evidence.interactionSteps ?? []).map((p) => `<p>${esc(p.text)}<span class="conclusion-source">← ${esc(p.source)}</span></p>`).join('')
+        ${(evidence.interactionSteps ?? []).map((p) => {
+    const label = stepSourceLabel(p.source);
+    return `<p>${esc(p.text)}${label ? `<span class="conclusion-source">← ${esc(label)}</span>` : ''}</p>`;
+  }).join('')
     || `<p>${esc(evidence.conclusion.interaction)}</p>`}
         <p>${esc(evidence.conclusion.behavior)}</p></div>
       <div class="tech-block"><b>還需要確認的部分</b><p>${esc(evidence.conclusion.pending)}</p></div>

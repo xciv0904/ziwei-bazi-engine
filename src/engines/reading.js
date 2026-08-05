@@ -37,7 +37,7 @@ export {
 export { composeYongShenReading, computeYongShen } from './compose-yongshen.js';
 export { PALACE_ORDER, buildPalaceLesson, buildPalaceQuiz, triadOf } from './learning-palace.js';
 export { buildLifeManual } from './life-manual.js';
-export { LEARNING_LEVELS } from '../data/learning-mode.js';
+export { LEARNING_LEVELS, stepOrdinal } from '../data/learning-mode.js';
 export {
   LEARNING_PROGRESS_KEY,
   chartKeyOf,

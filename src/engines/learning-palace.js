@@ -650,6 +650,9 @@ export function buildEvidenceChain({ palaceName, palace, opposite, isEmpty, step
 /**
  * 第二段的推導：每一句寫成「因為某項盤面事實 → 所以會怎樣」，並記下它來自哪一步。
  * 使用者反映看不懂結論從哪來，關鍵就是這層因果與來源標註。
+ *
+ * source 記的是步驟 id 而不是「第四步」這種字面，序號由畫面依當前階段實際顯示的順序去編；
+ * 初階不顯示三方四正與四化，那幾句連同來源標籤會被整句濾掉，不會指向一個看不到的步驟。
  */
 function buildInteractionSteps({ palaceName, isEmpty, opposite, stepTriad, stepMutagen }) {
   const domainWord = lifeWord(palaceName);
@@ -658,37 +661,37 @@ function buildInteractionSteps({ palaceName, isEmpty, opposite, stepTriad, stepM
   for (const f of stepMutagen.birth) {
     steps.push({
       text: `因為${f.star}帶著出生就有的化${f.mutagen}坐在這裡，所以${domainWord}這一塊${MUTAGEN_BASICS[f.mutagen]?.plain ?? ''}而且這是一輩子的底色，不會隨時間消失。`,
-      source: '第一步：生年四化',
+      source: { step: 'mutagen', label: '生年四化' },
     });
   }
   if (stepMutagen.selfOutgoing.length) {
     steps.push({
       text: `因為這一宮有離心自化，所以${domainWord}的能量比較留不住：你在這裡投入的東西常常做了就過去，需要重新再來一次。`,
-      source: '第四步：離心自化',
+      source: { step: 'mutagen', label: '離心自化' },
     });
   }
   if (stepMutagen.selfIncoming.length) {
     steps.push({
       text: `因為這一宮有向心自化，所以${domainWord}的狀態很受${oppositeDomain}牽動：${oppositeDomain}一有變化，這裡通常就跟著動。`,
-      source: '第四步：向心自化',
+      source: { step: 'mutagen', label: '向心自化' },
     });
   }
   if (isEmpty) {
     steps.push({
       text: `因為本宮沒有主星，所以${domainWord}沒有固定的預設模式，表現主要跟著對宮與三合宮走，也就比較會隨環境與你的選擇改變。`,
-      source: '第一步：空宮',
+      source: { step: 'self', label: '空宮' },
     });
   } else if (opposite) {
     steps.push({
       text: `因為${opposite.name}是同一條軸線的另一端，所以判斷${domainWord}時要連著${oppositeDomain}一起看，只取一邊容易失準。`,
-      source: '第二步：對宮',
+      source: { step: 'opposite', label: '對宮' },
     });
   }
   const triadNames = stepTriad.members.filter((m) => m.role === 'triad').map((m) => m.name);
   if (triadNames.length) {
     steps.push({
       text: `因為三合連到${triadNames.join('與')}，所以${triadNames.map((n) => lifeWord(n)).join('或')}一有變化，${domainWord}通常也會跟著受影響。`,
-      source: '第三步：三方四正',
+      source: { step: 'triad', label: '三方四正' },
     });
   }
   return steps;

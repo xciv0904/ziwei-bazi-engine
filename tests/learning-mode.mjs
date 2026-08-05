@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { convertToZiWei } from '../src/engines/ziwei.js';
 import { computeSelfTransformations, flyingOfStem } from '../src/engines/compose-annual.js';
 import { PALACE_ORDER, buildPalaceLesson, buildPalaceQuiz, triadOf } from '../src/engines/learning-palace.js';
+import { LEARNING_LEVELS, LESSON_STEPS, stepOrdinal } from '../src/data/learning-mode.js';
 import {
   chartKeyOf,
   isPalaceComplete,
@@ -296,7 +297,56 @@ ok('切換命盤後不殘留上一張命盤的星曜與宮位資料');
 }
 ok('學習進度:依命盤分開儲存、可重設、重新讀取仍在、儲存體異常不會壞掉');
 
-// ---------- 5. triadOf 對所有宮位都要回傳四宮 ----------
+// ---------- 5. 步驟序號不得跳號、來源不得指向看不到的步驟 ----------
+// 使用者回報初階讀到「第一步、第二步、第五步」——序號當時寫死在資料裡，
+// 初階濾掉三方四正與四化之後就跳號了。這一節守住兩件事：
+//   a. 序號一律由顯示順序重新編，任何階段都是連續的 1..n。
+//   b. 結論裡「← 第 N 步」標的來源，那一步必須在當前階段真的看得到。
+{
+  if (LESSON_STEPS.some((step) => /第[一二三四五]步/.test(step.name))) {
+    fail('LESSON_STEPS 的 name 又把序號寫死了，切階段後會跳號');
+  }
+
+  for (const level of LEARNING_LEVELS) {
+    const visible = LESSON_STEPS.filter((step) => level.steps.includes(step.id));
+    if (visible.length !== level.steps.length) {
+      fail(`${level.label} 的 steps 有對不到 LESSON_STEPS 的 id`);
+    }
+    const titles = visible.map((step, index) => `${stepOrdinal(index)}：${step.name}`);
+    const expected = ['第一步', '第二步', '第三步', '第四步', '第五步'].slice(0, visible.length);
+    expected.forEach((prefix, index) => {
+      if (!titles[index].startsWith(prefix)) {
+        fail(`${level.label} 第 ${index + 1} 個步驟顯示成「${titles[index]}」，序號跳號了`);
+      }
+    });
+  }
+
+  const ziWei = convertToZiWei(fixture.cases[0].input);
+  const stepIds = new Set(LESSON_STEPS.map((s) => s.id));
+  let orphan = 0;
+  let hidden = 0;
+  for (const palaceName of PALACE_ORDER) {
+    const lesson = buildPalaceLesson({ ziWei, palaceName });
+    for (const item of lesson.evidence.interactionSteps ?? []) {
+      if (typeof item.source !== 'object' || !item.source?.step) {
+        orphan++;
+        fail(`${palaceName} 的推導來源不是 { step, label }：${JSON.stringify(item.source)}`);
+        continue;
+      }
+      if (!stepIds.has(item.source.step)) {
+        orphan++;
+        fail(`${palaceName} 的推導來源指向不存在的步驟 ${item.source.step}`);
+      }
+      // 初階看不到的步驟，畫面會整句濾掉；這裡只確認來源本身是可解析的步驟 id，
+      // 濾除行為由 smoke 測試在 DOM 上驗。
+      const basic = LEARNING_LEVELS[0];
+      if (!basic.steps.includes(item.source.step)) hidden++;
+    }
+  }
+  if (!orphan) ok(`推導來源都指向真實步驟（初階會濾掉其中 ${hidden} 句指向未顯示步驟的推導）`);
+}
+
+// ---------- 6. triadOf 對所有宮位都要回傳四宮 ----------
 {
   const ziWei = convertToZiWei(fixture.cases[0].input);
   for (const palaceName of PALACE_ORDER) {

@@ -540,6 +540,13 @@ check('初階只有三個步驟，不碰四化飛星', (() => {
   return titles.length === 3 && titles[0].includes('先看本宮')
     && titles[1].includes('看對宮') && titles[2].includes('整合成白話');
 })());
+// 使用者回報初階讀到「第一步、第二步、第五步」——序號原本寫死在資料裡，
+// 濾掉三方四正與四化之後就跳號，看起來像少載了東西。序號必須依實際顯示的順序重編。
+check('初階的步驟序號連續，不會跳成第五步', (() => {
+  const titles = $$('#learn-card .learn-step-title').map((el) => el.textContent);
+  return titles[0].startsWith('第一步') && titles[1].startsWith('第二步')
+    && titles[2].startsWith('第三步') && !$('#learn-card').textContent.includes('第五步');
+})());
 check('初階不顯示判讀順序表與雜曜', (() => {
   const text = $('#learn-card').textContent;
   return !$('#learn-card .learn-order') && !text.includes('⑥ 雜曜');
@@ -552,6 +559,7 @@ check('初階仍然給主星在這一宮怎麼發揮', (() => {
 $('#learn-card [data-learn-level="intermediate"]').click();
 await settle();
 check('進階變成五個步驟', $$('#learn-card .learn-step').length === 5);
+check('進階的整合成白話回到第五步', $$('#learn-card .learn-step-title')[4].textContent.startsWith('第五步'));
 check('進階出現判讀順序與雙星、吉煞，但還沒有飛化', (() => {
   const text = $('#learn-card').textContent;
   return !!$('#learn-card .learn-order') && text.includes('雙星結構')
