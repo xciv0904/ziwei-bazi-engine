@@ -24,6 +24,7 @@ Calculations run in the browser.
 | `src/data/life-manual.js` | Palace decade themes, star approaches, turning-point closers |
 | `src/data/star-palace-application.json` | 824 entries: how each star behaves in each palace |
 | `src/data/double-star-palace.json` | 276 entries: how each of the 23 double-star pairs reads in each palace |
+| `src/engines/compose-modifiers.js` | The modifier layer: how auxiliary/malefic/minor stars and mutagens adjust a palace |
 | `src/data/star-glossary.json` | 94 chart stars + 四化 + flying-star concepts, Southern-school glossary |
 | `src/data/life-stage-details.json` | 12 palaces × 14 major stars: what each decade actually looks like |
 | `src/engines/learning-palace.js` | Learning mode: five-step palace lesson, evidence chain, quiz |
@@ -37,6 +38,7 @@ Calculations run in the browser.
 | `tests/star-application.mjs` | Application data coverage, per-palace variation and level gating |
 | `tests/double-star-palace.mjs` | Double-star per-palace coverage, pairwise non-duplication, end-to-end lookup |
 | `tests/reading-modes.mjs` | Plain mode must contain zero jargon; learn mode must differ from plain and stay chart-grounded |
+| `tests/modifiers.mjs` | Auxiliary stars and mutagens must actually change the reading, in the UI and in the AI prompts |
 | `tests/wiki-structure.mjs` | Wiki page hierarchy, category isolation, no broken links, no name collisions |
 | `tests/star-glossary.mjs` | Glossary covers every star the engine can output; schools kept separate |
 | `tests/life-manual.mjs` | Life manual stage coverage, personalisation and chart-derived facts |
@@ -89,6 +91,7 @@ palaces, stars, transformations, or limits.
 - `npm run star-application`: star-in-palace application coverage and learning level gating
 - `npm run double-star`: double-star per-palace coverage and 552-line pairwise similarity
 - `npm run reading-modes`: the two-mode boundary (no jargon in plain, sourced jargon in learn)
+- `npm run modifiers`: auxiliary/malefic/mutagen influence across the site and the AI prompts
 - `npm run star-glossary`: glossary coverage against engine output and school separation
 - `npm run life-manual`: life manual stage coverage and per-chart narrative checks
 - `npm run learning-mode`: learning mode lessons, evidence chain and progress storage
@@ -128,4 +131,8 @@ palaces, stars, transformations, or limits.
 | 2026-08-05 | Learn mode never replaces plain text — it appends the source chain | The old study mode swapped plain out for jargon, so each mode was missing half of what a learner needs |
 | 2026-08-06 | Decadal/annual mutagens are split into lands-here vs lands-elsewhere | They are per-decade/per-year, not per-palace; listing all four flat made every palace look identical and users read it as a bug |
 | 2026-08-06 | Quiz questions retire as they are answered: concept after 1, drill after 3, chart never | Twelve palaces asking the same template felt like revising the same thing twelve times |
+| 2026-08-06 | Auxiliary stars are a modifier layer appended after the main-star conclusion, never a rewrite | Keeps the 840-answer library and existing copy intact, and the reader can see which sentence was changed by what |
+| 2026-08-06 | No numeric strength score for a palace | Chinese astrology has no agreed weighting; a number would invent false precision that users would trust |
+| 2026-08-06 | Tone-framed sentences use the generic effect, never the per-palace text | Per-palace copy is neutral-descriptive; 火星 in 官祿宮 reads positive and would contradict a 'but also count this in' frame |
+| 2026-08-06 | Any field named `technical` or `evidence` is source material and is excluded from the plain-mode jargon check, at any depth | Makes the zero-jargon rule enforceable by structure rather than by remembering to strip fields |
 

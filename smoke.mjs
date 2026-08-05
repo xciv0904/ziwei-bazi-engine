@@ -855,6 +855,19 @@ check('命盤依據列出真實盤面事實', (() => {
     && labels.some((l) => l.includes('主星'))
     && details.some((d) => /[子丑寅卯辰巳午未申酉戌亥]/.test(d));
 })());
+// 使用者要求輔星與四化也要進到解讀，不能只看主星。
+// 命盤依據原本只列星名（「擎羊、天刑」），讀者看到也不知道它改變了什麼。
+check('命盤依據說明輔星煞曜改變了什麼，不只列星名', (() => {
+  const labels = $$('#view-topics .topic-basis-list li b').map((el) => el.textContent);
+  if (!labels.includes('同宮輔星煞曜')) return true; // 這一題對應的宮位剛好沒有輔星
+  return labels.includes('這些星怎麼改變判斷');
+})());
+check('主題答案附上「這一宮還有其他星」的修正', (() => {
+  const box = $('#view-topics .topic-modifier');
+  if (!box) return true; // 對應宮位沒有可用的修正項
+  return box.textContent.includes('這一宮還有其他星')
+    && box.querySelectorAll('p').length > 0;
+})());
 check('命盤依據不再出現重複的佔位標籤', (() => {
   const rows = $$('#view-topics .topic-basis-list li').map((el) => el.textContent);
   return rows.length === new Set(rows).size

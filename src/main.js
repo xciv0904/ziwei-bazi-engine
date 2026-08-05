@@ -1829,9 +1829,16 @@ function topicChartBasisHtml(report) {
 
 function topicDirectAnswerHtml(report) {
   const answer = report.directAnswer;
+  // 答案本身取自「題目 × 主星」的答案庫，扣題但只看主星。
+  // 同宮的吉星煞星與四化會實際改變這一題的答案，所以在後面補一層修正。
+  const notes = answer.modifierNote ?? [];
   return `<section class="topic-answer topic-answer--combined">
     <b>簡單回答</b>
     <p>${esc(answer.answer)}</p>
+    ${notes.length ? `<div class="topic-modifier">
+      <b>這一宮還有其他星，會這樣調整</b>
+      ${notes.map((n) => `<p>${esc(n)}</p>`).join('')}
+    </div>` : ''}
   </section>`;
 }
 

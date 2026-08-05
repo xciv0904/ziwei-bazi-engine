@@ -1,0 +1,185 @@
+// tests/modifiers.mjs — 輔星、煞曜、雜曜與四化真的有進到解讀裡
+//
+// 這支測試的由來：使用者說「看命盤跟解析的時候，不要只單看主星，輔星跟四化也要考慮進去」。
+// 當時的狀況是輔星煞曜只出現在「專業資料」的清單，一句解讀都沒有用到——
+// 命盤上明明擺著左輔右弼與擎羊陀羅，讀出來的東西卻跟沒有它們一樣。
+//
+// 這支守四件事：
+//   1. 修正層本身正確：吉星算助力、煞星算阻力、四化與廟旺都要進來。
+//   2. 真的有差：把同一顆主星放在輔星煞曜不同的宮位，解讀必須不一樣。
+//      這是核心——如果拿掉輔星結論也一樣成立，就代表根本沒用到。
+//   3. 白話模式仍然零術語：修正句不得出現星名（星名也是術語）。
+//   4. 全站與 AI 都吃得到：主題分析、重點解讀卡片、AI 提示詞都要帶上。
+//
+// 執行：node tests/modifiers.mjs（已掛在 npm run smoke 的檢查串裡）
+import { readFileSync } from 'node:fs';
+import { convertToZiWei } from '../src/engines/ziwei.js';
+import { convertToBaZi } from '../src/engines/bazi.js';
+import { composeZiWeiLuck } from '../src/engines/compose-luck.js';
+import { generatePlainZiweiTopics } from '../src/engines/compose-plain.js';
+import { composePalaceModifiers, composeChartModifiers } from '../src/engines/compose-modifiers.js';
+import { buildTopicReport, resolveTopicStar } from '../src/engines/topic-report.js';
+import { formatChartForAI, formatPalacePromptForAI, formatTopicPromptForAI } from '../src/engines/format-ai.js';
+import { TOPIC_CONTRACTS } from '../src/data/topic-contracts.js';
+
+const fixture = JSON.parse(readFileSync(new URL('./golden/cases/learning-mode-charts.json', import.meta.url), 'utf8'));
+
+let failed = 0;
+const fail = (message) => { failed++; console.log(`❌ ${message}`); };
+const ok = (message) => console.log(`✅ ${message}`);
+
+const AUSPICIOUS = ['左輔', '右弼', '文昌', '文曲', '天魁', '天鉞'];
+const MALEFIC = ['擎羊', '陀羅', '火星', '鈴星', '地空', '地劫'];
+const bare = (raw) => String(raw).replace(/[(（].*$/, '').trim();
+
+// ---------- 1. 修正層本身要正確 ----------
+{
+  let checkedAus = 0;
+  let checkedMal = 0;
+  let checkedMut = 0;
+  let wrong = 0;
+  for (const testCase of fixture.cases) {
+    const ziWei = convertToZiWei(testCase.input);
+    for (const palace of ziWei.palaces) {
+      const mod = composePalaceModifiers(palace);
+      const stars = (palace.minorStars ?? []).map(bare);
+
+      for (const name of stars.filter((n) => AUSPICIOUS.includes(n))) {
+        checkedAus++;
+        const item = mod.technical.items.find((i) => i.star === name);
+        if (!item) { wrong++; fail(`${palace.name} 的六吉星 ${name} 沒有進到修正層`); }
+        else if (item.tone !== 'boost') { wrong++; fail(`${palace.name} 的 ${name} 被算成 ${item.tone}，六吉應該是助力`); }
+      }
+      for (const name of stars.filter((n) => MALEFIC.includes(n))) {
+        checkedMal++;
+        const item = mod.technical.items.find((i) => i.star === name);
+        if (!item) { wrong++; fail(`${palace.name} 的六煞星 ${name} 沒有進到修正層`); }
+        else if (item.tone !== 'drag') { wrong++; fail(`${palace.name} 的 ${name} 被算成 ${item.tone}，六煞應該是阻力`); }
+      }
+      for (const star of palace.majorStars ?? []) {
+        if (!star.transformation) continue;
+        checkedMut++;
+        const mutagen = String(star.transformation).replace(/^化/, '');
+        if (!mod.technical.items.some((i) => i.star === `${star.name}化${mutagen}`)) {
+          wrong++;
+          fail(`${palace.name} 的生年${star.name}化${mutagen} 沒有進到修正層`);
+        }
+      }
+      // 有主星就一定有亮度，亮度是主星的力道，不能漏
+      if ((palace.majorStars ?? []).length && palace.majorStars[0].brightness
+        && !mod.technical.items.some((i) => i.source === '廟旺利陷')) {
+        wrong++;
+        fail(`${palace.name} 有主星亮度卻沒有進到修正層`);
+      }
+    }
+  }
+  if (!wrong) ok(`修正層涵蓋完整：六吉 ${checkedAus} 次、六煞 ${checkedMal} 次、生年四化 ${checkedMut} 次都算進去了`);
+}
+
+// ---------- 2. 真的有差：輔星不同，解讀就要不同 ----------
+// 這一節是整支測試的重點。做法是拿真實命盤上「同一顆主星、不同輔星組合」的宮位比對，
+// 如果修正層對它們給出一樣的東西，代表輔星根本沒有發揮作用。
+{
+  const bySignature = new Map();
+  for (const testCase of fixture.cases) {
+    const ziWei = convertToZiWei(testCase.input);
+    for (const palace of ziWei.palaces) {
+      const major = (palace.majorStars ?? []).map((s) => s.name).join('、');
+      if (!major) continue;
+      const mod = composePalaceModifiers(palace);
+      const minorKey = (palace.minorStars ?? []).map(bare).sort().join(',');
+      const key = `${major}@${palace.name}`;
+      if (!bySignature.has(key)) bySignature.set(key, new Map());
+      bySignature.get(key).set(minorKey, mod.plainLines.join('｜'));
+    }
+  }
+  let compared = 0;
+  let identical = 0;
+  for (const [key, variants] of bySignature) {
+    if (variants.size < 2) continue;
+    const entries = [...variants.entries()];
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        compared++;
+        if (entries[i][1] === entries[j][1] && entries[i][0] !== entries[j][0]) {
+          identical++;
+          fail(`${key}：輔星組合不同（${entries[i][0] || '無'} vs ${entries[j][0] || '無'}）修正句卻一樣，等於沒用到輔星`);
+        }
+      }
+    }
+  }
+  if (!compared) fail('Golden Charts 裡找不到「同主星同宮位但輔星不同」的組合，這一節等於沒驗到');
+  else if (!identical) ok(`輔星真的有作用：${compared} 組「同主星、不同輔星」的比對全部產出不同的修正`);
+}
+
+// ---------- 3. 白話模式的修正句不得出現星名 ----------
+{
+  const STAR_NAMES = [...AUSPICIOUS, ...MALEFIC, '祿存', '天馬', '天刑', '天姚', '紅鸞', '華蓋',
+    '紫微', '天機', '太陽', '武曲', '天同', '廉貞', '天府', '太陰', '貪狼', '巨門', '天相', '天梁', '七殺', '破軍'];
+  const JARGON = ['化祿', '化權', '化科', '化忌', '廟旺', '落陷', '六吉', '六煞', '雜曜'];
+  let leaks = 0;
+  for (const testCase of fixture.cases) {
+    const ziWei = convertToZiWei(testCase.input);
+    for (const mod of composeChartModifiers(ziWei)) {
+      for (const line of [...mod.plainLines, mod.summary]) {
+        const found = [...STAR_NAMES, ...JARGON].filter((w) => line.includes(w));
+        if (found.length) {
+          leaks++;
+          fail(`白話修正句出現術語（${found.join('、')}）：「${line}」`);
+        }
+      }
+    }
+  }
+  if (!leaks) ok('白話模式的修正句完全不出現星名與術語');
+}
+
+// ---------- 4. 全站與 AI 都吃得到 ----------
+{
+  const testCase = fixture.cases[0];
+  const ziWei = convertToZiWei(testCase.input);
+  const baZi = convertToBaZi(testCase.input);
+
+  // 4a 重點解讀卡片
+  const cards = generatePlainZiweiTopics(ziWei, composeZiWeiLuck(ziWei, { mode: 'public' }));
+  const withMod = cards.filter((c) => c.modifiers?.hasSignal);
+  if (!withMod.length) fail('重點解讀卡片沒有帶上修正層');
+  else {
+    const applied = withMod.filter((c) =>
+      c.modifiers.plainLines.some((line) => c.explanation.includes(line)));
+    if (applied.length !== withMod.length) {
+      fail(`${withMod.length - applied.length} 張卡片算了修正層卻沒有寫進解讀文字`);
+    }
+  }
+
+  // 4b 主題分析：命盤依據要說明「這些星怎麼改變判斷」，不是只列星名
+  const contract = TOPIC_CONTRACTS[0];
+  const report = buildTopicReport({ contract, ziWei, ziweiCard: cards[0], baziCards: [] });
+  const resolved = resolveTopicStar(contract, ziWei);
+  if (resolved?.palace && composePalaceModifiers(resolved.palace).hasSignal) {
+    if (!report.chartBasis.some((r) => r.label === '這些星怎麼改變判斷')) {
+      fail('主題分析的命盤依據沒有說明輔星煞曜改變了什麼');
+    }
+    if (!report.directAnswer.modifierNote?.length) {
+      fail('主題分析的答案沒有附上修正句');
+    }
+  }
+
+  // 4c AI 提示詞：資料與指示都要在。只給資料而不要求使用，AI 一樣會只挑主星講。
+  const fullPrompt = formatChartForAI({ input: testCase.input, ziWei, baZi });
+  if (!fullPrompt.includes('判讀修正：')) fail('完整命盤 AI 提示詞沒有帶上每宮的判讀修正');
+  if (!fullPrompt.includes('不得只用主星下結論')) fail('完整命盤 AI 提示詞沒有要求把輔星煞曜算進去');
+  if (!fullPrompt.includes('代表沒有用到')) fail('AI 提示詞缺少可自我檢查的判準');
+
+  const palacePrompt = formatPalacePromptForAI({ input: testCase.input, ziWei, palaceName: '命宮' });
+  if (!palacePrompt.includes('判讀修正')) fail('宮位 AI 提示詞沒有帶上判讀修正');
+  if (!palacePrompt.includes('不得只用主星下結論')) fail('宮位 AI 提示詞沒有要求把輔星煞曜算進去');
+
+  if (report.modifiers?.hasSignal) {
+    const topicPrompt = formatTopicPromptForAI({ contract, report });
+    if (!topicPrompt.includes('對應宮位的判讀修正')) fail('主題 AI 提示詞沒有帶上判讀修正');
+  }
+  ok('重點解讀、主題分析與三種 AI 提示詞都吃得到修正層');
+}
+
+console.log(failed ? `\n${failed} 項失敗 ❌` : '\n輔星、煞曜、雜曜與四化都真的進到解讀裡了 ✅');
+process.exit(failed ? 1 : 0);

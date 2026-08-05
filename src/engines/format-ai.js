@@ -10,6 +10,7 @@ import { monthlyPillarsOf, computeSelfTransformations, computeLaiyinPalace, douJ
 // formatNamingPromptForAI 一個函式用得到。改成在那個函式內部動態 import,
 // 其餘所有 AI 提示詞（命盤、宮位、流年、合盤、每日、時間軸）就不必為此背上字庫的重量。
 import { generatePlainZiweiTopics, generatePlainBaziTopics } from './compose-plain.js';
+import { composePalaceModifiers } from './compose-modifiers.js';
 
 const ELEMENT_NAME = { wood: '木', fire: '火', earth: '土', metal: '金', water: '水' };
 const BRANCH_LABEL = { yearBranch: '年支', monthBranch: '月支', dayBranch: '日支', hourBranch: '時支' };
@@ -118,6 +119,13 @@ function formatZiWeiSection(ziWei, input, year = new Date().getFullYear()) {
         ...st.incoming.map((x) => `${x.star}↑${x.mutagen}`),
       ].join('、');
       lines.push(`  自化：${marks}`);
+    }
+    // 只給星名，AI 跟人一樣容易只挑主星下結論。
+    // 這裡先把「這些星各自改變了什麼」算好，讓輔星煞曜與四化有機會真的進到判讀裡。
+    const mod = composePalaceModifiers(p);
+    if (mod?.hasSignal) {
+      lines.push(`  判讀修正：${mod.summary}`);
+      for (const line of mod.technical.lines) lines.push(`    ・${line}`);
     }
   }
 
@@ -317,6 +325,13 @@ const AI_INSTRUCTION = `請把這份資料視為已完成計算的觀察紀錄�
 【內部判讀】
 先找出一至三個最有解釋力的重複訊號，再以其他資料核對。程式列出的飛化疊加點與跨年重複焦點可直接採用。
 紫微用來辨認人生領域、事件舞台與階段主題；先看命宮、身宮、福德宮、三方四正，涉及取捨時連同對宮。
+
+不得只用主星下結論。每一宮的判斷都必須把資料中該宮的「判讀修正」一併算進去，依三合派的分工：
+主星決定這一宮在講什麼（方向與主題），廟旺決定主星的力道，生年四化決定能量往哪走（屬主結構），
+六吉改變做起來順不順、六煞改變力道與代價（兩者都不改變主題），雜曜最後看、補「以什麼形式呈現」。
+所以同一顆主星在有左輔右弼的宮位與有擎羊陀羅的宮位，結論的力道、代價與呈現方式都應該不同；
+若你的結論換掉輔星煞曜也一樣成立，代表沒有用到它們，請重寫。
+提到某一宮時，至少要點出一項助力或一項阻力，並說明它把主星的說法往哪個方向修正。
 八字用來驗證內在動力與應對方式；看日主強弱、十神、喜忌、地支關係、大運流年，藏干則補充未直接顯露、
 但在特定情境會浮現的需求與能力。重要結論至少要有兩項資料支持，並盡可能由紫微與八字交叉驗證；
 兩套系統不同調時，分別說明各自反映的層面，不要硬湊成一致。
@@ -460,6 +475,16 @@ export function formatTopicPromptForAI({ contract, report }) {
     '【本題已篩選命盤依據】',
     ...(evidenceLines.length ? evidenceLines : ['本題相關訊號不足，不得引用其他領域補滿。']),
     '',
+    // 網站的直接答案取自「題目 × 主星」的答案庫，扣題但只看主星。
+    // 同宮的吉煞與四化會實際改變答案，所以把修正層一併交給 AI，並要求它用上。
+    ...(report.modifiers?.hasSignal ? [
+      '【對應宮位的判讀修正（主星以外的星怎麼改變這一題）】',
+      report.modifiers.summary,
+      ...report.modifiers.technical.items.map((i) => `・${i.source}｜${i.star}：${i.effect}`),
+      '上面的直接答案只用了主星，你的回答必須把這些修正算進去：主星定方向，'
+        + '吉星改變順不順，煞星改變力道與代價，四化決定能量往哪走，雜曜補呈現形式。',
+      '',
+    ] : []),
     '【輸出結構】',
     '直接答案：一至兩句，第一句就回答。',
     '為什麼：只解釋上面證據支持的兩項原因。',
@@ -614,7 +639,12 @@ export function formatPalacePromptForAI({ input, ziWei, palaceName }) {
       const stars = p.majorStars.length ? p.majorStars.map(formatMajorStar).join(' ') : '無主星（空宮）';
       const minor = p.minorStars.length ? `｜輔星：${p.minorStars.join(' ')}` : '';
       const self = selfByPalace[p.name]?.length ? `｜自化：${selfByPalace[p.name].join('、')}` : '';
-      return `${p.name}${p.isBodyPalace ? '（身宮）' : ''} ${p.position}｜主星：${stars}${minor}${self}｜宮干飛化：${flyingByPalace[p.name].join('、')}`;
+      const head = `${p.name}${p.isBodyPalace ? '（身宮）' : ''} ${p.position}｜主星：${stars}${minor}${self}｜宮干飛化：${flyingByPalace[p.name].join('、')}`;
+      // 輔星只給名字，讀盤的一方（人或 AI）都容易只挑主星講。先算好各自改變了什麼。
+      const mod = composePalaceModifiers(p);
+      if (!mod?.hasSignal) return head;
+      return [head, `  判讀修正：${mod.summary}`,
+        ...mod.technical.lines.map((l) => `    ・${l}`)].join('\n');
     });
   return [
     `這是紫微斗數 ${palaceName}(${t.subtitle})提示詞。`,
@@ -628,6 +658,9 @@ export function formatPalacePromptForAI({ input, ziWei, palaceName }) {
     `1) 先用一句白話結論說明${t.focus}，再用1至2個具體生活情境讓本人可以核對。`,
     `2) 同時查看${related}，只補充${t.relatedNote}；不要展開其他人生分類。`,
     `3) 說明一項用得好的優勢、一項使用過度的代價，並給1至2個可執行做法。${t.avoid}。`,
+    '3b) 不得只用主星下結論。上面「判讀修正」列的六吉、六煞、雜曜與四化必須實際影響你的判斷：'
+      + '主星定方向，廟旺決定力道，四化決定能量往哪走，吉星改變順不順，煞星改變力道與代價，雜曜補呈現形式。'
+      + '若你的結論換掉這些星也一樣成立，代表沒有用到，請重寫。',
     '4) 抽象形容詞後必須接「在什麼情況、會做出什麼行為」；正文先講白話，命理依據最後最多2句。',
     `5) ${NATURAL_TW_STYLE}`,
     '',

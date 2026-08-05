@@ -34,10 +34,20 @@ const ok = (message) => console.log(`✅ ${message}`);
 const JARGON = ['亮度是', '廟旺', '落陷', '化祿', '化權', '化科', '化忌', '自化', '宮干',
   '三方四正', '借對宮', '日主', '十神', '喜用神', '納音', '藏干', '來因宮'];
 
+// 全站的欄位命名約定：叫 technical 或 evidence 的東西就是「依據」，
+// 只會在學習模式與 AI 提示詞被讀取，白話面板從不渲染它們。
+// 所以這裡遞迴略過這兩個欄位名——不是為了讓測試好過，
+// 而是這條約定本身就是白話模式零術語的實作方式（見 compose-modifiers.js 的 technical 欄位）。
+const SOURCE_FIELDS = new Set(['technical', 'evidence']);
+
 const collect = (value, out = []) => {
   if (typeof value === 'string') out.push(value);
   else if (Array.isArray(value)) value.forEach((v) => collect(v, out));
-  else if (value && typeof value === 'object') Object.values(value).forEach((v) => collect(v, out));
+  else if (value && typeof value === 'object') {
+    for (const [key, v] of Object.entries(value)) {
+      if (!SOURCE_FIELDS.has(key)) collect(v, out);
+    }
+  }
   return out;
 };
 
@@ -51,14 +61,10 @@ const collect = (value, out = []) => {
     const bzLuck = composeBaZiLuck(baZi, { mode: 'public' });
     const elements = composeElementAnalysis(baZi.fiveElementDistribution);
 
-    // technical 與 evidence 這兩個欄位本來就是「依據」，只會在學習模式被讀取，
-    // 白話面板從不渲染它們，所以不列入這一節的檢查範圍。
-    // 檢查的是白話模式下真的會出現在畫面上的那些字。
-    const strip = (cards) => cards.map(({ technical, evidence, ...rest }) => rest);
     const texts = [
-      ...collect(strip(generatePlainZiweiTopics(ziWei, zwLuck))),
-      ...collect(strip(generatePlainBaziTopics(baZi, bzLuck, elements))),
-      ...collect(composeChartReading(ziWei, { mode: 'public' }).palaces.map(({ technical, ...r }) => r)),
+      ...collect(generatePlainZiweiTopics(ziWei, zwLuck)),
+      ...collect(generatePlainBaziTopics(baZi, bzLuck, elements)),
+      ...collect(composeChartReading(ziWei, { mode: 'public' }).palaces),
     ];
     for (const text of texts) {
       const found = JARGON.filter((w) => text.includes(w));

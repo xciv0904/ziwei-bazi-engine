@@ -24,6 +24,7 @@ import { composeZiWeiLuck, composeBaZiLuck, categoryLabel } from './compose-luck
 import { composeAnnualChange } from './compose-annual.js';
 import { palaceMeanings } from '../data/palace-meanings.js';
 import { inspectCardQuality } from './text-quality.js';
+import { composePalaceModifiers } from './compose-modifiers.js';
 
 const STAR_PROFILES = starDb['主星白話性格'];
 const STAR_DOMAIN = starDb['主星白話領域延伸'];
@@ -75,6 +76,17 @@ const TRANSFORMATION_TRIGGER = {
 };
 
 const BRIGHTNESS_DIRECT = new Set(['廟', '旺', '得']);
+
+/**
+ * 修正層：輔星、煞曜、雜曜與四化怎麼改變這一宮的判斷。
+ * 改版前這些星只出現在「專業資料」的清單，一句解讀都沒有用到——
+ * 命盤上明明擺著左輔右弼與擎羊陀羅，讀出來的東西卻跟沒有它們一樣。
+ * 主星定方向不動，這裡只在結論後面追加一層修正（見 compose-modifiers.js）。
+ */
+function modifiersOf(palace, borrowed, opposite) {
+  // 借星安宮時輔星煞曜留在對宮不跟著借，所以借來的宮位算的是它自己的那些星
+  return composePalaceModifiers(palace, { borrowed, borrowedFrom: borrowed ? opposite?.name : null });
+}
 
 function transformationOf(star) {
   return String(star?.transformation ?? '').replace(/^化/, '');
@@ -310,6 +322,11 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain: forced
   const reflection = mode === 'domain' ? DOMAIN_REFLECTION[domain] : STAR_PROFILES[primary].reflection;
   const tagLabel = names.map((n) => `${n}(${STAR_PROFILES[n]?.tag ?? ''})`).join('、');
 
+  // 主星的結論寫完之後，把輔星、煞曜、雜曜與四化的修正接上去。
+  // 順序很重要：先讓讀者看懂主星在講什麼，再說「但實際上還要算進這些」。
+  const modifiers = modifiersOf(palace, borrowed, opposite);
+  if (modifiers?.plainLines.length) card.explanation.push(...modifiers.plainLines);
+
   return finalizeCard({
     key, title: `${PALACE_HEADING[palaceName] ?? title}・${STAR_PROFILES[primary].tag}`, letter, color, borrowed,
     summary: differentiatedSummary(card.summary, stars, ziWei, palaceName, borrowed),
@@ -318,7 +335,9 @@ function starPalaceTopic({ key, title, letter, color, palaceName, domain: forced
     challenges: cap(card.challenges, 3),
     advice: cap(card.advice, 3).map((item) => contextualAdvice(item, palaceName)),
     reflection,
-    evidence: palaceEvidence(palaceName, stars, borrowed, opposite, ziWei),
+    modifiers,
+    evidence: [...palaceEvidence(palaceName, stars, borrowed, opposite, ziWei),
+      ...(modifiers?.technical.lines ?? [])],
     technical: technicalBlock({
       chartData,
       judgment: studyReading.text,

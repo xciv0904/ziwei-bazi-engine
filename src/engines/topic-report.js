@@ -1,5 +1,6 @@
 import starAnswers from '../data/topic-star-answers.json' with { type: 'json' };
 import { similarityScore } from './text-quality.js';
+import { composePalaceModifiers } from './compose-modifiers.js';
 
 const STAR_ANSWERS = starAnswers['答案'];
 
@@ -164,6 +165,16 @@ export function buildChartBasis(contract, ziWei, resolved) {
   }
   const minor = (palace.minorStars ?? []).slice(0, 4).map((item) => String(item).replace(/[(（].*$/, ''));
   if (minor.length) rows.push({ label: '同宮輔星煞曜', detail: minor.join('、') });
+
+  // 只列出星名等於沒說——讀者看到「擎羊、天刑」也不知道它改變了什麼。
+  // 這裡把每一顆的實際影響一起寫出來，命盤依據才真的能核對。
+  const modifiers = composePalaceModifiers(palace);
+  if (modifiers?.hasSignal) {
+    rows.push({ label: '這些星怎麼改變判斷', detail: modifiers.summary });
+    for (const item of modifiers.technical.items.slice(0, 4)) {
+      rows.push({ label: item.source, detail: `${item.star}：${item.effect}` });
+    }
+  }
   return rows;
 }
 
@@ -314,6 +325,26 @@ function buildSchemas(contract, selected, insufficient, resolved = null) {
   };
 }
 
+/**
+ * 把這一題對應宮位的修正層接到答案後面。
+ *
+ * 60 題的答案庫是「題目 × 主星」840 格，這是刻意的——答案必須扣題。
+ * 但只用主星就等於忽略同宮的吉煞與四化，同一顆天機在有左輔和有擎羊的宮位，
+ * 實際的樣子差很多。所以答案本身不動，後面追加一到兩句修正。
+ */
+function appendModifierNote(report, resolved) {
+  if (!resolved?.palace) return report;
+  const modifiers = composePalaceModifiers(resolved.palace, {
+    borrowed: resolved.borrowed,
+    borrowedFrom: resolved.borrowedFrom,
+  });
+  if (!modifiers?.plainLines.length) return report;
+  report.modifiers = modifiers;
+  report.topicAnalysis.modifierNote = modifiers.plainLines.slice(0, 2);
+  report.directAnswer.modifierNote = report.topicAnalysis.modifierNote;
+  return report;
+}
+
 function publicTextOf(report) {
   const topic = report.topicAnalysis;
   const direct = report.directAnswer;
@@ -388,6 +419,7 @@ export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [] })
     ...buildSchemas(contract, selectedEvidence, insufficient, resolved),
   };
   report.validationIssues = validateTopicReport(report, contract);
+  appendModifierNote(report, resolved);
   // 有主星答案時不套用整段抹除的備援:那份答案是照著題目寫的，本身就是最扣題的內容。
   // 這時的 validationIssues 多半來自舊管線的補充欄位(情境、做法)沒湊齊，
   // 不該因此把已經正確的答案換成「訊號較少」的罐頭句。
