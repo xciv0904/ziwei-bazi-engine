@@ -895,11 +895,36 @@ check('命盤依據說明輔星煞曜改變了什麼，不只列星名', (() => 
   if (!labels.includes('同宮輔星煞曜')) return true; // 這一題對應的宮位剛好沒有輔星
   return labels.includes('這些星怎麼改變判斷');
 })());
-check('主題答案附上「這一宮還有其他星」的修正', (() => {
-  const box = $('#view-topics .topic-modifier');
-  if (!box) return true; // 對應宮位沒有可用的修正項
-  return box.textContent.includes('這一宮還有其他星')
-    && box.querySelectorAll('p').length > 0;
+// 使用者回報「愛情主題裡面每題都寫一樣的句子，其他主題也是」。
+// 原因是一個主題的六題查的是同一個宮位，修正層對六題完全相同，
+// 放在每題答案下方就被印六次。資料是主題層級的，位置也該是主題層級。
+check('修正層在主題層級出現一次，不是每題重印', (() => {
+  const inHeading = $$('#view-topics .modifier-block').length;
+  const inAnswers = $$('#view-topics .topic-question-body .modifier-block').length;
+  return inHeading <= 1 && inAnswers === 0;
+})());
+check('換主題會換成另一組修正（不同主題查不同宮位）', (() => {
+  // 這個檢查點的目前主題不固定（前面的區塊會切換），所以先記下來，
+  // 換到一個確定不同的主題再比對，最後切回去不影響後續檢查
+  const original = $('#view-topics .topic-tab.active')?.dataset.topic ?? 'love';
+  const other = original === 'health' ? 'love' : 'health';
+  const before = $('#view-topics .modifier-block')?.textContent ?? '';
+  $$('#view-topics [data-topic]').find((b) => b.dataset.topic === other)?.click();
+  const after = $('#view-topics .modifier-block')?.textContent ?? '';
+  $$('#view-topics [data-topic]').find((b) => b.dataset.topic === original)?.click();
+  if (!before || !after) return true;
+  return before !== after;
+})());
+check('展開不同題目，主題層級的修正層不會跟著複製', (() => {
+  const texts = [];
+  for (const index of [0, 2]) {
+    $$('#view-topics [data-open-topic-question]')
+      .find((b) => Number(b.dataset.openTopicQuestion) === index)?.click();
+    texts.push($$('#view-topics .modifier-block').length);
+  }
+  $$('#view-topics [data-open-topic-question]')
+    .find((b) => Number(b.dataset.openTopicQuestion) === 0)?.click();
+  return texts.every((count) => count <= 1);
 })());
 check('命盤依據不再出現重複的佔位標籤', (() => {
   const rows = $$('#view-topics .topic-basis-list li').map((el) => el.textContent);

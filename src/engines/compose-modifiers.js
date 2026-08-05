@@ -166,6 +166,32 @@ const VOICE = {
   天才: '你反應快，同樣的東西你上手比較快',
 };
 
+/**
+ * 逐宮文案裡的「該宮」要換成讀者聽得懂的稱呼。
+ *
+ * 資料庫寫的是「與該宮的人在思考上合拍」——「該宮」是模板留下來的字，
+ * 直接印出去讀者根本不知道在說誰。六親宮換成實際的人（另一半、手足、晚輩…），
+ * 其餘宮位換成生活領域。
+ */
+const PALACE_PERSON = {
+  兄弟宮: '手足', 夫妻宮: '另一半', 子女宮: '晚輩', 僕役宮: '朋友與合作對象', 父母宮: '長輩',
+  命宮: '你自己', 財帛宮: '金錢', 疾厄宮: '身體', 遷移宮: '外面的人', 官祿宮: '工作上的人',
+  田宅宮: '家人', 福德宮: '你自己',
+};
+
+function humanize(text, palaceName) {
+  const person = PALACE_PERSON[palaceName] ?? '這一塊';
+  const domain = PALACE_LIFE_WORD[palaceName] ?? '這一塊';
+  return String(text)
+    .replaceAll('該宮的人', person)
+    .replaceAll('該宮的相處', `跟${person}的相處`)
+    .replaceAll('該宮的緣分', `跟${person}的緣分`)
+    .replaceAll('該宮的關係', `跟${person}的關係`)
+    .replaceAll('該宮相關的', `${domain}相關的`)
+    .replaceAll('該宮的', `${domain}的`)
+    .replaceAll('該宮', domain);
+}
+
 const bareName = (raw) => String(raw).replace(/[(（].*$/, '').trim();
 
 function palaceGroupOf(palaceName) {
@@ -385,88 +411,79 @@ const leadOf = (kind, palaceName) => LEAD[kind][variantOf(palaceName, LEAD[kind]
  * 兩頁印出一模一樣的三句話，就會回到「這兩頁根本一樣」那個老問題
  * （readability.mjs 有一條檢查專門擋這件事）。
  *
- * 兩頁的角色本來就不同：重點摘要是條列、挑著看；完整報告是連貫的長文。
- * 所以同樣的命盤事實，這裡寫成一段話，重點放在「這些條件加起來是什麼局面」，
- * 而不是逐條列出。
+ * 第一版寫成「你身上有兩股力量同時在拉…所以好的時候特別好，卡的時候也特別耗」，
+ * 使用者的回饋是「有看沒懂」。三個毛病，最嚴重的是第一個：
+ *
+ *   1. 那個關係是我編的。助力與阻力來自不同的星，講的是不同面向，
+ *      不是同一件事的正反面。「你給人的第一印象會替你加分」跟「過程中會損耗掉
+ *      一些東西」根本不對立，硬套「一邊…另一邊…」的拉扯框架，
+ *      讀者會覺得哪裡不對卻說不出來。這也越過了本專案不自行新增命理結論的界線。
+ *   2. 框架先行。「兩股力量在拉」是分析用的比喻，讀者要先解碼才讀得到內容。
+ *   3. 結尾是套話。「好的時候特別好，卡的時候也特別耗」對誰都成立。
+ *
+ * 現在直說：這一塊有幾件事同時成立，各是什麼。不詮釋它們之間的關係，
+ * 因為資料支持不了；讓具體的句子佔最大篇幅，讀者自己就對得上。
  */
 function narrativeOf(items, palaceName) {
   const domain = PALACE_LIFE_WORD[palaceName] ?? '這一塊';
-  const fill = (item) => trimEnd(item.voice.replaceAll('{領域}', domain));
-  const others = items.filter((i) => i.category !== 'brightness');
+  // 同樣優先用逐宮文案，理由見 plainLinesOf
+  const say = (item) => trimEnd(humanize(item.detail ?? item.voice, palaceName).replaceAll('{領域}', domain));
+  const others = items.filter((i) => i.category !== 'brightness' && i.category !== 'mutagen');
   if (!others.length) return '';
 
-  const boosts = others.filter((i) => i.tone === 'boost');
-  const drags = others.filter((i) => i.tone === 'drag');
-
-  // 拆成幾個短句而不是一句長的：可讀性檢查擋 78 字以上的句子，
-  // 而且長句本來就難讀——這一段是要讓人邊讀邊點頭，不是讀完還要回頭理解。
-  //
-  // 收尾句也依宮位輪替。完整報告一頁會出現四段，同一句收尾出現兩次就露出模板感，
+  // 兩頁引用同一批命盤事實是必然的（就是同一張命盤），但整段讀起來不能一樣。
+  // 逐條版一項一句、句末是句號；這裡把幾項串進同一句，句子邊界就不會跟逐條版重疊。
+  // 只取兩項也是為了長度——可讀性檢查擋 78 字以上的句子。
+  // （readability.mjs 另有一條會算兩頁的相同句比例，超過門檻就擋。）
+  const picked = others.length > 2 ? others.slice(1, 3) : others.slice(0, 2);
+  const facts = picked.map(say).join('、');
+  // 收尾句依宮位輪替：完整報告一頁會出現四段，同一句收尾出現兩次就露出模板感，
   // 而且可讀性檢查本來就會擋下同頁的重複句。
-  const closer = (variants) => variants[variantOf(palaceName, variants.length)];
-
-  if (boosts.length && drags.length) {
-    return [
-      `${domain}這一塊，你身上有兩股力量同時在拉。`,
-      `一邊是${fill(boosts[0])}。`,
-      `另一邊是${fill(drags[0])}。`,
-      closer([
-        '所以你在這裡的經驗多半不是一路順、也不是一路卡，而是好的時候特別好，卡的時候也特別耗。',
-        '這兩股力量會輪流出現，你大概能想起各自最明顯的那幾次。',
-        '結果就是你在這件事上很難給出一個簡單的答案，因為兩邊你都真的經歷過。',
-        '別人看你在這裡忽好忽壞，其實只是這兩股力量誰當下比較大聲。',
-      ]),
-    ].join('');
-  }
-  if (boosts.length) {
-    return [
-      `${domain}這一塊，你其實是被幫著走的。`,
-      `${fill(boosts[0])}。`,
-      boosts[1] ? `${fill(boosts[1])}。` : '',
-      closer([
-        '這些條件不會替你做決定，但會讓每一步比別人省力一點。',
-        '你可能沒特別意識到，因為順的事情通常不會留下記憶。',
-        '所以這裡不是你要咬牙撐的地方，是你可以放心多押一點的地方。',
-        '真正要留意的反而是別把這份順利當成理所當然。',
-      ]),
-    ].join('');
-  }
-  return [
-    `${domain}這一塊，你走得比別人費力。`,
-    `${fill(drags[0])}。`,
-    drags[1] ? `${fill(drags[1])}。` : '',
-    closer([
-      '這不代表做不成，只代表同樣的結果你要多付一些。',
-      '知道要多付，至少不會把它誤會成自己不夠好。',
-      '所以在這裡給自己多一點時間，是合理的，不是藉口。',
-      '費力的地方通常也是你最後最有心得的地方。',
-    ]),
-  ].join('');
+  const closers = [
+    '這些不會改變上面說的方向，但會決定它實際走起來的樣子。',
+    '這幾項不是結論，是你在這裡真正會遇到的細節。',
+    '把這幾件事放進去，上面那段話才會對得上你自己的經驗。',
+    '這些是同樣的主題在你身上實際長出來的樣子。',
+  ];
+  return `${domain}這一塊，除了上面說的，還有幾件事一起在影響：${facts}。`
+    + closers[variantOf(palaceName, closers.length)];
 }
 
 function plainLinesOf(items, palaceName) {
   const domain = PALACE_LIFE_WORD[palaceName] ?? '這一塊';
-  const fill = (item) => trimEnd(item.voice.replaceAll('{領域}', domain));
 
-  // 廟旺不進白話修正句：它修飾的是主星本身，放進「你還有這些條件」會講錯對象
+  // 優先用「這顆星落在這一宮」的文案，通性只在沒有逐宮資料時才用。
+  //
+  // 這是使用者第二次回報後才改的。原本一律用通性文案，於是夫妻宮會出現
+  //「你反應快，同樣的東西你上手比較快」（天才的通性），讀者的原話是
+  //「不明白這跟感情這塊的關聯性」——完全正確，那句話跟感情沒有關係。
+  // 逐宮資料本來就有（star-palace-application.json，168 + 152 條），
+  // 我先前為了避免語氣矛盾把它降級成補充細節，代價是句子跟宮位對不上，太大了。
+  const say = (item) => trimEnd(humanize(item.detail ?? item.voice, palaceName).replaceAll('{領域}', domain));
+
   const fromOtherStars = items.filter((i) => i.category !== 'brightness');
   const mutagens = fromOtherStars.filter((i) => i.category === 'mutagen');
   const others = fromOtherStars.filter((i) => i.category !== 'mutagen');
   const lines = [];
 
-  // 生年四化屬主結構，先講，而且要標明它是一輩子的
+  // 生年四化屬主結構，先講，而且要標明它是一輩子的。
+  // 四化本來就是依領域寫的，不需要逐宮文案。
   for (const item of mutagens.slice(0, 1)) {
-    lines.push(leadOf('mutagen', palaceName)(fill(item)));
+    lines.push(leadOf('mutagen', palaceName)(trimEnd(item.voice.replaceAll('{領域}', domain))));
   }
 
-  const list = (arr, n) => arr.slice(0, n).map(fill).join('；');
-  const boosts = others.filter((i) => i.tone === 'boost');
-  const drags = others.filter((i) => i.tone === 'drag');
-  const shifts = others.filter((i) => i.tone === 'shift');
-
-  if (boosts.length) lines.push(leadOf('boost', palaceName)(list(boosts, 2)));
-  if (drags.length) lines.push(leadOf('drag', palaceName)(list(drags, 2)));
-  if (shifts.length) lines.push(leadOf('shift', palaceName)(list(shifts, 1)));
+  // 不再標「幫得上的／要留意的」。
+  //
+  // 試過兩次都出問題：逐宮文案是中性描述，跟星的吉煞分類常常對不起來——
+  // 火星在官祿宮寫的是「工作有衝勁」（被標成要留意），
+  // 某顆吉星在命宮寫的是「責任感重，心理負擔隨之而來」（被標成幫得上）。
+  // 標籤一錯，整段讀起來像在自相矛盾，比不標更糟。
+  //
+  // 而且使用者要的本來就不是好壞分類，是「這跟我有什麼關係」。
+  // 所以直接把事實列出來，好壞由讀者自己判斷——這也是這個站一貫的做法。
+  for (const item of others.slice(0, 3)) {
+    lines.push(`${say(item)}。`);
+  }
   return lines;
 }
 

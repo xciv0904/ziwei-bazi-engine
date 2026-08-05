@@ -133,6 +133,54 @@ const bare = (raw) => String(raw).replace(/[(（].*$/, '').trim();
   if (!leaks) ok('白話模式的修正句完全不出現星名與術語');
 }
 
+// ---------- 3b. 每一句都要跟它所屬的宮位有關 ----------
+// 使用者回報：夫妻宮出現「你反應快，同樣的東西你上手比較快」，
+// 原話是「不明白這跟感情這塊的關聯性」。原因是白話句用了星的通性文案，
+// 而通性跟宮位無關——同一句話會原封不動出現在十二宮任何一宮。
+//
+// 這一節守兩件事：
+//   a. 有逐宮文案的星，白話句必須用逐宮那一份。
+//   b.「該宮」這種模板殘留的字不得印到畫面上。
+{
+  const app = JSON.parse(readFileSync(new URL('../src/data/star-palace-application.json', import.meta.url), 'utf8'));
+  const AUX = app['吉煞祿馬落宮'];
+  const GROUPS = app['宮位分類'];
+  const MINOR = app['雜曜落宮'];
+  const groupOf = (palaceName) =>
+    Object.entries(GROUPS).find(([, list]) => list.includes(palaceName))?.[0] ?? null;
+
+  let generic = 0;
+  let template = 0;
+  let checked = 0;
+  for (const testCase of fixture.cases) {
+    const ziWei = convertToZiWei(testCase.input);
+    for (const palace of ziWei.palaces) {
+      const mod = composePalaceModifiers(palace);
+      const text = [...mod.plainLines, mod.narrative].join('');
+      if (/該宮/.test(text)) {
+        template++;
+        fail(`${palace.name} 的白話句印出模板殘留字「該宮」：${text.slice(0, 40)}`);
+      }
+      for (const item of mod.technical.items) {
+        if (item.category === 'brightness' || item.category === 'mutagen') continue;
+        const perPalace = AUX[item.star]?.[palace.name]
+          ?? (groupOf(palace.name) ? MINOR[item.star]?.[groupOf(palace.name)] : null);
+        if (!perPalace) continue;
+        checked++;
+        // 逐宮文案存在時，白話句就不該退回通性文案
+        if (text.includes(item.voice.replace(/[。，]$/, '')) && item.voice !== perPalace) {
+          generic++;
+          fail(`${palace.name} 的 ${item.star} 用了通性文案而不是逐宮文案：「${item.voice}」`);
+        }
+      }
+    }
+  }
+  if (!checked) fail('沒有比對到任何逐宮文案，這一節等於沒驗到');
+  else if (!generic && !template) {
+    ok(`每一句都貼著宮位：${checked} 顆有逐宮文案的星全部採用逐宮版本，沒有模板殘留字`);
+  }
+}
+
 // ---------- 4. 全站與 AI 都吃得到 ----------
 {
   const testCase = fixture.cases[0];
@@ -155,11 +203,25 @@ const bare = (raw) => String(raw).replace(/[(（].*$/, '').trim();
     }
   }
 
-  // 4b 兩頁不得印出一樣的句子：重點摘要與完整報告取的是同一張卡，
-  //    逐條版與敘事版必須真的是兩種寫法（readability.mjs 也有一條擋這件事）。
+  // 4b 逐條版與敘事版必須是兩種寫法。
+  //
+  //    這裡刻意不要求「零重疊」。兩頁講的是同一張命盤，引用同一批事實是必然的，
+  //    而且一個宮位常常只有一兩顆星可講，硬要換句話說只會開始編。
+  //    真正該守的是「整段讀起來不一樣」——那由 readability.mjs 的兩頁重疊比例把關。
+  //    這裡守的是敘事版真的有自己的框架，而不是把逐條版接起來換行變成一段。
   for (const card of withMod) {
-    if (card.modifiers.plainLines.some((line) => card.modifiers.narrative.includes(line))) {
-      fail(`${card.title} 的敘事版直接沿用逐條版的句子，兩頁會讀起來一樣`);
+    const { plainLines, narrative } = card.modifiers;
+    if (narrative === plainLines.join('')) {
+      fail(`${card.title} 的敘事版只是把逐條版接起來，不算另一種寫法`);
+    }
+    if (!narrative.includes('除了上面說的')) {
+      fail(`${card.title} 的敘事版缺少承接上文的框架句`);
+    }
+    // 逐條版是一項一句、句末句號；敘事版把幾項串進同一句。
+    // 句子邊界不同，兩頁的「相同句」比例才壓得下來。
+    const standalone = plainLines.filter((line) => narrative.includes(line)).length;
+    if (standalone > 1) {
+      fail(`${card.title} 的敘事版有 ${standalone} 句跟逐條版一字不差，兩頁會讀起來一樣`);
     }
   }
 

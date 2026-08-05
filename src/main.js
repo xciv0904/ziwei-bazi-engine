@@ -1854,13 +1854,34 @@ function modifierBlockHtml(modifiers, { title = '不只是這樣——你的盤�
 
 function topicDirectAnswerHtml(report) {
   const answer = report.directAnswer;
-  // 答案本身取自「題目 × 主星」的答案庫，扣題但只看主星。
-  // 同宮的吉星煞星與四化會實際改變這一題的答案，所以在後面補一層修正。
+  // 修正層不放在這裡：一個主題的六題對應的是同一個宮位，同一份修正會被印六次。
+  // 使用者回報「愛情主題裡面每題都寫一樣的句子，其他主題也是」——完全正確，
+  // 因為那份資料本來就是主題層級（一個宮位），不是題目層級。
+  // 現在移到主題標頭，整個主題只出現一次，見 renderTopics()。
   return `<section class="topic-answer topic-answer--combined">
     <b>簡單回答</b>
     <p>${esc(answer.answer)}</p>
-    ${modifierBlockHtml(report.modifiers, { title: '同樣的答案，在你身上會這樣走' })}
   </section>`;
+}
+
+/**
+ * 主題層級的修正層。
+ *
+ * 一個主題的六題查的是同一個宮位，所以修正層對六題完全相同——
+ * 放在每題答案下方會被印六次，使用者的回報就是這個。
+ * 資料本來就是主題層級的，位置也該是主題層級：放在題目清單上方出現一次，
+ * 順序上也更合理——先知道「我的感情這一塊有哪些條件」，再往下看細分的六個問題。
+ */
+function topicModifierHtml(topic, ziWei) {
+  const contract = topic.contracts[0];
+  if (!contract) return '';
+  const resolved = R.resolveTopicStar(contract, ziWei);
+  if (!resolved?.palace) return '';
+  const modifiers = R.composePalaceModifiers(resolved.palace, {
+    borrowed: resolved.borrowed,
+    borrowedFrom: resolved.borrowedFrom,
+  });
+  return modifierBlockHtml(modifiers, { title: `關於${topic.label}，你的盤上還有這些條件` });
 }
 
 function renderTopics() {
@@ -1891,6 +1912,7 @@ function renderTopics() {
     <div class="report-intro"><b>先選主題，再點開一個你真正想知道的問題。</b>每題提供紫微與八字的初步綜合方向，也可以把該題與命盤資料複製給 AI 繼續追問。</div>
     <div class="topic-tabs" aria-label="選擇分析主題">${tabs}</div>
     <div class="topic-heading"><div class="round-icon">${topic.icon}</div><div><h2>${topic.label}主題</h2><p>選一題，先看簡短答案；需要時再展開命盤依據。</p></div></div>
+    ${topicModifierHtml(topic, ziWei)}
     <div class="topic-question-list">${questions}</div>`;
 
   $$('#view-topics [data-topic]').forEach((button) =>
@@ -2272,7 +2294,7 @@ function renderComprehensive() {
         <div class="palace-explain">${plainParagraphs.slice(0, source ? 3 : plainParagraphs.length).map((p) => `<p>${esc(p)}</p>`).join('')}</div>
         ${source ? deepListHtml('現實中可能怎麼出現', source.lifeExamples, 'deep-strengths') : ''}
         ${source ? deepListHtml('容易反覆出現的課題', source.challenges, 'deep-challenges') : ''}
-        ${modifierBlockHtml(source?.modifiers, { title: '這一塊實際上是什麼局面', variant: 'narrative' })}
+        ${modifierBlockHtml(source?.modifiers, { title: '這一塊，你跟別人不一樣的地方', variant: 'narrative' })}
         ${sectionSourceHtml(s.title, studyByTitle[s.title] ?? s.text)}
       </div>`;
       return `

@@ -63,8 +63,10 @@ export {
   buildLongTermAdvicePlan,
   buildTopicReport,
   extractTopicEvidence,
+  resolveTopicStar,
   selectTopicEvidence,
   validateLongTermAdvice,
   validateTopicReport,
 } from './topic-report.js';
 export { TOPIC_CATEGORIES, TOPIC_CONTRACTS, createCustomTopicContract, getTopicContract } from '../data/topic-contracts.js';
+export { composeChartModifiers, composePalaceModifiers } from './compose-modifiers.js';
