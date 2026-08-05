@@ -905,6 +905,11 @@ function learningStepSelfHtml(data) {
       <div><span class="app-tag app-do">怎麼做</span>${esc(app['怎麼做'])}</div>
     </div>` : '');
 
+  const doubleStarAppHtml = (app, palaceName) => (app ? `<div class="star-app">
+      <div><span class="app-tag app-good">落在${esc(palaceName)}</span>${esc(app['表現'])}</div>
+      <div><span class="app-tag app-warn">這一組的取捨</span>${esc(app['取捨'])}</div>
+    </div>` : '');
+
   const majorHtml = `<div class="learn-layer">
       <b class="learn-layer-title">${show.brightness ? '①② 主星與廟旺' : '① 這一宮的主星'}</b>
       ${data.majorStarFunctions.length
@@ -919,6 +924,7 @@ function learningStepSelfHtml(data) {
   const doubleHtml = show.doubleStar ? (ds.combined ? `<div class="learn-layer">
       <b class="learn-layer-title">③ 雙星結構：${esc(ds.pair)}</b>
       <p class="learn-layer-lead">${esc(ds.combined)}</p>
+      ${doubleStarAppHtml(ds.application, data.palaceName)}
       <div class="learn-note"><b>怎麼讀雙星</b><p>${esc(ds.what)}</p><p>${esc(ds.how)}</p>
         ${ds.lead ? `<p>這一組裡<b>${esc(ds.lead)}</b>的性質較強（入廟或帶生年四化），多半由它主導，另一顆負責修飾方向。</p>` : ''}
         <p class="learn-caution">${esc(ds.caution)}</p></div>
@@ -1128,6 +1134,10 @@ function learningEmptyGuideHtml(guide) {
     <div class="borrow-block">
       <b class="borrow-title">${esc(guide.borrowedDouble.title)}：${esc(guide.borrowedDouble.pair)}</b>
       ${guide.borrowedDouble.combined ? `<p class="learn-layer-lead">${esc(guide.borrowedDouble.combined)}</p>` : ''}
+      ${guide.borrowedDouble.application ? `<div class="star-app">
+        <div><span class="app-tag app-good">借進${esc(guide.palaceName)}之後</span>${esc(guide.borrowedDouble.application['表現'])}</div>
+        <div><span class="app-tag app-warn">這一組的取捨</span>${esc(guide.borrowedDouble.application['取捨'])}</div>
+      </div>` : ''}
       <p>${esc(guide.borrowedDouble.body)}</p>
       <p>這一組裡<b>${esc(guide.borrowedDouble.lead)}</b>入廟或帶生年四化，多半由它主導，另一顆負責修飾方向。</p>
       <p class="learn-caution">${esc(guide.borrowedDouble.extra)}</p>

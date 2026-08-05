@@ -12,6 +12,7 @@
 //   3. 不寫死任何一張命盤的答案。星名、宮名、四化落點全部從傳入的 ziWei 取得。
 
 import doubleStarDb from '../data/double-star-combinations.json' with { type: 'json' };
+import doubleStarPalace from '../data/double-star-palace.json' with { type: 'json' };
 import starGlossary from '../data/star-glossary.json' with { type: 'json' };
 import starPalaceApp from '../data/star-palace-application.json' with { type: 'json' };
 import {
@@ -49,6 +50,19 @@ import {
 const lifeWord = (palaceName) => PALACE_LIFE_WORD[palaceName] ?? palaceName;
 
 const DOUBLE_STAR_COMBOS = doubleStarDb['雙主星組合'];
+const DOUBLE_STAR_PALACE = doubleStarPalace['雙星落宮'];
+
+/**
+ * 雙星組合本身的一句話介紹太抽象——「領導特質加上務實理財觀」放在命宮與放在夫妻宮
+ * 講的根本是兩回事。這裡把「這一組落在這一宮會怎樣」取出來，和主星應用同一個做法。
+ * key 的順序固定為 double-star-combinations.json 的寫法，所以要正反兩種組法都試。
+ */
+function doubleStarApplicationOf(palaceName, starNames) {
+  if (starNames.length !== 2) return null;
+  const [a, b] = starNames;
+  const entry = DOUBLE_STAR_PALACE[`${a}+${b}`] ?? DOUBLE_STAR_PALACE[`${b}+${a}`];
+  return entry?.[palaceName] ?? null;
+}
 const STAR_GLOSSARY = starGlossary['詞條'];
 const MAJOR_APPLICATION = starPalaceApp['主星應用'];
 const AUX_APPLICATION = starPalaceApp['吉煞祿馬落宮'];
@@ -238,6 +252,7 @@ export function buildPalaceLesson({ ziWei, palaceName, year = null, majorLimit =
     ? {
       pair: selfStarNames.join('、'),
       combined: lookupDoubleStar(selfStarNames),
+      application: doubleStarApplicationOf(palaceName, selfStarNames),
       ...DOUBLE_STAR_TEACHING,
       // 入廟或帶生年四化的那一顆，通常是這組合裡的主導
       lead: (palace.majorStars.find((s) => s.transformation)
@@ -474,6 +489,8 @@ function buildEmptyGuide({ palaceName, opposite, triad, stepSelf }) {
   const borrowedDouble = borrowedStars.length === 2 ? {
     pair: borrowedStars.map((s) => s.name).join('、'),
     combined: lookupDoubleStar(borrowedStars.map((s) => s.name)),
+    // 借來的雙星同樣要放回「本宮」的主題去理解，不是查對宮那一格
+    application: doubleStarApplicationOf(palaceName, borrowedStars.map((s) => s.name)),
     lead: (borrowedStars.find((s) => s.transformation)
       ?? borrowedStars.find((s) => ['廟', '旺'].includes(s.brightness))
       ?? borrowedStars[0]).name,
@@ -485,6 +502,7 @@ function buildEmptyGuide({ palaceName, opposite, triad, stepSelf }) {
 
   return {
     ...EMPTY_PALACE_GUIDE,
+    palaceName,
     headline: `${palaceName}本身沒有十四主星，稱為空宮。`,
     lead: `${palaceName}本身無十四主星，不代表沒有內容。請共同參考${palaceName}本身、對宮${opposite?.name ?? ''}，以及三合的${triadOnly.map((m) => m.name).join('與')}。`,
     ownMarks,

@@ -576,6 +576,22 @@ check('切換階段後選擇會被記住', () => {
   const saved = w.localStorage.getItem('zwbz-learning-level');
   return saved === 'advanced';
 });
+// 使用者反映雙星的一句話介紹「光看根本看不懂」——因為它必須落在某一宮才有意義。
+// 有雙星的宮位要直接給出本宮那一格，不能只給通則。
+check('雙星結構有落在本宮會怎樣，不只一句話介紹', () => {
+  let found = 0;
+  for (const el of $$('#chart-grid .palace')) {
+    el.click();
+    const layer = $$('#learn-card .learn-layer')
+      .find((l) => l.querySelector('.learn-layer-title')?.textContent.includes('雙星結構：'));
+    if (!layer) continue;
+    found++;
+    const text = layer.textContent;
+    if (!text.includes('落在') || !text.includes('這一組的取捨')) return false;
+  }
+  // 這張測試盤一定有雙星同宮的宮位；一個都沒找到代表這項檢查空轉了
+  return found > 0;
+});
 
 check('逐步判讀固定五個步驟', $$('#learn-card .learn-step').length === 5);
 check('五個步驟標題依序為本宮/對宮/三方四正/四化/整合', (() => {

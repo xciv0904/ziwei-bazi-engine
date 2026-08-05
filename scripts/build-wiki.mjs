@@ -14,6 +14,7 @@ const json = async (p) => (await import(`../src/data/${p}`, { with: { type: 'jso
 
 const palaceStarDb = await json('palace-star-meanings.json');
 const doubleStarDb = await json('double-star-combinations.json');
+const doubleStarPalaceDb = await json('double-star-palace.json');
 const tenGodsDb = await json('ten-gods-meanings.json');
 const shenshaDb = await json('shensha-analysis.json');
 const branchRelDb = await json('branch-interactions-analysis.json');
@@ -23,6 +24,7 @@ const MAJOR_APP = starApp['主星應用'];
 const AUX_APP = starApp['吉煞祿馬落宮'];
 const MINOR_APP = starApp['雜曜落宮'];
 const PALACE_GROUPS = starApp['宮位分類'];
+const DOUBLE_APP = doubleStarPalaceDb['雙星落宮'];
 const { starMeanings } = await import('../src/data/star-meanings.js');
 const { palaceMeanings } = await import('../src/data/palace-meanings.js');
 const { PLAIN_SHENSHA } = await import('../src/engines/compose-shensha.js');
@@ -205,6 +207,17 @@ for (const key of doubleNames) {
     `<h2>兩顆星各自是什麼</h2>`,
     para(a, `${starMeanings[a].core}。關鍵詞：${starMeanings[a].keywords.join('、')}。`),
     para(b, `${starMeanings[b].core}。關鍵詞：${starMeanings[b].keywords.join('、')}。`),
+    // 使用者反映「光看百科敘述根本看不懂」——一句話理解太抽象，
+    // 因為同一組雙星落在命宮與落在夫妻宮講的是兩回事。逐宮列出才讀得懂。
+    '<h2>落在十二宮分別是什麼樣子</h2>',
+    para('', `雙星的介紹之所以難懂，是因為它必須落在某一宮才有意義。${a}${b}同宮在你的盤上只會出現在一個宮位，先找到它在哪一宮，再看下面對應的那一格。`),
+    ...PALACE_ORDER.map((palace) => {
+      const app = DOUBLE_APP[key]?.[palace];
+      if (!app) return '';
+      return `<div class="card"><strong style="color:var(--red)">${esc(palace)}</strong>
+        <div style="margin-top:6px">${esc(app['表現'])}</div>
+        <div style="margin-top:6px"><strong style="color:var(--gold)">這一組的取捨　</strong>${esc(app['取捨'])}</div></div>`;
+    }),
     '<h2>怎麼讀雙星</h2>',
     para('', '兩顆十四主星同坐一宮，要當成一個新的組合來讀，不是把兩顆星的特質相加。'),
     para('', '兩顆星常常一個主導、一個修飾：先看哪一顆入廟或帶生年四化，那顆多半主導；再看另一顆把它往哪個方向調整。'),
