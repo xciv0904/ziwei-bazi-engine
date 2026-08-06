@@ -85,13 +85,30 @@ export function convertToZiWei({ year, month, day, hour, gender, refDate = new D
     .slice(0, 10) // 慣例只列十個大限
     .map(({ ganZhi, ageRange }) => ({ ganZhi, ageRange }));
 
-  // --- 小限（基準年 -3 ~ +6,虛歲） ---
+  // --- 小限（基準年 -3 ~ +6，虛歲） ---
+  // iztro 已經在每一宮的 ages 欄位完成小限歲數配置；這裡只把指定虛歲
+  // 反查回原宮位，沒有另起一套小限算法。保留原有 year/ganZhi/age 欄位，
+  // 僅增加 palaceName/position，避免破壞既有消費端與儲存資料格式。
   const minorLimits = [];
   for (let y = refYear - 3; y <= refYear + 6; y++) {
-    minorLimits.push({ year: y, ganZhi: yearGanZhi(y), age: y - year + 1 });
+    const nominalAge = y - year + 1;
+    const landing = chart.palaces.find((p) => p.ages.includes(nominalAge));
+    minorLimits.push({
+      year: y,
+      ganZhi: yearGanZhi(y),
+      age: nominalAge,
+      palaceName: landing ? normalizePalaceName(landing.name) : null,
+      position: landing ? `${landing.heavenlyStem}${landing.earthlyBranch}` : null,
+    });
   }
 
   const bodyPalaceObj = chart.palaces.find((p) => p.isBodyPalace);
+  // 學習／年份比較可跨越目前畫面的十年小限清單，因此另外保留 iztro
+  // 已排好的 1–120 虛歲落宮索引。鍵是虛歲，值只含落宮，不重算任何規則。
+  const smallLimitPalaces = Object.fromEntries(chart.palaces.flatMap((p) => p.ages.map((nominalAge) => [
+    nominalAge,
+    { palaceName: normalizePalaceName(p.name), position: `${p.heavenlyStem}${p.earthlyBranch}` },
+  ])));
 
   return {
     fiveElementBureau: chart.fiveElementsClass,
@@ -107,6 +124,7 @@ export function convertToZiWei({ year, month, day, hour, gender, refDate = new D
     majorLimits,
     annualFlow: { [refYear]: yearGanZhi(refYear) },
     minorLimits,
+    smallLimitPalaces,
     palaces,
     // 斗君起流月需要的出生資料：農曆生月（閏月依 iztro 判定）與生時地支
     lunarMonth: chart.rawDates?.lunarDate?.lunarMonth ?? null,

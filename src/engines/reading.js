@@ -33,6 +33,9 @@ export {
   monthlyPillarsOf,
   computeSelfTransformations,
   computeLaiyinPalace,
+  flyingOfStem,
+  computeAnnualSnapshots,
+  findAnnualRepeatedFocus,
 } from './compose-annual.js';
 export { composeYongShenReading, computeYongShen } from './compose-yongshen.js';
 export { PALACE_ORDER, buildPalaceLesson, buildPalaceQuiz, triadOf } from './learning-palace.js';
@@ -50,6 +53,31 @@ export {
   recordQuizAnswer,
   resetProgress,
 } from './learning-progress.js';
+export {
+  annualGanZhi,
+  analyzeAnnualFocus,
+  buildAnnualConclusion,
+  buildAnnualLearningContext,
+  buildAnnualLearningSteps,
+  buildAnnualLesson,
+  compareAnnualYears,
+} from './annual-learning.js';
+export {
+  ANNUAL_LEARNING_NOTES_KEY,
+  ANNUAL_LEARNING_PROGRESS_KEY,
+  annualNoteTemplate,
+  annualNoteText,
+  annualCompletionSummary,
+  annualProgressSummary,
+  clearAnnualNote,
+  loadAnnualNote,
+  loadAnnualProgress,
+  markAnnualStep,
+  recordAnnualQuiz,
+  resetAnnualProgress,
+  saveAnnualNote,
+} from './annual-learning-storage.js';
+export { ANNUAL_LEARNING_STEPS, ANNUAL_TOPIC_CONFIG } from '../data/annual-learning.js';
 export {
   inspectAiTone,
   inspectCardQuality,

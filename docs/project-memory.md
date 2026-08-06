@@ -30,6 +30,9 @@ Calculations run in the browser.
 | `src/engines/learning-palace.js` | Learning mode: five-step palace lesson, evidence chain, quiz |
 | `src/engines/learning-progress.js` | Learning mode: per-chart progress in localStorage |
 | `src/data/learning-mode.js` | Palace axis relations, mutagen primer, glossary, empty-palace guide |
+| `src/engines/annual-learning.js` | Annual learning: eight-step facts, evidence dedupe, focus analysis, conclusion and year compare |
+| `src/engines/annual-learning-storage.js` | Annual learning progress and six-part notes, keyed by chart/year/topic in localStorage |
+| `src/data/annual-learning.js` | Annual lesson order, topic evidence scopes and safety rules |
 | `src/main.js` | UI orchestration and rendering |
 | `test.js` | Core expected-chart regression |
 | `cross-test.mjs` | Zi Wei independent-reference comparison |
@@ -44,6 +47,7 @@ Calculations run in the browser.
 | `tests/life-manual.mjs` | Life manual stage coverage, personalisation and chart-derived facts |
 | `tests/topic-on-question.mjs` | Topic answers must stay on question, never reuse generic star personality |
 | `tests/learning-mode.mjs` | Learning mode vs calculation engine consistency |
+| `tests/annual-learning.mjs` | 2026 golden case, topic evidence, dedupe, notes/progress and year comparison |
 
 ## Confirmed dependencies and conventions
 
@@ -95,6 +99,7 @@ palaces, stars, transformations, or limits.
 - `npm run star-glossary`: glossary coverage against engine output and school separation
 - `npm run life-manual`: life manual stage coverage and per-chart narrative checks
 - `npm run learning-mode`: learning mode lessons, evidence chain and progress storage
+- `npm run annual-learning`: annual eight-step lesson, 2026 golden facts, small-limit landing, dedupe and storage
 
 ## Durable decisions
 
@@ -143,4 +148,3 @@ palaces, stars, transformations, or limits.
 | 2026-08-06 | No numeric strength score for a palace | Chinese astrology has no agreed weighting; a number would invent false precision that users would trust |
 | 2026-08-06 | Tone-framed sentences use the generic effect, never the per-palace text | Per-palace copy is neutral-descriptive; 火星 in 官祿宮 reads positive and would contradict a 'but also count this in' frame |
 | 2026-08-06 | Any field named `technical` or `evidence` is source material and is excluded from the plain-mode jargon check, at any depth | Makes the zero-jargon rule enforceable by structure rather than by remembering to strip fields |
-

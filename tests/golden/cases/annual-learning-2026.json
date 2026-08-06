@@ -1,0 +1,10 @@
+{
+  "note": "流年學習 golden case。此檔保存需求明確指定、可由現有引擎逐項核對的命盤事實，不保存生成文案快照。",
+  "input": { "year": 2002, "month": 9, "day": 4, "hour": 13, "gender": "female" },
+  "year": 2026,
+  "majorLimit": { "ageRange": "23~32", "ganZhi": "辛亥" },
+  "annual": { "ganZhi": "丙午", "palace": "僕役宮", "triad": ["僕役宮", "兄弟宮", "子女宮", "父母宮"] },
+  "decadalFlights": ["巨門祿財帛宮", "太陽權遷移宮", "文曲科夫妻宮", "文昌忌福德宮"],
+  "annualFlights": ["天同祿官祿宮", "天機權財帛宮", "文昌科福德宮", "廉貞忌父母宮"],
+  "smallLimit": { "age": 25, "palaceName": "田宅宮", "position": "甲辰" }
+}

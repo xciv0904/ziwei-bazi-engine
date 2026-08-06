@@ -839,10 +839,65 @@ check('小百科名詞有實際說明（不是空 tooltip）', $$('#learn-card [
 $('#learn-card [data-glossary]').click();
 check('點名詞會顯示說明（手機沒有 hover 也看得到）', !$('#toast').hidden && $('#toast').textContent.includes('：'));
 
+// 流年學習是學習模式內的第二條路徑；白話模式不會看到入口或載入卡片。
+$('#learn-card [data-learning-kind="annual"]').click();
+await settle();
+check('學習模式內可切到流年學習', !!$('.annual-learn-card') && $('.annual-learn-card').textContent.includes('流年學習'));
+check('流年學習顯示年份、干支、虛歲、大限、流年命宮與主題', (() => {
+  const text = $('.annual-meta').textContent;
+  return ['流年', '虛歲', '所屬大限', '流年命宮', '研究主題'].every((x) => text.includes(x));
+})());
+check('九個流年主題保留入口，四個可用、五個明確停用', $$('.annual-topics [data-annual-topic]').length === 9
+  && $$('.annual-topics [data-annual-topic]:disabled').length === 5);
+$('#annual-start').click();
+await settle();
+check('開始後只揭露目前一個步驟，不先顯示完整結論', $$('.annual-step-card').length === 1
+  && !$('.annual-step-card').textContent.includes('年度舞台'));
+check('流年步驟含看什麼、原因、盤面資料、規則、練習與小結', (() => {
+  const text = $('.annual-step-card').textContent;
+  return ['為什麼要看', '命盤實際資料', '判讀規則', '我的練習', '本步小結'].every((x) => text.includes(x));
+})());
+for (let i = 0; i < 7; i++) { $('#annual-next').click(); await settle(); }
+check('第八步才顯示舞台、機會、壓力、策略與限制', (() => {
+  const text = $('.annual-step-card').textContent;
+  return ['年度舞台', '發展機會', '壓力來源', '實際策略', '判讀限制'].every((x) => text.includes(x));
+})());
+check('流年命盤依據預設收合', !!$('.annual-evidence') && !$('.annual-evidence').open);
+check('流年學習移除筆記並保留年份比較', !$('.annual-notes') && !!$('.annual-compare'));
+const selectedAnnualYear = $('#annual-year option[selected]').value;
+const compareOtherYear = [...$('#annual-compare-b').options].find((option) => option.value !== selectedAnnualYear);
+if (compareOtherYear) {
+  $('#annual-compare-a').value = selectedAnnualYear;
+  $('#annual-compare-b').value = compareOtherYear.value;
+  $('#annual-compare-run').click();
+  await settle();
+}
+check('年份比較先解釋差異與使用方式，不再只列宮位', (() => {
+  const text = $('#annual-compare-result').textContent;
+  return ['年度重心怎麼變', '兩年延續的課題', '四化重心怎麼轉換', '這個比較怎麼用'].every((label) => text.includes(label))
+    && !text.includes('共同宮位：');
+})());
+check('年份比較原始命盤對照預設收合', !!$('.annual-compare-technical') && !$('.annual-compare-technical').open);
+const annualBefore = $('.annual-meta').textContent;
+// happy-dom 在大型 select 會把第一個 option 的預設選取狀態留著；
+// 以 renderer 明確寫下的 selected attribute 為準，瀏覽器實際值也是這一個。
+const otherYear = [...$('#annual-year').options].find((o) => !o.selected);
+if (otherYear) { $('#annual-year').value = otherYear.value; $('#annual-year').dispatchEvent(new w.Event('change')); await settle(); }
+check('切換年份會更新整份流年資料並回到開始狀態', $('.annual-meta').textContent !== annualBefore && !!$('#annual-start'));
+if (otherYear) { $('#annual-year').value = selectedAnnualYear; $('#annual-year').dispatchEvent(new w.Event('change')); await settle(); }
+check('回到學過的年份可繼續上次步驟', !!$('#annual-continue'));
+$('#annual-continue')?.click();
+await settle();
+check('繼續上次學習會回到最後停留步驟', $('.annual-step-card')?.dataset.annualStepCard === 'synthesis');
+$('#learn-card [data-learning-kind="natal"]').click();
+await settle();
+check('流年學習可切回原本本命學習', !!$('#learn-card [data-learn-level]') && !$('.annual-learn-card'));
+
 // 學習模式的白話文字不應該退化成專業模式
 $('.mode-pill[data-mode="public"]').click();
 await settle();
 check('切回白話模式後教學區收起', !$('#learn-card'));
+check('一般白話模式不出現流年學習介面', !$('.annual-learn-card') && !$('[data-learning-kind="annual"]'));
 check('切回白話模式後「為什麼這樣判斷」回來', !!$('.learn-why'));
 
 // 主題分析的命盤依據要列真正可以回到命盤上核對的事實，

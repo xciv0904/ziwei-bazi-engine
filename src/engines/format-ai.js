@@ -99,7 +99,7 @@ function formatZiWeiSection(ziWei, input, year = new Date().getFullYear()) {
 
   lines.push('◆ 小限列表');
   for (const m of ziWei.minorLimits) {
-    lines.push(`${m.year}年（虛歲${m.age}）：${m.ganZhi}`);
+    lines.push(`${m.year}年（${m.ganZhi}、虛歲${m.age}）：${m.palaceName ? `小限落${m.palaceName}(${m.position})` : '小限落宮資料不足'}`);
   }
   lines.push('');
 
