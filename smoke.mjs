@@ -900,6 +900,35 @@ check('切回白話模式後教學區收起', !$('#learn-card'));
 check('一般白話模式不出現流年學習介面', !$('.annual-learn-card') && !$('[data-learning-kind="annual"]'));
 check('切回白話模式後「為什麼這樣判斷」回來', !!$('.learn-why'));
 
+// --- 命盤總覽頂端的流年學習入口 ---
+// 這條路徑原本要「切學習模式 → 展開完整命盤資料 → 卡片頂端切分頁」三步，實測沒有人找得到。
+// 入口卡片必須在白話模式（也就是預設狀態）就看得到，而且一鍵把三步都做完。
+check('白話模式下命盤總覽就看得到流年學習入口', (() => {
+  const entry = $('#view-dashboard .annual-entry');
+  return !!entry && entry.dataset.resultGoto === 'annual-learning';
+})());
+check('入口卡片寫出實際年份，不是空泛的「流年」', (() => {
+  const entry = $('#view-dashboard .annual-entry');
+  return /\d{4}\s*年流年學習/.test(entry.textContent);
+})());
+check('入口卡片沒有被藏在完整命盤資料的 details 裡', !$('#dashboard-detail')?.contains($('#view-dashboard .annual-entry')));
+
+$('#view-dashboard .annual-entry').click();
+await settle();
+check('點入口會自動切到學習模式', $('.mode-pill[data-mode="learn"]')?.getAttribute('aria-pressed') === 'true');
+check('點入口會自動展開完整命盤資料', $('#dashboard-detail')?.open === true);
+check('點入口會直接落在流年學習卡片，不是本命學習', !!$('.annual-learn-card')
+  && $('#learn-card [data-learning-kind="annual"]')?.getAttribute('aria-selected') === 'true');
+check('點入口後停在開始畫面，不會跳過步驟', !!$('#annual-start') || !!$('#annual-continue'));
+check('點入口會把選中宮位對到流年命宮', (() => {
+  const annualPalaceName = $$('.annual-meta span').map((el) => el.textContent).join('');
+  return annualPalaceName.includes('流年命宮');
+})());
+
+// 收乾淨，不要影響後面的分頁測試
+$('.mode-pill[data-mode="public"]').click();
+await settle();
+
 // 主題分析的命盤依據要列真正可以回到命盤上核對的事實，
 // 而不是每一條都長成「XX宮的主要訊號」這種對誰都成立的佔位字串。
 await nav('topics');

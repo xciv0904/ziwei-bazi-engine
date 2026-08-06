@@ -655,6 +655,14 @@ function renderResultSummary() {
       <button type="button" class="result-path" data-result-goto="topics"><span>心裡已經有問題・約 2 分鐘</span><b>主題分析</b><small>從愛情、工作、財運等十個主題中選一題，直接看方向</small></button>
       <button type="button" class="result-path" data-result-goto="comprehensive"><span>想一次讀完・約 15 分鐘</span><b>完整報告</b><small>把性格、工作、感情、家庭串成一篇連貫的長文，交代前後關聯</small></button>
     </div>
+    <button type="button" class="annual-entry" data-result-goto="annual-learning">
+      <span class="annual-entry__badge">動手學・約 10 分鐘</span>
+      <span class="annual-entry__body">
+        <b>${esc(year)} 年流年學習</b>
+        <small>不是再給你一段結論，而是帶你用自己的命盤，八個步驟推出「${esc(year)} 年為什麼會這樣走」。${esc(year)} 年命宮目前落在${esc(focus)}。</small>
+      </span>
+      <span class="annual-entry__cta">開始 →</span>
+    </button>
     <button type="button" class="result-path-more" data-result-goto="dashboard-detail">或者，先看看命盤本身 —— 十二宮、四柱與流年切換 ↓</button>
   </section>`;
 }
@@ -1919,6 +1927,35 @@ function renderMonthlyBrowser(year) {
     </div>`;
 }
 
+/**
+ * 從命盤總覽頂端的入口卡片直接進入流年學習。
+ * 需要同時處理三件事，缺一使用者就會落在錯的地方：
+ *   1. 切到學習模式（流年學習卡片只在 readingMode === 'learn' 時才會被渲染出來）
+ *   2. 把「完整命盤資料」這個 <details> 標記成展開（學習卡片在它裡面）
+ *   3. 把學習卡片切到「流年學習」分頁，並讓選中宮位跟著流年命宮走
+ * 最後才捲到卡片；順序反過來會捲到還不存在的節點。
+ */
+function enterAnnualLearning() {
+  setReadingMode('learn');
+  state.learning.kind = 'annual';
+  state.annualLearning.started = false;
+  state.dashboardOpenDetails.add('dashboard-detail');
+  // 與 bindLearningPanel() 裡切分頁的行為一致：進流年學習時把宮位對到流年命宮，
+  // 否則盤面高亮的還是上一次手動點的宮位，跟卡片講的內容對不起來。
+  try {
+    const lesson = R.buildAnnualLesson({ ...state.data, year: currentLuckSelection().year, topic: state.annualLearning.topic });
+    state.selectedPalace = lesson.context.annualPalace?.name ?? state.selectedPalace;
+  } catch (err) {
+    console.error('進入流年學習時預先建立課程失敗：', err);
+  }
+  syncModeToggleUI();
+  applyReadingMode();
+  renderDashboard();
+  const details = $('#dashboard-detail');
+  if (details) details.open = true;
+  $('#learn-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderDashboard() {
   const isZw = state.chartTab !== 'bazi';
   const hourWarn = state.data.hourUnknown
@@ -1946,7 +1983,11 @@ function renderDashboard() {
     tab.addEventListener('click', () => { state.chartTab = tab.dataset.chart; renderDashboard(); }));
   $$('#view-dashboard [data-result-goto]').forEach((button) =>
     button.addEventListener('click', () => {
-      if (button.dataset.resultGoto === 'dashboard-detail') {
+      if (button.dataset.resultGoto === 'annual-learning') {
+        // 流年學習原本埋在「學習模式 → 展開完整命盤資料 → 學習卡片頂端切分頁」三層底下，
+        // 實測沒有人自己找得到。這顆按鈕把那三步一次做完，直接落在流年學習卡片上。
+        enterAnnualLearning();
+      } else if (button.dataset.resultGoto === 'dashboard-detail') {
         const details = $('#dashboard-detail');
         state.dashboardOpenDetails.add('dashboard-detail');
         details.open = true;

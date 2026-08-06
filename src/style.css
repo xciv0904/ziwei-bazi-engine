@@ -737,6 +737,25 @@ button:not(:disabled):active, .nav-item:not(:disabled):active, .welcome-cta:acti
   font: 400 12.5px/1.5 var(--sans); color: var(--ink-60); text-align: center;
 }
 .result-path-more:hover { border-color: rgba(166,61,47,.45); color: var(--ink); }
+/* 流年學習入口：跟上面三張「讀解讀」的卡片刻意長得不一樣——那三條是被動閱讀，
+   這條是動手練習，做成一整條橫幅才不會被當成第四個平行選項而被略過。
+   它原本藏在「學習模式 → 展開完整命盤資料 → 卡片頂端切分頁」三層底下，沒有人找得到。 */
+.annual-entry {
+  display: flex; align-items: center; gap: 16px; width: 100%; margin-top: 18px;
+  padding: 16px 18px; text-align: left; border: 1px solid rgba(166,61,47,.32);
+  border-left: 3px solid var(--red); border-radius: 12px;
+  background: linear-gradient(90deg, rgba(166,61,47,.07), rgba(166,61,47,.02));
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.annual-entry:hover { transform: translateY(-2px); border-color: rgba(166,61,47,.6); box-shadow: 0 8px 22px rgba(43,38,33,.09); }
+.annual-entry__badge {
+  flex: none; align-self: flex-start; padding: 5px 9px; border-radius: 999px;
+  background: var(--red); color: var(--cream); font: 600 10.5px/1 var(--sans); white-space: nowrap;
+}
+.annual-entry__body { flex: 1 1 auto; min-width: 0; }
+.annual-entry__body b { display: block; font: 700 15px/1.5 var(--sans); margin-bottom: 5px; }
+.annual-entry__body small { display: block; color: var(--ink-60); font: 400 11.5px/1.7 var(--sans); }
+.annual-entry__cta { flex: none; color: var(--red); font: 600 12.5px/1 var(--sans); white-space: nowrap; }
 .dashboard-details { border: 1px solid var(--border); border-radius: 14px; background: rgba(251,246,236,.65); overflow: hidden; scroll-margin-top: 18px; }
 .dashboard-details > summary { cursor: pointer; list-style: none; min-height: 72px; display: flex; align-items: center; padding: 16px 20px; }
 .dashboard-details > summary::-webkit-details-marker { display: none; }
@@ -1021,6 +1040,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .topic-tab { min-height: 42px; }
   .result-paths { grid-template-columns: 1fr; }
   .result-path { min-height: 0; }
+  .annual-entry { flex-wrap: wrap; gap: 10px; padding: 14px 15px; }
+  .annual-entry__body { flex: 1 1 100%; }
+  .annual-entry__cta { margin-left: auto; }
   .welcome-preview { grid-template-columns: 1fr; }
   .welcome-preview div { padding: 14px 15px; }
   .welcome-cosmos { width: 480px; right: -285px; top: 31%; opacity: .34; }
