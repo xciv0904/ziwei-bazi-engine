@@ -139,3 +139,84 @@ export function clearAnnualNote(storage, chartKey, year, topic, meta) {
   write(storage, ANNUAL_LEARNING_NOTES_KEY, all);
   return emptyAnnualNote(meta);
 }
+
+// ---------- 回顧驗盤 ----------
+// 過去年份可以對照「命盤這樣說 / 你實際上在忙什麼」。
+// 這是使用者自己回想後勾選的結果，屬於個人紀錄，不是統計證據——
+// 畫面上必須這樣標示，不能拿命中率去宣稱命盤準確度。
+// 只存宮位名稱與當年的盤面落點，不存任何事件描述或生辰。
+
+export const ANNUAL_REVIEW_KEY = 'zwbz-annual-review';
+
+const reviewKey = (chartKey, year) => `${chartKey}:${year}`;
+
+/**
+ * 一筆回顧紀錄的判定結果。
+ * hit  = 勾選的宮位就是流年命宮
+ * near = 勾選的宮位落在流年命宮的三方四正（算命中結構，但不是正中舞台）
+ * miss = 兩者皆非
+ */
+export function annualReviewVerdict(entry) {
+  if (!entry?.picked) return null;
+  if (entry.picked === entry.annualPalace) return 'hit';
+  if (Array.isArray(entry.triad) && entry.triad.includes(entry.picked)) return 'near';
+  return 'miss';
+}
+
+export function loadAnnualReview(storage, chartKey, year) {
+  const value = read(storage, ANNUAL_REVIEW_KEY)[reviewKey(chartKey, year)];
+  if (!value || typeof value !== 'object') return null;
+  const entry = {
+    picked: typeof value.picked === 'string' ? value.picked : null,
+    annualPalace: typeof value.annualPalace === 'string' ? value.annualPalace : null,
+    triad: Array.isArray(value.triad) ? value.triad.filter((x) => typeof x === 'string') : [],
+    at: typeof value.at === 'string' ? value.at : null,
+  };
+  if (!entry.picked) return null;
+  return { ...entry, verdict: annualReviewVerdict(entry) };
+}
+
+export function saveAnnualReview(storage, chartKey, year, { picked, annualPalace, triad }) {
+  const all = read(storage, ANNUAL_REVIEW_KEY);
+  all[reviewKey(chartKey, year)] = {
+    picked,
+    annualPalace: annualPalace ?? null,
+    triad: Array.isArray(triad) ? triad : [],
+    at: new Date().toISOString().slice(0, 10),
+  };
+  write(storage, ANNUAL_REVIEW_KEY, all);
+  return loadAnnualReview(storage, chartKey, year);
+}
+
+export function clearAnnualReview(storage, chartKey, year) {
+  const all = read(storage, ANNUAL_REVIEW_KEY);
+  delete all[reviewKey(chartKey, year)];
+  write(storage, ANNUAL_REVIEW_KEY, all);
+  return null;
+}
+
+/** 這張命盤累積的回顧紀錄統計。樣本數很小時不該拿來下結論，所以一併回傳 total 讓畫面提醒。 */
+export function annualReviewSummary(storage, chartKey) {
+  const all = read(storage, ANNUAL_REVIEW_KEY);
+  const prefix = `${chartKey}:`;
+  const entries = Object.entries(all)
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([key, value]) => ({ year: Number(key.slice(prefix.length)), ...value }))
+    .filter((e) => Number.isFinite(e.year) && e.picked);
+  const verdicts = entries.map((e) => annualReviewVerdict(e));
+  const hit = verdicts.filter((v) => v === 'hit').length;
+  const near = verdicts.filter((v) => v === 'near').length;
+  const miss = verdicts.filter((v) => v === 'miss').length;
+  const total = entries.length;
+  return {
+    total,
+    hit,
+    near,
+    miss,
+    // 命中率把 hit 與 near 分開算，避免把「勾到三方四正」灌進正中命中率。
+    hitRate: total ? Math.round((hit / total) * 100) : 0,
+    structureRate: total ? Math.round(((hit + near) / total) * 100) : 0,
+    years: entries.map((e) => e.year).sort((a, b) => a - b),
+    enoughSample: total >= 5,
+  };
+}

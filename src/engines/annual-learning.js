@@ -30,6 +30,47 @@ function limitOf(ziWei, input, year) {
   }) ?? null;
 }
 
+const limitBounds = (ziWei) => {
+  const ranges = (ziWei.majorLimits ?? []).map((l) => l.ageRange.split('~').map(Number));
+  if (!ranges.length) return null;
+  return { first: Math.min(...ranges.map((r) => r[0])), last: Math.max(...ranges.map((r) => r[1])) };
+};
+
+/**
+ * 這一年在大限序列上的位置。
+ * 大限是從「起運歲」才開始排的，起運前那幾年（多半是出生到 5、6 歲之間）本來就沒有大限，
+ * 大限跑完之後（通常 105 歲以上）也一樣。以前這兩種情形都只顯示「資料不足」，
+ * 使用者會以為是程式壞了；實際上是命理本身在這個年紀沒有這一層資料，該說清楚而不是留白。
+ */
+export function annualLimitStatus(ziWei, input, year) {
+  const nominalAge = year - input.year + 1;
+  const bounds = limitBounds(ziWei);
+  if (!bounds) return { status: 'unavailable', nominalAge, note: '這張命盤沒有大限資料，無法判讀十年背景。' };
+  if (nominalAge < bounds.first) {
+    return {
+      status: 'before-start',
+      nominalAge,
+      startAge: bounds.first,
+      note: `虛歲 ${nominalAge} 歲還沒起運（這張盤從虛歲 ${bounds.first} 歲起大限），所以這一年沒有十年大限可看。起運前的年份，傳統上改看小限與流年本身，不要硬套大限。`,
+    };
+  }
+  if (nominalAge > bounds.last) {
+    return {
+      status: 'after-end',
+      nominalAge,
+      endAge: bounds.last,
+      note: `虛歲 ${nominalAge} 歲已超過這張盤排定的最後一個大限（到虛歲 ${bounds.last} 歲），沒有可引用的十年背景。這一年只能就流年本身判讀。`,
+    };
+  }
+  return { status: 'in-range', nominalAge, note: null };
+}
+
+/** 流年學習可選的年份區間：出生當年（虛歲 1）到虛歲 maxAge。 */
+export function annualYearRange({ input, maxAge = 120 }) {
+  const from = input.year;
+  return { from, to: from + maxAge - 1, maxAge };
+}
+
 const sourceLabel = {
   birth: '本命', decadal: '大限', annual: '流年', self: '自化', minor: '小限',
   'annual-palace': '流年命宮', 'natal-triad': '本命三方四正', 'annual-triad': '流年三方四正',
@@ -87,6 +128,7 @@ export function buildAnnualLearningContext({ ziWei, input, year, topic = 'overvi
   const ganZhi = annualGanZhi(year);
   const nominalAge = year - input.year + 1;
   const majorLimit = limitOf(ziWei, input, year);
+  const limitStatus = annualLimitStatus(ziWei, input, year);
   const decadalPalace = majorLimit ? palaceByBranch(ziWei, majorLimit.ganZhi[1]) : null;
   const annualPalace = palaceByBranch(ziWei, ganZhi[1]);
   const natalTriad = triadOf(ziWei, '命宮');
@@ -148,7 +190,7 @@ export function buildAnnualLearningContext({ ziWei, input, year, topic = 'overvi
   }
 
   return {
-    year, ganZhi, nominalAge, topic, topicConfig, majorLimit, decadalPalace, annualPalace,
+    year, ganZhi, nominalAge, topic, topicConfig, majorLimit, limitStatus, decadalPalace, annualPalace,
     natalTriad, annualTriad, birthFlights, decadalFlights, annualFlights, selfTransformations,
     smallLimit, snapshots, adjacentFocus, evidence: uniqueEvidence(allEvidence),
   };
@@ -273,7 +315,13 @@ function quizOf(context, stepId) {
   const annualName = context.annualPalace?.name ?? '資料不足';
   const definitions = {
     natal: { prompt: '本命底盤第一步應先看哪一組？', answer: '命宮三方四正', pool: ['只看流年命宮', '只看化忌', '只看小限'] },
-    decadal: { prompt: `${context.year}年屬於哪一個大限？`, answer: `${context.majorLimit?.ageRange ?? '資料不足'}歲・${context.majorLimit?.ganZhi ?? '資料不足'}`, pool: context.majorLimit ? ['只看流年，不看大限', '小限取代大限'] : ['無法判定'] },
+    decadal: context.majorLimit
+      ? { prompt: `${context.year}年屬於哪一個大限？`, answer: `${context.majorLimit.ageRange}歲・${context.majorLimit.ganZhi}`, pool: ['只看流年，不看大限', '小限取代大限'] }
+      : {
+        prompt: `${context.year}年（虛歲 ${context.nominalAge} 歲）屬於哪一個大限？`,
+        answer: context.limitStatus.status === 'before-start' ? '這一年還沒起運，沒有大限' : '這一年已超出排定的大限，沒有大限',
+        pool: ['套用第一個大限', '套用最後一個大限', '用小限當成大限'],
+      },
     'annual-palace': { prompt: `${context.year}年的流年命宮落入本命哪一宮？`, answer: annualName, pool: palacePool },
     'annual-triad': { prompt: `下列哪一宮屬於${annualName}的三方四正？`, answer: context.annualTriad?.members[1]?.name ?? annualName, pool: palacePool },
     'annual-mutagens': { prompt: `${context.year}年流年化忌落在哪一宮？`, answer: context.annualFlights.find((f) => f.mutagen === '忌')?.palaceName ?? '盤上未找到', pool: palacePool },
@@ -290,7 +338,7 @@ function quizOf(context, stepId) {
 export function buildAnnualLearningSteps(context, focus, conclusion) {
   const stepData = {
     natal: { members: context.natalTriad?.members ?? [] },
-    decadal: { majorLimit: context.majorLimit, palace: context.decadalPalace, flights: context.decadalFlights },
+    decadal: { majorLimit: context.majorLimit, palace: context.decadalPalace, flights: context.decadalFlights, limitStatus: context.limitStatus },
     'annual-palace': { palace: context.annualPalace },
     'annual-triad': { members: context.annualTriad?.members ?? [] },
     'annual-mutagens': { flights: context.annualFlights },
@@ -374,5 +422,119 @@ export function compareAnnualYears({ ziWei, input, yearA, yearB, topic = 'overvi
       limitation: '這些差異描述的是注意力、投入方式與壓力來源的移動，不代表哪一年一定比較好，也不能單靠流年保證具體事件。',
     },
     difference: `${background} ${stageShift} ${focusMeaning}`,
+  };
+}
+
+// ---------- 多年總覽 ----------
+// 逐年跑完整的 buildAnnualLesson 太慢（一次要看 20～120 年），這裡只取「一眼掃描」需要的欄位：
+// 流年命宮、三方四正、當年四化落點，以及這一年是不是大限交界。
+// 關鍵年的判定刻意只用可回查的盤面事實，而且每一條都附 reason；
+// 不做「哪一年比較好」這種比較，也不預測事件——只回答「哪幾年的結構變動比較大，值得先看」。
+
+/** 大限的起始虛歲清單，用來判斷某一年是不是換大限的第一年 */
+const limitStartAges = (ziWei) => new Set((ziWei.majorLimits ?? [])
+  .map((l) => Number(l.ageRange.split('~')[0])).filter(Number.isFinite));
+
+function birthFlightsOf(ziWei) {
+  return ziWei.palaces.flatMap((p) => p.majorStars
+    .filter((star) => star.transformation)
+    .map((star) => ({
+      star: star.name,
+      mutagen: String(star.transformation).replace(/^化/, ''),
+      palaceName: p.name,
+    })));
+}
+
+/**
+ * 單一年份的掃描結果。與 buildAnnualLesson 用同一組資料來源（flyingOfStem / triadOf /
+ * palaceByBranch），所以總覽上看到的落宮，點進逐步學習後一定對得起來。
+ */
+function scanAnnualYear(ziWei, input, year, ctx) {
+  const ganZhi = annualGanZhi(year);
+  const nominalAge = year - input.year + 1;
+  const majorLimit = limitOf(ziWei, input, year);
+  const limitStatus = annualLimitStatus(ziWei, input, year);
+  const annualPalace = palaceByBranch(ziWei, ganZhi[1]);
+  const triad = annualPalace ? (triadOf(ziWei, annualPalace.name)?.members ?? []).map((m) => m.name) : [];
+  const flights = flyingOfStem(ziWei, ganZhi[0]);
+  const decadalPalace = majorLimit ? palaceByBranch(ziWei, majorLimit.ganZhi[1]) : null;
+
+  const reasons = [];
+  let score = 0;
+  const add = (points, text) => { score += points; reasons.push(text); };
+
+  if (majorLimit && ctx.startAges.has(nominalAge)) {
+    add(3, `虛歲 ${nominalAge} 歲換大限，進入 ${majorLimit.ageRange}歲・${majorLimit.ganZhi}，十年背景整個換掉。`);
+  }
+  const ji = flights.find((f) => f.mutagen === '忌');
+  if (ji && annualPalace && ji.palaceName === annualPalace.name) {
+    add(3, `流年化忌（${ji.star}）就落在流年命宮${annualPalace.name}，當年最常被要求處理的事和最容易卡住的事是同一件。`);
+  } else if (ji && triad.includes(ji.palaceName)) {
+    add(2, `流年化忌（${ji.star}）落在流年三方四正的${ji.palaceName}，會從旁邊牽動當年的主場景。`);
+  }
+  const luQuanInTriad = flights.filter((f) => ['祿', '權'].includes(f.mutagen) && triad.includes(f.palaceName));
+  if (luQuanInTriad.length >= 2) {
+    add(2, `化祿與化權同時落在流年三方四正（${luQuanInTriad.map((f) => `${f.star}化${f.mutagen}→${f.palaceName}`).join('、')}），資源與主導權集中在同一個場景。`);
+  }
+  if (annualPalace && decadalPalace && annualPalace.name === decadalPalace.name) {
+    add(2, `流年命宮與大限命宮同樣落在${annualPalace.name}，十年背景與當年舞台重疊，訊號會被放大。`);
+  }
+  const birthHit = ctx.birthFlights.filter((f) => annualPalace && f.palaceName === annualPalace.name);
+  if (birthHit.length) {
+    add(2, `本命生年四化（${birthHit.map((f) => `${f.star}化${f.mutagen}`).join('、')}）本來就在${annualPalace.name}，流年走到這一宮會把它重新引動。`);
+  }
+
+  return {
+    year,
+    ganZhi,
+    nominalAge,
+    past: year < ctx.thisYear,
+    current: year === ctx.thisYear,
+    majorLimit: majorLimit ? `${majorLimit.ageRange}歲・${majorLimit.ganZhi}` : null,
+    limitStatus: limitStatus.status,
+    limitStart: Boolean(majorLimit && ctx.startAges.has(nominalAge)),
+    annualPalace: annualPalace?.name ?? null,
+    annualPalaceWord: annualPalace ? lifeWord(annualPalace.name) : null,
+    triad,
+    flights: flights.map((f) => ({ mutagen: f.mutagen, star: f.star, palaceName: f.palaceName })),
+    score,
+    reasons,
+    // 門檻訂在 4 分：單一條規則命中最多 3 分，所以要被標成重點年，至少得有兩種訊號同時出現。
+    // 一開始用 3 分，結果 120 年裡有 38 年被標紅，等於沒有篩選作用。
+    key: score >= 4,
+    level: score >= 6 ? 'high' : score >= 4 ? 'medium' : 'normal',
+  };
+}
+
+/**
+ * 一段年份區間的掃描總覽。
+ * fromYear/toYear 會先夾回 annualYearRange() 的合法範圍（出生年 ～ 虛歲 maxAge），
+ * 免得呼叫端算錯區間就丟出一堆虛歲 0 或負數的列。
+ */
+export function buildAnnualOverview({ ziWei, input, fromYear, toYear, topic = 'overview', thisYear = new Date().getFullYear(), maxAge = 120 }) {
+  const topicConfig = ANNUAL_TOPIC_CONFIG[topic] ?? ANNUAL_TOPIC_CONFIG.overview;
+  if (!topicConfig.available) throw new Error(`尚未開放的流年學習主題：${topic}`);
+  const range = annualYearRange({ input, maxAge });
+  const from = Math.max(range.from, Math.min(fromYear, toYear));
+  const to = Math.min(range.to, Math.max(fromYear, toYear));
+  const ctx = {
+    thisYear,
+    startAges: limitStartAges(ziWei),
+    birthFlights: birthFlightsOf(ziWei),
+  };
+  const rows = [];
+  for (let year = from; year <= to; year += 1) rows.push(scanAnnualYear(ziWei, input, year, ctx));
+  const keyYears = rows.filter((r) => r.key).sort((a, b) => b.score - a.score || a.year - b.year);
+  return {
+    topic,
+    topicLabel: topicConfig.label,
+    from,
+    to,
+    range,
+    rows,
+    keyYears,
+    // 這段話會直接印在畫面上，必須跟計分規則一致：分數高只代表「結構變動大」，不代表吉凶。
+    howToRead: '這張表只掃描結構變動：換大限、化忌落在流年命宮或三方四正、祿權集中、流年命宮與大限命宮重疊、生年四化被重新引動。被標成重點年，代表那一年的盤面訊號比較集中、值得先看，不代表運勢比較好或比較壞。',
+    limitation: '逐年掃描不預測事件，也不排序哪一年比較順利。要判讀某一年實際會怎麼走，仍要點進那一年做完八個步驟。',
   };
 }

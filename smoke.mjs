@@ -864,7 +864,7 @@ check('第八步才顯示舞台、機會、壓力、策略與限制', (() => {
 })());
 check('流年命盤依據預設收合', !!$('.annual-evidence') && !$('.annual-evidence').open);
 check('流年學習移除筆記並保留年份比較', !$('.annual-notes') && !!$('.annual-compare'));
-const selectedAnnualYear = $('#annual-year option[selected]').value;
+const selectedAnnualYear = $('.annual-year-chip.active').dataset.annualYear;
 const compareOtherYear = [...$('#annual-compare-b').options].find((option) => option.value !== selectedAnnualYear);
 if (compareOtherYear) {
   $('#annual-compare-a').value = selectedAnnualYear;
@@ -879,16 +879,112 @@ check('年份比較先解釋差異與使用方式，不再只列宮位', (() => 
 })());
 check('年份比較原始命盤對照預設收合', !!$('.annual-compare-technical') && !$('.annual-compare-technical').open);
 const annualBefore = $('.annual-meta').textContent;
-// happy-dom 在大型 select 會把第一個 option 的預設選取狀態留著；
-// 以 renderer 明確寫下的 selected attribute 為準，瀏覽器實際值也是這一個。
-const otherYear = [...$('#annual-year').options].find((o) => !o.selected);
-if (otherYear) { $('#annual-year').value = otherYear.value; $('#annual-year').dispatchEvent(new w.Event('change')); await settle(); }
-check('切換年份會更新整份流年資料並回到開始狀態', $('.annual-meta').textContent !== annualBefore && !!$('#annual-start'));
-if (otherYear) { $('#annual-year').value = selectedAnnualYear; $('#annual-year').dispatchEvent(new w.Event('change')); await settle(); }
+// 年份改由時間軸 chip 切換（原本是 <select>，120 個年份塞下拉沒人找得到）
+$('#annual-year-prev').click();
+await settle();
+check('上一年按鈕會更新整份流年資料並回到開始狀態', $('.annual-meta').textContent !== annualBefore && !!$('#annual-start'));
+check('切換後時間軸的 active chip 跟著移動', $('.annual-year-chip.active').dataset.annualYear === String(Number(selectedAnnualYear) - 1));
+$('#annual-year-next').click();
+await settle();
+check('下一年按鈕回到原本年份', $('.annual-year-chip.active').dataset.annualYear === selectedAnnualYear);
 check('回到學過的年份可繼續上次步驟', !!$('#annual-continue'));
 $('#annual-continue')?.click();
 await settle();
 check('繼續上次學習會回到最後停留步驟', $('.annual-step-card')?.dataset.annualStepCard === 'synthesis');
+
+// --- 年份時間軸：涵蓋出生到虛歲 120，不再被大限範圍綁死 ---
+const birthYear = 2002; // 測試命盤的出生年（見檔案開頭「填表排盤」的 setDateParts）
+const chipYears = $$('.annual-year-chip').map((b) => Number(b.dataset.annualYear));
+check('時間軸從出生當年開始，不是從起運歲開始', chipYears[0] === birthYear);
+check('時間軸涵蓋到虛歲 120', chipYears.at(-1) === birthYear + 119 && chipYears.length === 120);
+check('時間軸標出換大限的年份', $$('.annual-year-chip.is-limit-start').length >= 8);
+check('時間軸標出今年', !!$('.annual-year-chip.is-now'));
+check('時間軸有重點年標記，且不會多到失去篩選意義', (() => {
+  const keys = $$('.annual-year-chip.is-key').length;
+  return keys > 0 && keys < chipYears.length * 0.45;
+})());
+
+// 起運前的年份：大限那一層本來就沒有資料，要說明原因而不是印「資料不足」
+$(`.annual-year-chip[data-annual-year="${birthYear + 1}"]`).click();
+await settle();
+check('可以選到起運前的年份', $('.annual-year-chip.active').dataset.annualYear === String(birthYear + 1));
+check('起運前明確說明沒有大限，不是顯示資料不足', (() => {
+  const note = $('.annual-limit-note');
+  return !!note && note.textContent.includes('起運') && !$('.annual-meta').textContent.includes('資料不足');
+})());
+$('#annual-start').click();
+await settle();
+$('#annual-next').click();
+await settle();
+check('起運前的大限步驟給出原因而非空白', (() => {
+  const card = $('.annual-step-card');
+  return card?.dataset.annualStepCard === 'decadal' && !!$('.annual-step-empty')
+    && $('.annual-step-empty').textContent.includes('起運');
+})());
+
+// 超出末大限的年份也要能選、也要有說明
+$(`.annual-year-chip[data-annual-year="${birthYear + 115}"]`).click();
+await settle();
+check('可以選到大限跑完之後的年份', $('.annual-year-chip.active').dataset.annualYear === String(birthYear + 115));
+check('超出大限時說明已超出，而非資料不足', $('.annual-limit-note')?.textContent.includes('超過'));
+
+$('#annual-year-today').click();
+await settle();
+check('回到今年按鈕會跳回當年', Number($('.annual-year-chip.active').dataset.annualYear) === new Date().getFullYear());
+
+// --- 多年總覽 ---
+$('[data-annual-view="overview"]').click();
+await settle();
+check('可切換到多年總覽', !!$('.annual-overview') && !$('.annual-step-card'));
+check('總覽列出年份、大限、流年命宮、四化落點與標記原因', (() => {
+  const heads = $$('.annual-ov-table thead th').map((el) => el.textContent);
+  return ['年份', '大限', '流年命宮', '流年四化落點', '為什麼標記'].every((h) => heads.includes(h));
+})());
+check('總覽預設前後 10 年，共 21 列', $$('.annual-ov-table tbody tr').length === 21);
+check('重點年有列出可回查的理由，不是只給一個分數', (() => {
+  const keyRow = $('.annual-ov-row.is-key');
+  return !!keyRow && keyRow.querySelectorAll('.annual-ov-why li').length > 0;
+})());
+check('總覽明講標記只代表訊號集中，不代表吉凶', (() => {
+  const text = $('.annual-overview').textContent;
+  return text.includes('不代表運勢比較好或比較壞') && text.includes('不排序哪一年比較順利');
+})());
+$('[data-annual-span="20"]').click();
+await settle();
+check('可調整總覽範圍', $$('.annual-ov-table tbody tr').length === 41);
+$('[data-annual-span="0"]').click();
+await settle();
+check('整張命盤範圍可掃完 120 年', $$('.annual-ov-table tbody tr').length === 120);
+const jumpTarget = $$('.annual-ov-year')[3].textContent.slice(0, 4);
+$$('.annual-ov-year')[3].click();
+await settle();
+check('從總覽點年份會跳回逐步學習的那一年', $('.annual-year-chip.active').dataset.annualYear === jumpTarget);
+
+// --- 回顧驗盤（只對過去年份出現） ---
+$('[data-annual-view="step"]').click();
+await settle();
+$(`.annual-year-chip[data-annual-year="${new Date().getFullYear() + 2}"]`).click();
+await settle();
+check('未來年份不出現回顧驗盤', !$('.annual-review'));
+$(`.annual-year-chip[data-annual-year="${new Date().getFullYear() - 3}"]`).click();
+await settle();
+check('過去年份出現回顧驗盤', !!$('.annual-review'));
+check('回顧驗盤先給命盤說法，再問使用者', (() => {
+  const text = $('.annual-review').textContent;
+  return text.includes('命盤這樣說') && text.includes('那一年你花最多心力處理的是哪一塊');
+})());
+check('回顧驗盤明確標示這不是準確度證明', $('.annual-review').textContent.includes('不是命盤準確度的證明'));
+check('回顧驗盤提供十二宮選項', $$('.annual-review-pick').length === 12);
+const annualPalaceName = $$('.annual-meta span').find((el) => el.textContent.includes('流年命宮')).querySelector('b').textContent;
+$(`.annual-review-pick[data-annual-review="${annualPalaceName}"]`).click();
+await settle();
+check('勾到流年命宮判定為正中', !!$('.annual-review__verdict.is-hit'));
+check('回顧後出現累積統計', $('.annual-review__stats')?.textContent.includes('已回顧'));
+check('樣本不足時不算比例', $('.annual-review__stats').textContent.includes('樣本太小'));
+$('#annual-review-clear').click();
+await settle();
+check('可清除單一年份的回顧紀錄', !$('.annual-review__verdict'));
+
 $('#learn-card [data-learning-kind="natal"]').click();
 await settle();
 check('流年學習可切回原本本命學習', !!$('#learn-card [data-learn-level]') && !$('.annual-learn-card'));

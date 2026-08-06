@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { convertToZiWei } from '../src/engines/ziwei.js';
-import { buildAnnualLesson, compareAnnualYears } from '../src/engines/annual-learning.js';
 import {
-  annualCompletionSummary, annualProgressSummary, clearAnnualNote, loadAnnualNote, loadAnnualProgress,
-  markAnnualStep, recordAnnualQuiz, resetAnnualProgress, saveAnnualNote,
+  annualLimitStatus, annualYearRange, buildAnnualLesson, buildAnnualOverview, compareAnnualYears,
+} from '../src/engines/annual-learning.js';
+import {
+  annualCompletionSummary, annualProgressSummary, annualReviewSummary, clearAnnualNote, clearAnnualReview,
+  loadAnnualNote, loadAnnualProgress, loadAnnualReview, markAnnualStep, recordAnnualQuiz,
+  resetAnnualProgress, saveAnnualNote, saveAnnualReview,
 } from '../src/engines/annual-learning-storage.js';
 
 const golden = JSON.parse(readFileSync(new URL('./golden/cases/annual-learning-2026.json', import.meta.url), 'utf8'));
@@ -79,6 +82,82 @@ saveAnnualNote(storage, 'chart-a', 2026, 'work', { ...template, validation: '我
 check('筆記六欄可儲存且不與其他命盤共用', loadAnnualNote(storage, 'chart-a', 2026, 'work', meta).validation === '我的驗證' && loadAnnualNote(storage, 'chart-b', 2026, 'work', meta).validation !== '我的驗證');
 clearAnnualNote(storage, 'chart-a', 2026, 'work', meta);
 check('筆記可清除並恢復十段模板', !loadAnnualNote(storage, 'chart-a', 2026, 'work', meta).validation.includes('我的驗證') && template.observed.includes('十、一句話結論：'));
+
+// ---------- 年份範圍：出生年 ～ 虛歲 120 ----------
+const range = annualYearRange({ input: golden.input });
+check('年份範圍從出生當年（虛歲 1）起算', range.from === golden.input.year);
+check('年份範圍到虛歲 120', range.to === golden.input.year + 119 && range.maxAge === 120);
+
+const firstLimitStart = Math.min(...ziWei.majorLimits.map((l) => Number(l.ageRange.split('~')[0])));
+const lastLimitEnd = Math.max(...ziWei.majorLimits.map((l) => Number(l.ageRange.split('~')[1])));
+const beforeYear = golden.input.year; // 虛歲 1，必定在起運前
+const afterYear = golden.input.year + lastLimitEnd; // 虛歲 lastLimitEnd + 1，必定超出
+check('起運前判定為 before-start 並說明原因', (() => {
+  const st = annualLimitStatus(ziWei, golden.input, beforeYear);
+  return st.status === 'before-start' && st.startAge === firstLimitStart && st.note.includes('還沒起運');
+})());
+check('超出末大限判定為 after-end 並說明原因', (() => {
+  const st = annualLimitStatus(ziWei, golden.input, afterYear);
+  return st.status === 'after-end' && st.endAge === lastLimitEnd && st.note.includes('超過');
+})());
+check('大限範圍內為 in-range 且不加註記', (() => {
+  const st = annualLimitStatus(ziWei, golden.input, golden.year);
+  return st.status === 'in-range' && st.note === null;
+})());
+check('起運前的年份仍能產生完整八步驟課程', (() => {
+  const l = buildAnnualLesson({ ziWei, input: golden.input, year: beforeYear, topic: 'overview' });
+  return l.steps.length === 8 && l.context.majorLimit === null && l.context.limitStatus.status === 'before-start';
+})());
+check('起運前的大限練習題不會出現「資料不足」當答案', (() => {
+  const l = buildAnnualLesson({ ziWei, input: golden.input, year: beforeYear, topic: 'overview' });
+  const quiz = l.steps.find((s) => s.id === 'decadal').quiz;
+  return !quiz.answer.includes('資料不足') && quiz.answer.includes('沒有大限');
+})());
+
+// ---------- 多年總覽 ----------
+const overview = buildAnnualOverview({ ziWei, input: golden.input, fromYear: golden.year - 10, toYear: golden.year + 10, thisYear: golden.year });
+check('總覽逐年列出，區間含頭尾', overview.rows.length === 21 && overview.rows[0].year === golden.year - 10 && overview.rows.at(-1).year === golden.year + 10);
+check('總覽的流年命宮與逐步學習算出來的一致', (() => overview.rows.every((row) => {
+  const l = buildAnnualLesson({ ziWei, input: golden.input, year: row.year, topic: 'overview' });
+  return row.annualPalace === (l.context.annualPalace?.name ?? null);
+}))());
+check('總覽的四化落點與逐步學習一致', (() => {
+  const row = overview.rows.find((r) => r.year === golden.year);
+  const l = buildAnnualLesson({ ziWei, input: golden.input, year: golden.year, topic: 'overview' });
+  return row.flights.map(flightKey).sort().join('|') === l.context.annualFlights.map(flightKey).sort().join('|');
+})());
+check('每個重點年都附可回查的理由', overview.keyYears.every((r) => r.reasons.length > 0 && r.score >= 4));
+check('重點年不會多到失去篩選作用', overview.keyYears.length < overview.rows.length * 0.5);
+check('總覽不宣稱吉凶，並明說不排序好壞', overview.howToRead.includes('不代表運勢比較好或比較壞') && overview.limitation.includes('不排序哪一年比較順利'));
+check('總覽區間會夾回合法範圍，不產生虛歲 0 或負數', (() => {
+  const wide = buildAnnualOverview({ ziWei, input: golden.input, fromYear: golden.input.year - 50, toYear: golden.input.year + 500, thisYear: golden.year });
+  return wide.rows[0].nominalAge === 1 && wide.rows.at(-1).nominalAge === 120 && wide.rows.length === 120;
+})());
+check('總覽掃完 120 年在合理時間內（畫面每次重繪都會呼叫）', (() => {
+  const t = Date.now();
+  buildAnnualOverview({ ziWei, input: golden.input, fromYear: range.from, toYear: range.to, thisYear: golden.year });
+  return Date.now() - t < 400;
+})());
+
+// ---------- 回顧驗盤 ----------
+const reviewStore = (() => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) }; })();
+const reviewTriad = (lesson.context.annualTriad?.members ?? []).map((m) => m.name);
+const annualPalaceName = lesson.context.annualPalace.name;
+const outsideTriad = ziWei.palaces.map((p) => p.name).find((name) => !reviewTriad.includes(name));
+saveAnnualReview(reviewStore, 'chart-a', 2024, { picked: annualPalaceName, annualPalace: annualPalaceName, triad: reviewTriad });
+check('勾到流年命宮判定 hit', loadAnnualReview(reviewStore, 'chart-a', 2024).verdict === 'hit');
+saveAnnualReview(reviewStore, 'chart-a', 2023, { picked: reviewTriad.find((n) => n !== annualPalaceName), annualPalace: annualPalaceName, triad: reviewTriad });
+check('勾到三方四正判定 near', loadAnnualReview(reviewStore, 'chart-a', 2023).verdict === 'near');
+saveAnnualReview(reviewStore, 'chart-a', 2022, { picked: outsideTriad, annualPalace: annualPalaceName, triad: reviewTriad });
+check('勾到三方四正以外判定 miss', loadAnnualReview(reviewStore, 'chart-a', 2022).verdict === 'miss');
+check('命中率把正中與三方四正分開算', (() => {
+  const sum = annualReviewSummary(reviewStore, 'chart-a');
+  return sum.total === 3 && sum.hit === 1 && sum.near === 1 && sum.miss === 1 && sum.hitRate === 33 && sum.structureRate === 67;
+})());
+check('樣本少於 5 筆時標示為不足', !annualReviewSummary(reviewStore, 'chart-a').enoughSample);
+check('回顧紀錄不與其他命盤共用', annualReviewSummary(reviewStore, 'chart-b').total === 0);
+clearAnnualReview(reviewStore, 'chart-a', 2022);
+check('可清除單一年份的回顧紀錄', annualReviewSummary(reviewStore, 'chart-a').total === 2 && !loadAnnualReview(reviewStore, 'chart-a', 2022));
 
 console.log(`\n流年學習測試：${failed ? `${failed} 項失敗` : '全部通過'}`);
 process.exit(failed ? 1 : 0);

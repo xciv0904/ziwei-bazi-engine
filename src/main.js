@@ -235,7 +235,7 @@ const state = {
   // 學習模式：目前展開到第幾步、練習題作答狀況（答案本身不進 localStorage,只存對錯）
   // level：初階／進階／高級。使用者反映一次攤開全部太長，分階讓初學者先看得完。
   learning: { kind: 'natal', openStep: 'self', quizOpen: false, answers: {}, level: 'basic' },
-  annualLearning: { topic: 'overview', started: false, openStep: 0, answers: {}, compareA: null, compareB: null },
+  annualLearning: { topic: 'overview', started: false, openStep: 0, answers: {}, compareA: null, compareB: null, year: null, view: 'step', span: 10 },
   // 目前這張命盤的學習進度（由 localStorage 讀入，依命盤識別碼分開存）
   learningProgress: { palaces: {}, lastPalace: null },
   limitIdx: 0,
@@ -336,7 +336,7 @@ async function computeAllInner(parsed) {
   // 不清乾淨的話會出現「換了一張盤卻沿用上一張的答對紀錄」
   // 階段是使用者的學習偏好，換命盤不該重設，所以從 localStorage 讀回來
   state.learning = { kind: 'natal', openStep: 'self', quizOpen: false, answers: {}, level: loadLearningLevel() };
-  state.annualLearning = { topic: 'overview', started: false, openStep: 0, answers: {}, compareA: null, compareB: null };
+  state.annualLearning = { topic: 'overview', started: false, openStep: 0, answers: {}, compareA: null, compareB: null, year: null, view: 'step', span: 10 };
   state.learningProgress = R.loadProgress(safeLocalStorage(), R.chartKeyOf(input));
   // 姓名學分頁帶入目前排盤的姓名(使用者若在姓名學頁另外手動改過，下次重新排盤/切換命盤時仍會被目前這筆姓名蓋過——
   // 這是預期行為，「帶入」的意思就是跟著目前排盤的人走)
@@ -1314,11 +1314,18 @@ const annualFlightText = (f, layer) => `${layer}${f.star}化${f.mutagen} → ${f
 function annualStepDataHtml(step, lesson) {
   const d = step.data;
   if (step.id === 'natal') return annualPalaceList(d.members.map((m) => `${m.role === 'self' ? '命宮' : m.role === 'opposite' ? '對宮' : '三合宮'}：${m.name}（${m.position}）・${m.stars.join('、') || '無十四主星'}`));
-  if (step.id === 'decadal') return annualPalaceList([
-    `大限：${d.majorLimit ? `${d.majorLimit.ageRange}歲・${d.majorLimit.ganZhi}` : '資料不足'}`,
-    `大限命宮：${d.palace?.name ?? '資料不足'}`,
-    ...d.flights.map((f) => annualFlightText(f, '大限')),
-  ]);
+  if (step.id === 'decadal') {
+    // 起運前與超出末大限的年份沒有大限可看，這不是資料缺漏而是命理本身就沒有這一層。
+    // 直接把原因寫出來，比印三行「資料不足」有用。
+    if (!d.majorLimit) {
+      return `<p class="annual-step-empty">${esc(d.limitStatus?.note ?? '這一年沒有可引用的十年大限。')}</p>`;
+    }
+    return annualPalaceList([
+      `大限：${d.majorLimit.ageRange}歲・${d.majorLimit.ganZhi}`,
+      `大限命宮：${d.palace?.name ?? '資料不足'}`,
+      ...d.flights.map((f) => annualFlightText(f, '大限')),
+    ]);
+  }
   if (step.id === 'annual-palace') return annualPalaceList([`${lesson.context.year} ${lesson.context.ganZhi}年`, `流年命宮：${d.palace?.name ?? '資料不足'}（${d.palace?.position ?? '—'}）`, `主星：${d.palace?.majorStars.map((s) => `${s.name}${s.brightness ? `（${s.brightness}）` : ''}`).join('、') || '無十四主星'}`]);
   if (step.id === 'annual-triad') return annualPalaceList(d.members.map((m) => `${m.role === 'self' ? '流年命宮' : m.role === 'opposite' ? '對宮' : '三合宮'}：${m.name}・${m.stars.join('、') || '無十四主星'}`));
   if (step.id === 'annual-mutagens') return annualPalaceList(d.flights.map((f) => annualFlightText(f, '流年')));
@@ -1360,17 +1367,199 @@ function annualQuizHtml(step) {
   </div>`;
 }
 
-function annualYearOptions(selectedYear) {
-  const years = state.data.ziWei.majorLimits.flatMap((limit) => {
+/**
+ * 流年學習目前在看哪一年。
+ * 原本直接沿用 currentLuckSelection()，等於被大限瀏覽器綁死——只能看「起運歲～105 歲」，
+ * 出生到起運前那幾年、以及大限跑完之後都選不到。改成獨立的 state.annualLearning.year，
+ * null 時才回退到大限瀏覽器目前的選擇（保留原本一進來就停在現在這一年的行為）。
+ */
+function annualLearningYear() {
+  return state.annualLearning.year ?? currentLuckSelection().year;
+}
+
+/** 可選年份區間：出生當年（虛歲 1）到虛歲 120 */
+function annualYearBounds() {
+  return R.annualYearRange({ input: state.data.input });
+}
+
+/**
+ * 切換流年學習的年份。
+ * 年份若還落在大限範圍內，順便把大限瀏覽器（limitIdx/yearIdx）同步過去，
+ * 這樣上面的命盤高亮才會跟著走；起運前或超過末大限時沒有對應的大限索引，就只更新年份。
+ */
+function setAnnualLearningYear(year) {
+  const { from, to } = annualYearBounds();
+  const next = Math.max(from, Math.min(to, year));
+  state.annualLearning.year = next;
+  state.annualLearning.started = false;
+  state.annualLearning.openStep = 0;
+  state.annualLearning.answers = {};
+
+  const age = next - state.data.input.year + 1;
+  const limitIndex = state.data.ziWei.majorLimits.findIndex((limit) => {
     const [start, end] = limit.ageRange.split('~').map(Number);
-    return Array.from({ length: end - start + 1 }, (_, index) => state.data.input.year + start + index - 1);
+    return age >= start && age <= end;
   });
+  if (limitIndex >= 0) {
+    const start = Number(state.data.ziWei.majorLimits[limitIndex].ageRange.split('~')[0]);
+    state.limitIdx = limitIndex;
+    state.yearIdx = Math.max(0, Math.min(9, next - (state.data.input.year + start - 1)));
+  }
+  try {
+    const lesson = R.buildAnnualLesson({ ziWei: state.data.ziWei, input: state.data.input, year: next, topic: state.annualLearning.topic });
+    state.selectedPalace = lesson.context.annualPalace?.name ?? state.selectedPalace;
+  } catch (err) {
+    console.error('切換流年年份時建立課程失敗：', err);
+  }
+  return next;
+}
+
+function annualYearOptions(selectedYear) {
+  const { from, to } = annualYearBounds();
+  const years = [];
+  for (let year = from; year <= to; year += 1) years.push(year);
   if (!years.includes(selectedYear)) years.push(selectedYear);
   return [...new Set(years)].sort((a, b) => a - b).map((year) => `<option value="${year}"${year === selectedYear ? ' selected' : ''}>${year}（${R.annualGanZhi(year)}）</option>`).join('');
 }
 
+/**
+ * 年份時間軸。
+ * 120 個年份放進 <select> 等於叫人在下拉裡撈針，而且看不出哪幾年值得先看，
+ * 所以改成「上一年／下一年／回到今年」＋一整條可橫向捲動的年份 chip。
+ * chip 上直接標出虛歲、換大限的那一年，以及多年總覽算出來的重點年，
+ * 讓「要看哪一年」這件事在同一個畫面上就能決定。
+ */
+function annualYearTimelineHtml(selectedYear, overview) {
+  const { from, to } = annualYearBounds();
+  const thisYear = new Date().getFullYear();
+  const byYear = new Map(overview.rows.map((row) => [row.year, row]));
+  const chips = overview.rows.map((row) => {
+    const cls = [
+      'chip', 'annual-year-chip',
+      row.year === selectedYear ? 'active' : '',
+      row.year === thisYear ? 'is-now' : '',
+      row.past ? 'is-past' : '',
+      row.key ? `is-key is-key--${row.level}` : '',
+      row.limitStart ? 'is-limit-start' : '',
+    ].filter(Boolean).join(' ');
+    const titleBits = [
+      `${row.year}（${row.ganZhi}）虛歲 ${row.nominalAge}`,
+      row.majorLimit ? `大限 ${row.majorLimit}` : '尚未起運／已超出大限',
+      row.annualPalace ? `流年命宮 ${row.annualPalace}` : '',
+      row.key ? `重點年：${row.reasons[0]}` : '',
+    ].filter(Boolean).join('｜');
+    return `<button type="button" class="${cls}" data-annual-year="${row.year}" title="${esc(titleBits)}">
+      <b>${row.year}</b><small>${row.nominalAge}歲${row.limitStart ? '・換限' : ''}</small>
+    </button>`;
+  }).join('');
+  const current = byYear.get(selectedYear);
+  return `<div class="annual-timeline">
+    <div class="annual-timeline__bar">
+      <button type="button" class="mini-btn" id="annual-year-prev" ${selectedYear <= from ? 'disabled' : ''} aria-label="上一年">← 上一年</button>
+      <div class="annual-timeline__now">
+        <b>${selectedYear}</b>
+        <small>${esc(R.annualGanZhi(selectedYear))}・虛歲 ${selectedYear - state.data.input.year + 1}${current?.majorLimit ? `・${esc(current.majorLimit)}` : '・無大限'}</small>
+      </div>
+      <button type="button" class="mini-btn" id="annual-year-next" ${selectedYear >= to ? 'disabled' : ''} aria-label="下一年">下一年 →</button>
+      <button type="button" class="mini-btn annual-timeline__today" id="annual-year-today" ${selectedYear === thisYear ? 'disabled' : ''}>回到今年</button>
+    </div>
+    <div class="chip-row annual-year-chips" role="group" aria-label="選擇年份">${chips}</div>
+    <p class="annual-timeline__legend">可選 ${from}–${to}（虛歲 1–${annualYearBounds().maxAge}）。<span class="legend-dot is-key"></span>重點年＝盤面訊號集中，不代表運勢好壞　<span class="legend-dot is-limit-start"></span>換大限的第一年　<span class="legend-dot is-now"></span>今年</p>
+  </div>`;
+}
+
+/**
+ * 多年總覽。回答的是「這幾十年裡，哪幾年的盤面變動比較大」，
+ * 讓人不必一年一年點進去才知道要看哪一年。
+ * 每一列的重點年理由都由 buildAnnualOverview() 從盤面事實算出來，可以逐條回查；
+ * 這裡不排「哪一年比較好」，也不預測事件。
+ */
+function annualOverviewHtml(overview, selectedYear) {
+  const rows = overview.rows.map((row) => {
+    const flights = row.flights.map((f) => `<span class="mut ${MUT_CLASS[f.mutagen]}">${f.mutagen}</span>${esc(f.palaceName)}`).join('　');
+    const cls = ['annual-ov-row', row.key ? `is-key is-key--${row.level}` : '', row.year === selectedYear ? 'is-selected' : '', row.current ? 'is-now' : ''].filter(Boolean).join(' ');
+    return `<tr class="${cls}">
+      <th scope="row"><button type="button" class="annual-ov-year" data-annual-year="${row.year}">${row.year}<small>${esc(row.ganZhi)}・${row.nominalAge}歲</small></button></th>
+      <td>${esc(row.majorLimit ?? '—')}${row.limitStart ? '<span class="annual-ov-tag">換限</span>' : ''}</td>
+      <td>${esc(row.annualPalace ?? '—')}${row.annualPalaceWord ? `<small>${esc(row.annualPalaceWord)}</small>` : ''}</td>
+      <td class="annual-ov-flights">${flights || '—'}</td>
+      <td class="annual-ov-why">${row.key ? `<ul>${row.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : '<span class="annual-ov-quiet">無集中訊號</span>'}</td>
+    </tr>`;
+  }).join('');
+  const spans = [5, 10, 20, 0].map((n) => `<button type="button" class="topic-pill${state.annualLearning.span === n ? ' active' : ''}" data-annual-span="${n}">${n === 0 ? '整張命盤' : `前後 ${n} 年`}</button>`).join('');
+  return `<div class="annual-overview">
+    <div class="annual-overview__head">
+      <div><b>多年總覽</b><small>${overview.from}–${overview.to}，共 ${overview.rows.length} 年；標記重點年 ${overview.keyYears.length} 個</small></div>
+      <div class="annual-overview__spans" role="group" aria-label="總覽範圍">${spans}</div>
+    </div>
+    <p class="annual-overview__how">${esc(overview.howToRead)}</p>
+    ${overview.keyYears.length ? `<p class="annual-overview__keys">重點年：${overview.keyYears.slice(0, 12).map((r) => `<button type="button" class="annual-key-pill is-key--${r.level}" data-annual-year="${r.year}">${r.year}</button>`).join('')}${overview.keyYears.length > 12 ? `<span class="annual-ov-quiet">…另有 ${overview.keyYears.length - 12} 年</span>` : ''}</p>` : '<p class="annual-overview__keys annual-ov-quiet">這段區間沒有訊號特別集中的年份。</p>'}
+    <div class="annual-overview__scroll">
+      <table class="annual-ov-table">
+        <thead><tr><th scope="col">年份</th><th scope="col">大限</th><th scope="col">流年命宮</th><th scope="col">流年四化落點</th><th scope="col">為什麼標記</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p class="annual-overview__limit">${esc(overview.limitation)}</p>
+  </div>`;
+}
+
+/**
+ * 回顧驗盤。只對過去年份出現。
+ * 目的是把單向的「命盤說你這年會怎樣」換成可以自己檢驗的迴圈：先看命盤推出什麼，
+ * 再回想那年實際上最常在處理什麼，兩邊對不對得起來自己判斷。
+ * 這是自我回報的紀錄，樣本小且有記憶偏誤，所以畫面上一律標明它不是準確度證據。
+ */
+function annualReviewHtml(year, lesson) {
+  const storage = safeLocalStorage();
+  const chartKey = learningChartKey();
+  const saved = R.loadAnnualReview(storage, chartKey, year);
+  const ctx = lesson.context;
+  const annualPalace = ctx.annualPalace?.name ?? null;
+  const triad = (ctx.annualTriad?.members ?? []).map((m) => m.name);
+  const summary = R.annualReviewSummary(storage, chartKey);
+  const palaces = state.data.ziWei.palaces.map((p) => p.name);
+
+  const options = palaces.map((name) => {
+    const picked = saved?.picked === name;
+    return `<button type="button" class="annual-review-pick${picked ? ' active' : ''}" data-annual-review="${esc(name)}">${esc(name)}<small>${esc(palaceMeanings[name] ?? '')}</small></button>`;
+  }).join('');
+
+  const verdictText = {
+    hit: `你回想的「${esc(saved?.picked ?? '')}」正好就是這一年的流年命宮。`,
+    near: `你回想的「${esc(saved?.picked ?? '')}」落在流年命宮${esc(annualPalace ?? '')}的三方四正裡——不是正中舞台，但在同一組結構內。`,
+    miss: `你回想的「${esc(saved?.picked ?? '')}」不在這一年流年命宮${esc(annualPalace ?? '')}的三方四正裡。這種情況很正常，可能是那一年的重心由大限或本命主導，也可能流年這一層本來就不明顯。`,
+  };
+
+  return `<details class="annual-review" data-dashboard-detail="annual-review"${state.dashboardOpenDetails.has('annual-review') ? ' open' : ''}>
+    <summary>回顧這一年：${year} 年你實際上在忙什麼？</summary>
+    <div class="annual-review__body">
+      <p class="annual-review__lead">先看命盤推出什麼，再自己回想，然後比對。<b>這是你自己的紀錄，不是命盤準確度的證明</b>——回憶會被後見之明影響，樣本也太少。</p>
+      <div class="annual-review__says">
+        <b>命盤這樣說</b>
+        <p>${year} 年的流年命宮落在<b>${esc(annualPalace ?? '資料不足')}</b>${annualPalace ? `（${esc(palaceMeanings[annualPalace] ?? '')}）` : ''}，三方四正是${esc(triad.join('、') || '資料不足')}。</p>
+      </div>
+      <div class="annual-review__ask">
+        <b>那一年你花最多心力處理的是哪一塊？</b>
+        <div class="annual-review__options">${options}</div>
+      </div>
+      ${saved ? `<div class="annual-review__verdict is-${saved.verdict}">
+        <p>${verdictText[saved.verdict]}</p>
+        <button type="button" class="mini-btn" id="annual-review-clear">清除這一年的紀錄</button>
+      </div>` : ''}
+      ${summary.total ? `<div class="annual-review__stats">
+        <b>你的回顧紀錄</b>
+        <p>已回顧 ${summary.total} 年：正中流年命宮 ${summary.hit} 次、落在三方四正 ${summary.near} 次、都不是 ${summary.miss} 次。</p>
+        ${summary.enoughSample
+    ? `<small>目前對得上結構（正中或三方四正）的比例是 ${summary.structureRate}%。這只是你個人回憶的統計，不能當成命理準確度。</small>`
+    : '<small>紀錄還不到 5 年，先不算比例——樣本太小算出來的數字沒有意義。</small>'}
+      </div>` : ''}
+    </div>
+  </details>`;
+}
+
 function renderAnnualLearningPanel() {
-  const { year } = currentLuckSelection();
+  const year = annualLearningYear();
   const topic = state.annualLearning.topic;
   const lesson = R.buildAnnualLesson({ ziWei: state.data.ziWei, input: state.data.input, year, topic });
   const ctx = lesson.context;
@@ -1398,24 +1587,53 @@ function renderAnnualLearningPanel() {
     ${progress.lastStep ? '<button type="button" class="btn-ghost" id="annual-continue">繼續上次學習</button>' : ''}
     <button type="button" class="btn-primary" id="annual-start">${progress.lastStep ? '從第一步開始' : '開始逐步判讀'}</button></div>`;
 
+  // 總覽掃描 120 年只要幾毫秒（純查表，不重新排盤），所以每次重繪都重算，
+  // 不另外做快取——快取反而會在切主題、切命盤時忘記失效。
+  const bounds = annualYearBounds();
+  const span = state.annualLearning.span;
+  const overviewRange = span === 0
+    ? { from: bounds.from, to: bounds.to }
+    : { from: Math.max(bounds.from, year - span), to: Math.min(bounds.to, year + span) };
+  const timelineScan = R.buildAnnualOverview({
+    ziWei: state.data.ziWei, input: state.data.input, fromYear: bounds.from, toYear: bounds.to, topic,
+  });
+  const overview = R.buildAnnualOverview({
+    ziWei: state.data.ziWei, input: state.data.input, fromYear: overviewRange.from, toYear: overviewRange.to, topic,
+  });
+  const isOverview = state.annualLearning.view === 'overview';
+  const thisYear = new Date().getFullYear();
+
+  // 起運前與超出末大限的年份，大限那一層本來就沒有資料。以前只顯示「資料不足」，
+  // 看起來像壞掉；改成把命理上的原因講出來。
+  const limitLabel = ctx.majorLimit
+    ? `${ctx.majorLimit.ageRange}歲・${ctx.majorLimit.ganZhi}`
+    : ctx.limitStatus?.status === 'before-start' ? '尚未起運' : '已超出大限';
+
   return `<div class="card learn-card annual-learn-card" id="learn-card">
     ${learningKindTabsHtml()}
-    <div class="annual-learn-head"><div><span class="round-icon">年</span><b>流年學習</b><small>用自己的命盤練習判讀，不影響白話模式畫面</small></div>
-      <label>選擇年份<select id="annual-year">${yearOptions}</select></label></div>
+    <div class="annual-learn-head"><div><span class="round-icon">年</span><b>流年學習</b><small>可看出生到虛歲 ${bounds.maxAge} 歲的任何一年，不影響白話模式畫面</small></div></div>
+    ${annualYearTimelineHtml(year, timelineScan)}
+    ${ctx.limitStatus?.note ? `<p class="annual-limit-note">${esc(ctx.limitStatus.note)}</p>` : ''}
     <div class="annual-meta">
       <span><small>命盤</small><b>${esc(state.data.name)}</b></span><span><small>流年</small><b>${year}・${ctx.ganZhi}</b></span>
-      <span><small>虛歲</small><b>${ctx.nominalAge}歲</b></span><span><small>所屬大限</small><b>${esc(ctx.majorLimit ? `${ctx.majorLimit.ageRange}歲・${ctx.majorLimit.ganZhi}` : '資料不足')}</b></span>
+      <span><small>虛歲</small><b>${ctx.nominalAge}歲</b></span><span><small>所屬大限</small><b>${esc(limitLabel)}</b></span>
       <span><small>流年命宮</small><b>${esc(ctx.annualPalace?.name ?? '資料不足')}</b></span><span><small>研究主題</small><b>${esc(ctx.topicConfig.label)}</b></span>
     </div>
     <div class="annual-topics" role="group" aria-label="研究主題">${topics}</div>
+    <div class="annual-view-tabs" role="tablist" aria-label="流年學習檢視">
+      <button type="button" role="tab" aria-selected="${!isOverview}" class="${!isOverview ? 'active' : ''}" data-annual-view="step">逐步學習這一年</button>
+      <button type="button" role="tab" aria-selected="${isOverview}" class="${isOverview ? 'active' : ''}" data-annual-view="overview">多年總覽</button>
+    </div>
+    ${isOverview ? annualOverviewHtml(overview, year) : `
     <div class="learn-progress"><span>${year}流年學習進度：${summary.completed}／${summary.total}</span><div class="learn-progress-bar"><i style="width:${summary.percent}%"></i></div>
       ${summary.quizAnswered ? `<small>練習答對 ${summary.quizCorrect}／${summary.quizAnswered}</small>` : ''}
       <button type="button" class="mini-btn" id="annual-restart">重新開始本年度</button><button type="button" class="mini-btn" id="annual-reset-all">重設全部流年進度</button></div>
     ${stepHtml}
+    ${year < thisYear ? annualReviewHtml(year, lesson) : ''}
     <details class="annual-compare"><summary>比較兩個年份</summary>
       <div class="annual-compare-controls"><select id="annual-compare-a">${yearOptions}</select><span>vs</span><select id="annual-compare-b">${yearOptions.replace(`value=\"${year}\" selected`, `value=\"${year}\"`)}</select><button type="button" class="mini-btn" id="annual-compare-run">比較</button></div>
       <div id="annual-compare-result"></div>
-    </details>
+    </details>`}
   </div>`;
 }
 
@@ -1517,6 +1735,9 @@ function bindLearningPanel() {
     btn.addEventListener('click', () => {
       state.learning.kind = btn.dataset.learningKind;
       state.annualLearning.started = false;
+      // 每次重新切進流年學習就把年份交還給大限瀏覽器，回到「現在這一年」；
+      // 使用者在時間軸上選過的年份不需要跨分頁記住，記住反而讓人搞不清楚現在看的是哪一年。
+      state.annualLearning.year = null;
       if (state.learning.kind === 'annual') {
         const lesson = R.buildAnnualLesson({ ...state.data, year: currentLuckSelection().year, topic: state.annualLearning.topic });
         state.selectedPalace = lesson.context.annualPalace?.name ?? state.selectedPalace;
@@ -1525,27 +1746,38 @@ function bindLearningPanel() {
     }));
 
   if (state.learning.kind === 'annual') {
-    const setAnnualYear = (year) => {
-      const age = year - state.data.input.year + 1;
-      const limitIndex = state.data.ziWei.majorLimits.findIndex((limit) => {
-        const [start, end] = limit.ageRange.split('~').map(Number);
-        return age >= start && age <= end;
-      });
-      if (limitIndex >= 0) {
-        const start = Number(state.data.ziWei.majorLimits[limitIndex].ageRange.split('~')[0]);
-        state.limitIdx = limitIndex;
-        state.yearIdx = Math.max(0, Math.min(9, year - (state.data.input.year + start - 1)));
-      }
-    };
-    $('#annual-year')?.addEventListener('change', (event) => {
-      setAnnualYear(Number(event.target.value));
-      state.annualLearning.started = false;
-      state.annualLearning.openStep = 0;
-      state.annualLearning.answers = {};
+    const jumpToYear = (year) => {
+      setAnnualLearningYear(year);
       state.monthIdx = null;
-      const lesson = R.buildAnnualLesson({ ziWei: state.data.ziWei, input: state.data.input, year: Number(event.target.value), topic: state.annualLearning.topic });
-      state.selectedPalace = lesson.context.annualPalace?.name ?? state.selectedPalace;
       renderDashboard();
+    };
+    // 年份時間軸：chip、上一年/下一年/回到今年，以及總覽表格裡的年份按鈕共用同一組 data-annual-year
+    $$('#view-dashboard [data-annual-year]').forEach((btn) =>
+      btn.addEventListener('click', () => jumpToYear(Number(btn.dataset.annualYear))));
+    $('#annual-year-prev')?.addEventListener('click', () => jumpToYear(annualLearningYear() - 1));
+    $('#annual-year-next')?.addEventListener('click', () => jumpToYear(annualLearningYear() + 1));
+    $('#annual-year-today')?.addEventListener('click', () => jumpToYear(new Date().getFullYear()));
+    $$('#view-dashboard [data-annual-view]').forEach((btn) =>
+      btn.addEventListener('click', () => { state.annualLearning.view = btn.dataset.annualView; renderDashboard(); }));
+    $$('#view-dashboard [data-annual-span]').forEach((btn) =>
+      btn.addEventListener('click', () => { state.annualLearning.span = Number(btn.dataset.annualSpan); renderDashboard(); }));
+    $$('#view-dashboard [data-annual-review]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const year = annualLearningYear();
+        const lesson = R.buildAnnualLesson({ ziWei: state.data.ziWei, input: state.data.input, year, topic: state.annualLearning.topic });
+        R.saveAnnualReview(storage, chartKey, year, {
+          picked: btn.dataset.annualReview,
+          annualPalace: lesson.context.annualPalace?.name ?? null,
+          triad: (lesson.context.annualTriad?.members ?? []).map((m) => m.name),
+        });
+        state.dashboardOpenDetails.add('annual-review');
+        renderDashboard();
+      }));
+    $('#annual-review-clear')?.addEventListener('click', () => {
+      R.clearAnnualReview(storage, chartKey, annualLearningYear());
+      state.dashboardOpenDetails.add('annual-review');
+      renderDashboard();
+      toast('已清除這一年的回顧紀錄');
     });
     $$('#view-dashboard [data-annual-topic]').forEach((btn) => btn.addEventListener('click', () => {
       state.annualLearning.topic = btn.dataset.annualTopic;
@@ -1556,7 +1788,7 @@ function bindLearningPanel() {
     }));
     $('#annual-start')?.addEventListener('click', () => { state.annualLearning.started = true; renderDashboard(); });
     $('#annual-continue')?.addEventListener('click', () => {
-      const { year } = currentLuckSelection();
+      const year = annualLearningYear();
       const progress = R.loadAnnualProgress(storage, chartKey, year, state.annualLearning.topic);
       const index = R.ANNUAL_LEARNING_STEPS.findIndex((step) => step.id === progress.lastStep);
       state.annualLearning.openStep = index >= 0 ? index : 0;
@@ -1566,7 +1798,7 @@ function bindLearningPanel() {
     $('#annual-prev')?.addEventListener('click', () => { state.annualLearning.openStep = Math.max(0, state.annualLearning.openStep - 1); renderDashboard(); });
     $('#annual-next')?.addEventListener('click', () => { state.annualLearning.openStep = Math.min(7, state.annualLearning.openStep + 1); renderDashboard(); });
     $$('[data-annual-answer]').forEach((btn) => btn.addEventListener('click', () => {
-      const { year } = currentLuckSelection();
+      const year = annualLearningYear();
       const lesson = R.buildAnnualLesson({ ziWei: state.data.ziWei, input: state.data.input, year, topic: state.annualLearning.topic });
       const question = lesson.steps[state.annualLearning.openStep].quiz;
       const picked = btn.dataset.annualAnswer;
@@ -1575,7 +1807,7 @@ function bindLearningPanel() {
       renderDashboard();
     }));
     $('#annual-restart')?.addEventListener('click', () => {
-      const { year } = currentLuckSelection();
+      const year = annualLearningYear();
       R.resetAnnualProgress(storage, chartKey, year);
       state.annualLearning = { ...state.annualLearning, started: true, openStep: 0, answers: {} };
       renderDashboard();
