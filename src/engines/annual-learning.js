@@ -1,7 +1,10 @@
 // 流年學習系統：只重組 convertToZiWei 已算好的盤面資料，沒有排盤算法。
 // 所有公開結論都先產生可追溯 evidence，再由 evidence 組裝，避免文案與命盤脫節。
 
-import { ANNUAL_LEARNING_STEPS, ANNUAL_TOPIC_CONFIG, MUTAGEN_ACTION } from '../data/annual-learning.js';
+import {
+  ANNUAL_LEARNING_STEPS, ANNUAL_TOPIC_CONFIG, LAYER_MEANING, MUTAGEN_ACTION, MUTAGEN_CAUTION, TRIAD_ROLE_MEANING,
+} from '../data/annual-learning.js';
+import { starMeanings } from '../data/star-meanings.js';
 import { PALACE_LIFE_WORD } from '../data/learning-mode.js';
 import { palaceMeanings } from '../data/palace-meanings.js';
 import {
@@ -346,8 +349,25 @@ export function buildAnnualLearningSteps(context, focus, conclusion) {
     supplement: { selfTransformations: context.selfTransformations, smallLimit: context.smallLimit },
     synthesis: { conclusion, evidence: context.evidence.filter((e) => e.relevance !== 'unused'), unused: focus.unused },
   };
+  // readings 是「盤面事實 → 白話」的對照，watch 是這一步的觀察方向。
+  // data 保留原樣：練習題與少數特例（例如起運前沒有大限）仍直接讀它。
+  const readings = {
+    natal: natalReadings(context),
+    decadal: decadalReadings(context),
+    'annual-palace': annualPalaceReadings(context),
+    'annual-triad': annualTriadReadings(context),
+    'annual-mutagens': annualMutagenReadings(context),
+    focus: focusReadings(context, focus),
+    supplement: supplementReadings(context),
+    synthesis: synthesisReadings(conclusion),
+  };
   return ANNUAL_LEARNING_STEPS.map((step, index) => ({
-    ...step, number: index + 1, data: stepData[step.id], quiz: quizOf(context, step.id),
+    ...step,
+    number: index + 1,
+    data: stepData[step.id],
+    readings: readings[step.id] ?? [],
+    watch: STEP_WATCH[step.id] ?? '',
+    quiz: quizOf(context, step.id),
   }));
 }
 
@@ -538,3 +558,204 @@ export function buildAnnualOverview({ ziWei, input, fromYear, toYear, topic = 'o
     limitation: '逐年掃描不預測事件，也不排序哪一年比較順利。要判讀某一年實際會怎麼走，仍要點進那一年做完八個步驟。',
   };
 }
+
+// ---------- 逐條白話解讀 ----------
+// 使用者回饋：「這些東西具體是帶來什麼影響，我看完還是不懂。」
+// 原因是每一步只給了「規則」與「盤面事實」，中間那層——事實在講什麼——是空的。
+// 這一段就是補那一層：每一條盤面資料後面接一句白話，說明它是誰造成的、持續多久、
+// 在生活的哪一塊上出現。全部由既有 context/focus 推導，不新增任何命理判斷。
+//
+// 寫作限制（與網站免責聲明一致）：
+//   - 只描述「傾向、較常、容易」，不寫成必然發生的事件
+//   - 只給觀察方向，不給「該不該換工作／投資」這類人生建議
+//   - 不比較哪一年比較好
+
+const layerOf = (key) => LAYER_MEANING[key] ?? { label: key, span: '—', source: '—', plain: '' };
+const layerLabels = (keys) => keys.map((k) => layerOf(k).label).join('、');
+const starCore = (name) => starMeanings[name]?.core ?? null;
+
+/** 一條解讀＝一句盤面事實 + 一句白話。fact 保持原本的摘要格式，方便對照命盤查證。 */
+const reading = (fact, plain, group = null) => ({ fact, plain, group });
+
+function natalReadings(context) {
+  const members = context.natalTriad?.members ?? [];
+  return members.map((m) => {
+    const stars = m.stars.join('、') || '無十四主星';
+    const fact = `${m.role === 'self' ? '本宮' : m.role === 'opposite' ? '對宮' : '三合宮'}：${m.name}（${m.position}）・${stars}`;
+    const core = m.stars.map(starCore).filter(Boolean)[0];
+    if (m.isEmpty) {
+      return reading(fact, `${m.name}沒有十四主星，判讀時要借對宮的星來看，不能當成「這一塊什麼都沒有」。空宮多半表示這個領域比較沒有固定套路，受外在情境影響大。`);
+    }
+    if (m.role === 'self') {
+      return reading(fact, `命宮是你面對任何一年的預設反應方式${core ? `——${stars}這組星偏向「${core}」` : ''}。這一年外面發生什麼，你多半會先用這種方式去接。後面看到的所有流年訊號，都是加在這個底盤上，不是取代它。`);
+    }
+    if (m.role === 'opposite') {
+      return reading(fact, `${m.name}是命宮的對宮，代表${lifeWord(m.name)}上的變化會直接反過來影響你怎麼看自己。${TRIAD_ROLE_MEANING.opposite}`);
+    }
+    return reading(fact, `${m.name}是命宮的三合宮，代表${lifeWord(m.name)}。${TRIAD_ROLE_MEANING.triad}`);
+  });
+}
+
+function decadalReadings(context) {
+  if (!context.majorLimit) return [];
+  const out = [reading(
+    `大限：${context.majorLimit.ageRange}歲・${context.majorLimit.ganZhi}`,
+    `你目前落在這個十年裡。${layerOf('decadal').plain}`,
+  )];
+  if (context.decadalPalace) {
+    out.push(reading(
+      `大限命宮：${context.decadalPalace.name}`,
+      `這十年，生活重心比較常繞著${lifeWord(context.decadalPalace.name)}打轉。這是十年的常態，不是今年才有的事。`,
+    ));
+  }
+  for (const f of context.decadalFlights) {
+    out.push(reading(
+      `大限：${f.star}化${f.mutagen} → ${f.palaceName}`,
+      `這十年在${lifeWord(f.palaceName)}上，會反覆出現「${MUTAGEN_ACTION[f.mutagen]}」這類情形。${MUTAGEN_CAUTION[f.mutagen]}`,
+    ));
+  }
+  return out;
+}
+
+function annualPalaceReadings(context) {
+  const palace = context.annualPalace;
+  if (!palace) return [];
+  const stars = palace.majorStars.map((s) => `${s.name}${s.brightness ? `（${s.brightness}）` : ''}`).join('、') || '無十四主星';
+  const core = palace.majorStars.map((s) => starCore(s.name)).filter(Boolean)[0];
+  return [
+    reading(
+      `${context.year} ${context.ganZhi}年，流年命宮：${palace.name}（${palace.position}）`,
+      `流年命宮是由今年的地支決定的，所以每年都會換一宮。落在${palace.name}，表示${context.year}年你比較常被要求處理、或比較容易遇到具體情境的地方是${lifeWord(palace.name)}。它決定的是「舞台在哪」，不是「結果好不好」。`,
+    ),
+    reading(
+      `主星：${stars}`,
+      palace.majorStars.length
+        ? `你在這個舞台上的表現方式，偏向${core ? `「${core}」` : '這組星的性質'}。同樣一件事，不同主星的人處理起來會很不一樣，這就是為什麼不能只看「今年走到哪一宮」就下結論。`
+        : '這一宮沒有主星，表示今年的舞台比較沒有固定劇本，受外在情境與對宮影響大，要連對宮一起看。',
+    ),
+  ];
+}
+
+function annualTriadReadings(context) {
+  const members = context.annualTriad?.members ?? [];
+  return members.map((m) => {
+    const label = m.role === 'self' ? '流年命宮' : m.role === 'opposite' ? '對宮' : '三合宮';
+    const fact = `${label}：${m.name}・${m.stars.join('、') || '無十四主星'}`;
+    return reading(fact, `${m.name}對應${lifeWord(m.name)}。${TRIAD_ROLE_MEANING[m.role] ?? ''}`);
+  });
+}
+
+function annualMutagenReadings(context) {
+  return context.annualFlights.map((f) => reading(
+    `流年：${f.star}化${f.mutagen} → ${f.palaceName}`,
+    `${context.year}年的天干「${context.ganZhi[0]}」把${f.star}引動成化${f.mutagen}，落在${f.palaceName}。意思是今年在${lifeWord(f.palaceName)}上，比較容易出現「${MUTAGEN_ACTION[f.mutagen]}」這類動作。${MUTAGEN_CAUTION[f.mutagen]}`,
+  ));
+}
+
+/**
+ * 第六步是使用者實測最看不懂的一步。
+ * 原本只印「財帛宮：大限、流年、自化重複指向」，沒說這三層各是什麼、疊起來為什麼比較重要。
+ * 這裡把每一種項目都攤開講：重複指向、同宮矛盾、落在流年三方四正、同星不同化。
+ */
+function focusReadings(context, focus) {
+  const out = [];
+  for (const item of focus.repeated.slice(0, 5)) {
+    const layers = item.layers;
+    const detail = layers.map((k) => `${layerOf(k).label}（${layerOf(k).source}，${layerOf(k).span}）`).join('、');
+    out.push(reading(
+      `${item.palaceName}：${layerLabels(layers)}重複指向`,
+      `${lifeWord(item.palaceName)}同時被 ${layers.length} 個時間層指到——${detail}。層數越多，代表這個訊號越不像偶發：`
+        + `它不是只有今年才冒出來，也不是只有你自己的想像。跨層重複出現的宮位，比孤立的一顆星更適合當成今年真正的主線。`,
+      '跨層重複指向的宮位',
+    ));
+  }
+  for (const item of focus.tensions.slice(0, 3)) {
+    out.push(reading(
+      `${item.palaceName}同時有推動與壓力訊號`,
+      `${lifeWord(item.palaceName)}這一塊，今年同時出現祿權科（推動）和忌（壓力）。這兩者不會互相抵消，而是同時發生——`
+        + `常見的感覺是「想往前推，但同一件事又一直卡著」。看到這種組合時，重點不是判斷好壞，而是認出這一塊今年注定要花比較多力氣。`,
+      '同一宮同時有推力與阻力',
+    ));
+  }
+  for (const item of focus.triadOverlaps.slice(0, 4)) {
+    out.push(reading(
+      `${item.star}化${item.transformation}落在流年三方四正的${item.palaceName}`,
+      `這條四化沒有落在流年命宮本身，而是落在今年舞台的其他三宮之一。表示${lifeWord(item.palaceName)}會從旁邊牽動今年的主場景——`
+        + `不是主角，但整年會一直在旁邊出現，常常是資源來源或代價所在。`,
+      '落在今年舞台四宮的四化',
+    ));
+  }
+  for (const item of focus.sameStarDifferent.slice(0, 3)) {
+    const parts = item.signals.map((sig) => `${layerLabels(sig.sourceLayers)}把它化${sig.transformation}，落在${sig.palaceName}`);
+    const actions = [...new Set(item.signals.map((sig) => `化${sig.transformation}＝${MUTAGEN_ACTION[sig.transformation]}`))];
+    out.push(reading(
+      `${item.star}跨層出現不同四化：${item.signals.map((sig) => `${sig.transformation}→${sig.palaceName}`).join('、')}`,
+      `同一顆${item.star}，在不同時間層被引動成不同的作用：${parts.join('；')}。`
+        + `換句話說，同一件事在不同層面要求你做的動作不一樣（${actions.join('、')}）。`
+        + `這種情形不是矛盾，而是同一個主題的不同面向——通常表示這件事你既有東西進來，也得自己扛起來。`,
+      '同一顆星在不同層有不同作用',
+    ));
+  }
+  if (!out.length) {
+    out.push(reading('沒有跨層重複的訊號', '今年各層指向的宮位都不一樣，沒有集中的主線。這種年份反而比較平均，不必硬找一個「今年的主題」。'));
+  }
+  return out;
+}
+
+function supplementReadings(context) {
+  const out = [];
+  const rows = context.selfTransformations.filter((r) => r.outgoing.length || r.incoming.length).slice(0, 4);
+  for (const row of rows) {
+    for (const x of row.outgoing) {
+      out.push(reading(
+        `${row.palaceName}：${x.star}化${x.mutagen} 離心自化`,
+        `離心自化是這一宮把能量往外送出去。表示在${lifeWord(row.palaceName)}上，你容易自己主動投入或自己消耗掉，不一定有人要求你這麼做。${layerOf('self').plain}`,
+      ));
+    }
+    for (const x of row.incoming) {
+      out.push(reading(
+        `${row.palaceName}：${x.star}化${x.mutagen} 向心自化`,
+        `向心自化是對宮的能量自己流進這一宮。表示${lifeWord(row.palaceName)}這一塊，外面的人事物容易自己找上門，你未必是主動去找的那一方。`,
+      ));
+    }
+  }
+  if (context.smallLimit) {
+    out.push(reading(
+      `小限：虛歲 ${context.smallLimit.age ?? context.nominalAge} 歲・${context.smallLimit.palaceName ?? context.smallLimit.name ?? '資料不足'}`,
+      layerOf('minor').plain,
+    ));
+  } else {
+    out.push(reading('小限：這個虛歲沒有可引用的資料', '排盤結果沒有這個虛歲的小限宮位，這裡就不補算。缺資料時標明缺，比硬湊一個答案有用。'));
+  }
+  return out;
+}
+
+function synthesisReadings(conclusion) {
+  // conclusion 的每一欄都是 claim() 產生的 { text, evidenceIds }，不是字串——
+  // 直接丟進畫面會印出整個物件。這裡只取 text，evidenceIds 留給既有的證據面板。
+  const textOf = (claimLike) => (typeof claimLike === 'string' ? claimLike : claimLike?.text ?? '');
+  const pick = (label, value) => (textOf(value) ? reading(label, textOf(value)) : null);
+  return [
+    pick('年度舞台', conclusion.stage),
+    pick('發展機會', conclusion.opportunities),
+    pick('壓力來源', conclusion.pressure),
+    pick('實際策略', conclusion.strategy),
+    pick('判讀限制', conclusion.limitations),
+  ].filter(Boolean);
+}
+
+/**
+ * 每一步結尾的「這一步可以觀察什麼」。
+ * 刻意寫成觀察方向而不是行動建議——網站的定位是幫人看懂自己的盤，
+ * 不是代替使用者決定該不該換工作、投資或結婚。
+ */
+const STEP_WATCH = {
+  natal: '這一步的用途是先立基準線：把「你本來就是這樣的人」和「今年特別的事」分開。後面每一層看到的東西，都要放回這四宮上比對，才不會把長期特質誤讀成年度變化。',
+  decadal: '這一步在校準比例尺。後面看到的流年訊號，如果剛好落在大限也指到的宮位，份量就比只有流年指到的重；反過來，只有流年出現的，通常一年就過去了。',
+  'annual-palace': '可以觀察：今年你花最多時間開會、討論、煩惱的事，是不是落在這一宮對應的生活領域。舞台對不對得上，比結論準不準更值得先確認。',
+  'annual-triad': '可以觀察：這四宮共同指向什麼主題。只看流年命宮容易漏掉「資源從哪來、代價付在哪」——那兩件事通常在三合宮和對宮。',
+  'annual-mutagens': '可以觀察：這四條落點裡，有沒有哪一宮同時被兩條以上指到。同一宮被重複指到，通常就是今年最花力氣的地方。',
+  focus: '這一步在做的是篩訊號。命盤上隨便都能找出幾十條線索，但只有跨層重複出現的才穩定。可以觀察：這幾個被重複指到的宮位，是不是今年你確實反覆碰到的領域；對不上也是有用的資訊，代表今年主導的可能是大限或本命那一層。',
+  supplement: '可以觀察：自化描述的是你自己的反應方式，這是四層裡最有機會靠自覺調整的一層。看看那些「自己投入」或「自己找上門」的描述，跟你平常的習慣像不像。',
+  synthesis: '走完八步之後，回頭確認每一句結論都能指回前面某一步的盤面資料。指不回去的，就是推論走太遠了，不必當真。',
+};

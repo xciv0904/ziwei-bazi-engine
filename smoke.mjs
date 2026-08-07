@@ -853,15 +853,40 @@ $('#annual-start').click();
 await settle();
 check('開始後只揭露目前一個步驟，不先顯示完整結論', $$('.annual-step-card').length === 1
   && !$('.annual-step-card').textContent.includes('年度舞台'));
-check('流年步驟含看什麼、原因、盤面資料、規則、練習與小結', (() => {
+check('流年步驟含看什麼、原因、盤面資料、規則、觀察重點、練習與小結', (() => {
   const text = $('.annual-step-card').textContent;
-  return ['為什麼要看', '命盤實際資料', '判讀規則', '我的練習', '本步小結'].every((x) => text.includes(x));
+  return ['為什麼要看', '命盤實際資料', '判讀規則', '這一步可以觀察什麼', '我的練習', '本步小結'].every((x) => text.includes(x));
+})());
+// 使用者回饋：只列盤面事實看不懂。每一條事實下面都要有白話，而且不能是把事實再抄一次。
+check('每條盤面資料都配一句白話解讀', (() => {
+  const items = $$('.annual-step-card .annual-reading');
+  return items.length > 0 && items.every((li) => {
+    const fact = li.querySelector('.annual-reading__fact')?.textContent ?? '';
+    const plain = li.querySelector('.annual-reading__plain')?.textContent ?? '';
+    return fact.length > 0 && plain.length > 20 && plain !== fact;
+  });
 })());
 for (let i = 0; i < 7; i++) { $('#annual-next').click(); await settle(); }
 check('第八步才顯示舞台、機會、壓力、策略與限制', (() => {
   const text = $('.annual-step-card').textContent;
   return ['年度舞台', '發展機會', '壓力來源', '實際策略', '判讀限制'].every((x) => text.includes(x));
 })());
+check('第八步結論印出文字，不會漏出內部物件', (() => {
+  const text = $('.annual-step-card').textContent;
+  return !text.includes('evidenceIds') && !text.includes('[object Object]');
+})());
+
+// 第六步是實測最看不懂的一步，特別驗它有把時間層講清楚
+$$('.annual-step-nav #annual-prev').forEach(() => {});
+for (let i = 0; i < 2; i++) { $('#annual-prev').click(); await settle(); }
+check('回到第六步：找重複焦點與矛盾', $('.annual-step-card').dataset.annualStepCard === 'focus');
+check('第六步解釋本命／大限／流年／自化各是什麼', (() => {
+  const text = $('.annual-step-card').textContent;
+  return text.includes('出生就帶著') || text.includes('十年') ? text.includes('你自己的反應方式') : false;
+})());
+check('第六步說明跨層重複為什麼比較值得看', $('.annual-step-card').textContent.includes('層數越多'));
+check('第六步條目有分組小標', $$('.annual-step-card .annual-reading-group').length > 0);
+for (let i = 0; i < 2; i++) { $('#annual-next').click(); await settle(); }
 check('流年命盤依據預設收合', !!$('.annual-evidence') && !$('.annual-evidence').open);
 check('流年學習移除筆記並保留年份比較', !$('.annual-notes') && !!$('.annual-compare'));
 const selectedAnnualYear = $('.annual-year-chip.active').dataset.annualYear;
@@ -1003,9 +1028,9 @@ check('白話模式下命盤總覽就看得到流年學習入口', (() => {
   const entry = $('#view-dashboard .annual-entry');
   return !!entry && entry.dataset.resultGoto === 'annual-learning';
 })());
-check('入口卡片寫出實際年份，不是空泛的「流年」', (() => {
+check('入口卡片不寫死年份（明年不必改文案），但講清楚涵蓋範圍', (() => {
   const entry = $('#view-dashboard .annual-entry');
-  return /\d{4}\s*年流年學習/.test(entry.textContent);
+  return !/\d{4}\s*年/.test(entry.textContent) && entry.textContent.includes('虛歲 120');
 })());
 check('入口卡片沒有被藏在完整命盤資料的 details 裡', !$('#dashboard-detail')?.contains($('#view-dashboard .annual-entry')));
 

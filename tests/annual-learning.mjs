@@ -159,5 +159,47 @@ check('回顧紀錄不與其他命盤共用', annualReviewSummary(reviewStore, '
 clearAnnualReview(reviewStore, 'chart-a', 2022);
 check('可清除單一年份的回顧紀錄', annualReviewSummary(reviewStore, 'chart-a').total === 2 && !loadAnnualReview(reviewStore, 'chart-a', 2022));
 
+// ---------- 逐條白話解讀 ----------
+// 使用者回饋：只列「財帛宮：大限、流年、自化重複指向」看不懂，不知道具體帶來什麼影響。
+// 每一條盤面事實都必須配一句白話，而且白話要真的解釋時間層與四化，不能只是換句話重講事實。
+check('每一步都有解讀與觀察重點', lesson.steps.every((step) => step.readings.length > 0 && step.watch.length > 20));
+check('每一條解讀都是「事實 + 白話」兩段', lesson.steps.every((step) =>
+  step.readings.every((r) => typeof r.fact === 'string' && r.fact.length > 0 && typeof r.plain === 'string' && r.plain.length > 20)));
+check('白話不只是把事實再講一次', lesson.steps.every((step) => step.readings.every((r) => r.plain !== r.fact)));
+
+const focusStep = lesson.steps.find((s) => s.id === 'focus');
+check('第六步把四個時間層各自的意思講出來', (() => {
+  const text = focusStep.readings.map((r) => r.plain).join('');
+  return ['出生就帶著', '十年', '今年的天干引動', '你自己的反應方式'].some((x) => text.includes(x))
+    && /本命|大限|流年|自化/.test(text);
+})());
+check('第六步說明為什麼跨層重複比較重要', focusStep.readings.some((r) => r.plain.includes('層數越多') && r.plain.includes('偶發')));
+check('第六步的條目有分組小標，不是一整坨', focusStep.readings.some((r) => typeof r.group === 'string' && r.group.length > 0));
+
+const mutagenStep = lesson.steps.find((s) => s.id === 'annual-mutagens');
+check('四化解讀點出是哪個天干引動的', mutagenStep.readings.every((r) => r.plain.includes('天干')));
+check('四化解讀附上常見誤解的澄清', (() => {
+  const text = mutagenStep.readings.map((r) => r.plain).join('');
+  return text.includes('不等於');
+})());
+
+const synthesisStep = lesson.steps.find((s) => s.id === 'synthesis');
+check('第八步的結論取出文字，不會印出物件', synthesisStep.readings.every((r) => !r.plain.includes('evidenceIds') && !r.plain.includes('[object')));
+
+// 觀察重點必須是觀察方向，不是替使用者做人生決定
+const allWatch = lesson.steps.map((s) => s.watch).join('');
+check('觀察重點不給人生建議', !/建議你(換|辭|投資|結婚|分手)|應該(換|辭|投資|結婚|分手)|不要(換|辭|投資|結婚)/.test(allWatch));
+const allPlain = lesson.steps.flatMap((s) => s.readings.map((r) => r.plain)).join('');
+check('解讀不把命理推論寫成必然發生的事', !/一定會發生|必然會|保證會|絕對會/.test(allPlain));
+check('解讀保留不確定語氣', /容易|傾向|較常|比較常|多半/.test(allPlain));
+
+// 起運前的年份也要有解讀，不能整步空白
+const beforeLesson = buildAnnualLesson({ ziWei, input: golden.input, year: golden.input.year, topic: 'overview' });
+check('起運前的年份每一步仍有觀察重點', beforeLesson.steps.every((step) => step.watch.length > 20));
+check('起運前的大限步驟沒有解讀條目，改由 limitStatus 說明', (() => {
+  const step = beforeLesson.steps.find((s) => s.id === 'decadal');
+  return step.readings.length === 0 && step.data.limitStatus.status === 'before-start';
+})());
+
 console.log(`\n流年學習測試：${failed ? `${failed} 項失敗` : '全部通過'}`);
 process.exit(failed ? 1 : 0);

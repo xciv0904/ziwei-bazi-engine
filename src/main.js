@@ -658,8 +658,8 @@ function renderResultSummary() {
     <button type="button" class="annual-entry" data-result-goto="annual-learning">
       <span class="annual-entry__badge">動手學・約 10 分鐘</span>
       <span class="annual-entry__body">
-        <b>${esc(year)} 年流年學習</b>
-        <small>不是再給你一段結論，而是帶你用自己的命盤，八個步驟推出「${esc(year)} 年為什麼會這樣走」。${esc(year)} 年命宮目前落在${esc(focus)}。</small>
+        <b>流年學習</b>
+        <small>不是再給你一段結論，而是帶你用自己的命盤，八個步驟推出「這一年為什麼會這樣走」。可看出生到虛歲 120 歲的任何一年，預設從今年開始。</small>
       </span>
       <span class="annual-entry__cta">開始 →</span>
     </button>
@@ -1311,8 +1311,33 @@ function learningKindTabsHtml() {
 const annualPalaceList = (items) => `<ul class="annual-data-list">${items.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`;
 const annualFlightText = (f, layer) => `${layer}${f.star}化${f.mutagen} → ${f.palaceName}`;
 
+/**
+ * 盤面事實 + 白話解讀的清單。
+ * 使用者回饋原本「只列事實不解釋」看不懂，所以每一條事實下面緊接一句白話；
+ * 條目多的步驟（尤其第六步）再依 group 下小標，免得變成一大坨。
+ */
+function annualReadingListHtml(readings) {
+  let lastGroup = null;
+  const items = readings.map((r) => {
+    const head = r.group && r.group !== lastGroup
+      ? `<li class="annual-reading-group">${esc(r.group)}</li>`
+      : '';
+    lastGroup = r.group ?? lastGroup;
+    return `${head}<li class="annual-reading">
+      <span class="annual-reading__fact">${esc(r.fact)}</span>
+      <span class="annual-reading__plain">${esc(r.plain)}</span>
+    </li>`;
+  }).join('');
+  return `<ul class="annual-reading-list">${items}</ul>`;
+}
+
 function annualStepDataHtml(step, lesson) {
   const d = step.data;
+  // 起運前／超出大限的年份沒有大限可引用，先處理這個特例再走一般流程
+  if (step.id === 'decadal' && !d.majorLimit) {
+    return `<p class="annual-step-empty">${esc(d.limitStatus?.note ?? '這一年沒有可引用的十年大限。')}</p>`;
+  }
+  if (step.id !== 'synthesis' && step.readings?.length) return annualReadingListHtml(step.readings);
   if (step.id === 'natal') return annualPalaceList(d.members.map((m) => `${m.role === 'self' ? '命宮' : m.role === 'opposite' ? '對宮' : '三合宮'}：${m.name}（${m.position}）・${m.stars.join('、') || '無十四主星'}`));
   if (step.id === 'decadal') {
     // 起運前與超出末大限的年份沒有大限可看，這不是資料缺漏而是命理本身就沒有這一層。
@@ -1348,8 +1373,11 @@ function annualStepDataHtml(step, lesson) {
       : '小限：這個年份不在目前已載入的十年範圍，資料不足，不自行推算。']);
   }
   const c = d.conclusion;
+  // 五段結論改由 step.readings 提供（同一份文字，但與其他步驟走同一條組裝路徑，
+  // 才不會出現「引擎改了、第八步沒跟上」的情形）；一句話與依據面板維持原樣。
+  const sections = step.readings.map((r) => `<section><b>${esc(r.fact)}</b><p>${esc(r.plain)}</p></section>`).join('');
   return `<div class="annual-conclusion">
-    ${[['年度舞台', c.stage], ['發展機會', c.opportunities], ['壓力來源', c.pressure], ['實際策略', c.strategy], ['判讀限制', c.limitations]].map(([label, item]) => `<section><b>${label}</b><p>${esc(item.text)}</p></section>`).join('')}
+    ${sections}
     <p class="annual-one-line"><b>一句話：</b>${esc(c.summary)}</p>
     <details class="annual-evidence"><summary>查看本次使用的命盤依據（${d.evidence.length}項）</summary>
       ${annualPalaceList(d.evidence.map((e) => e.explanation))}
@@ -1576,6 +1604,7 @@ function renderAnnualLearningPanel() {
     <section><h5>為什麼要看</h5><p>${esc(step.why)}</p></section>
     <section><h5>命盤實際資料</h5>${annualStepDataHtml(step, lesson)}</section>
     <section class="annual-rule"><h5>判讀規則</h5><p>${esc(step.rule)}</p></section>
+    ${step.watch ? `<section class="annual-watch"><h5>這一步可以觀察什麼</h5><p>${esc(step.watch)}</p></section>` : ''}
     ${annualQuizHtml(step)}
     <p class="annual-step-summary"><b>本步小結：</b>${esc(step.what)}完成後，再進入下一層，不用先猜事件結果。</p>
   </article>
@@ -1625,7 +1654,7 @@ function renderAnnualLearningPanel() {
       <button type="button" role="tab" aria-selected="${isOverview}" class="${isOverview ? 'active' : ''}" data-annual-view="overview">多年總覽</button>
     </div>
     ${isOverview ? annualOverviewHtml(overview, year) : `
-    <div class="learn-progress"><span>${year}流年學習進度：${summary.completed}／${summary.total}</span><div class="learn-progress-bar"><i style="width:${summary.percent}%"></i></div>
+    <div class="learn-progress"><span>這一年的學習進度：${summary.completed}／${summary.total}</span><div class="learn-progress-bar"><i style="width:${summary.percent}%"></i></div>
       ${summary.quizAnswered ? `<small>練習答對 ${summary.quizCorrect}／${summary.quizAnswered}</small>` : ''}
       <button type="button" class="mini-btn" id="annual-restart">重新開始本年度</button><button type="button" class="mini-btn" id="annual-reset-all">重設全部流年進度</button></div>
     ${stepHtml}
