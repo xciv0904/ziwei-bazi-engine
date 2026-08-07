@@ -3,6 +3,7 @@ import { convertToZiWei } from '../src/engines/ziwei.js';
 import {
   annualLimitStatus, annualYearRange, buildAnnualLesson, buildAnnualOverview, compareAnnualYears,
 } from '../src/engines/annual-learning.js';
+import { ANNUAL_TOPIC_CONFIG } from '../src/data/annual-learning.js';
 import {
   annualCompletionSummary, annualProgressSummary, annualReviewSummary, clearAnnualNote, clearAnnualReview,
   loadAnnualNote, loadAnnualProgress, loadAnnualReview, markAnnualStep, recordAnnualQuiz,
@@ -164,24 +165,21 @@ check('可清除單一年份的回顧紀錄', annualReviewSummary(reviewStore, '
 // 每一條盤面事實都必須配一句白話，而且白話要真的解釋時間層與四化，不能只是換句話重講事實。
 check('每一步都有解讀與觀察重點', lesson.steps.every((step) => step.readings.length > 0 && step.watch.length > 20));
 check('每一條解讀都是「事實 + 白話」兩段', lesson.steps.every((step) =>
-  step.readings.every((r) => typeof r.fact === 'string' && r.fact.length > 0 && typeof r.plain === 'string' && r.plain.length > 20)));
+  step.readings.every((r) => typeof r.fact === 'string' && r.fact.length > 0 && typeof r.plain === 'string' && r.plain.length >= 6)));
 check('白話不只是把事實再講一次', lesson.steps.every((step) => step.readings.every((r) => r.plain !== r.fact)));
 
 const focusStep = lesson.steps.find((s) => s.id === 'focus');
-check('第六步把四個時間層各自的意思講出來', (() => {
-  const text = focusStep.readings.map((r) => r.plain).join('');
-  return ['出生就帶著', '十年', '今年的天干引動', '你自己的反應方式'].some((x) => text.includes(x))
-    && /本命|大限|流年|自化/.test(text);
-})());
-check('第六步說明為什麼跨層重複比較重要', focusStep.readings.some((r) => r.plain.includes('層數越多') && r.plain.includes('偶發')));
+check('第六步把四個時間層各自的意思講在前提', ['出生就帶著', '十年', '今年的天干引動', '你自己的反應方式']
+  .every((x) => focusStep.dataNote.includes(x)));
+check('第六步把「為什麼跨層重要」講在前提，不逐條重複', focusStep.dataNote.includes('越不像偶發')
+  && focusStep.readings.every((r) => !r.plain.includes('越不像偶發')));
 check('第六步的條目有分組小標，不是一整坨', focusStep.readings.some((r) => typeof r.group === 'string' && r.group.length > 0));
 
 const mutagenStep = lesson.steps.find((s) => s.id === 'annual-mutagens');
-check('四化解讀點出是哪個天干引動的', mutagenStep.readings.every((r) => r.plain.includes('天干')));
-check('四化解讀附上常見誤解的澄清', (() => {
-  const text = mutagenStep.readings.map((r) => r.plain).join('');
-  return text.includes('不等於');
-})());
+check('天干說明只在步驟前提講一次，不逐條重複', mutagenStep.dataNote.includes('天干')
+  && mutagenStep.readings.every((r) => !r.plain.includes('天干')));
+check('四化常見誤解收在 cautions，整步只列一次', mutagenStep.cautions.length > 0
+  && mutagenStep.cautions.every((c) => c.includes('不等於')));
 
 const synthesisStep = lesson.steps.find((s) => s.id === 'synthesis');
 check('第八步的結論取出文字，不會印出物件', synthesisStep.readings.every((r) => !r.plain.includes('evidenceIds') && !r.plain.includes('[object')));
@@ -200,6 +198,64 @@ check('起運前的大限步驟沒有解讀條目，改由 limitStatus 說明', 
   const step = beforeLesson.steps.find((s) => s.id === 'decadal');
   return step.readings.length === 0 && step.data.limitStatus.status === 'before-start';
 })());
+
+// ---------- 不要跳針：共用觀念只講一次 ----------
+// 實測回饋：每一條後面都掛同一段「層數越多代表…」，五條就重複五次，整段又長又難讀。
+for (const step of lesson.steps) {
+  const plains = step.readings.map((r) => r.plain);
+  if (plains.length < 2) continue;
+  check(`第${step.number}步的解讀彼此不重複`, new Set(plains).size === plains.length);
+}
+check('沒有任何一句共用結尾被複製到多條解讀上', (() => {
+  const plains = lesson.steps.flatMap((s) => s.readings.map((r) => r.plain));
+  // 取每句最後 25 字當指紋，超過兩條共用同一個結尾就算跳針
+  const tails = plains.filter((t) => t.length >= 25).map((t) => t.slice(-25));
+  const counts = tails.reduce((acc, t) => ({ ...acc, [t]: (acc[t] ?? 0) + 1 }), {});
+  return Object.values(counts).every((n) => n <= 2);
+})());
+check('單條解讀不會過長', lesson.steps.flatMap((s) => s.readings).every((r) => r.plain.length <= 120));
+
+// ---------- 切換主題必須真的改變內容 ----------
+// 實測回饋：「不管切換總體、工作、感情、財務，敘述、題目跟答案都一模一樣。」
+const topics = Object.keys(ANNUAL_TOPIC_CONFIG).filter((k) => ANNUAL_TOPIC_CONFIG[k].available);
+const byTopic = topics.map((topic) => buildAnnualLesson({ ziWei, input: golden.input, year: golden.year, topic }));
+const sigOf = (l, pick) => l.steps.flatMap((st) => pick(st)).join('|');
+const uniq = (arr) => new Set(arr).size;
+check('每個主題的盤面資料標題都不同', uniq(byTopic.map((l) => sigOf(l, (st) => st.readings.map((r) => r.fact)))) === topics.length);
+check('每個主題的白話解讀都不同', uniq(byTopic.map((l) => sigOf(l, (st) => st.readings.map((r) => r.plain)))) === topics.length);
+check('每個主題的練習題與答案都不同', uniq(byTopic.map((l) => sigOf(l, (st) => [`${st.quiz.prompt}=>${st.quiz.answer}`]))) === topics.length);
+check('每個主題的步驟前提都不同', uniq(byTopic.map((l) => sigOf(l, (st) => [st.dataNote]))) === topics.length);
+for (const [index, topic] of topics.entries()) {
+  const l = byTopic[index];
+  const cfg = l.context.topicConfig;
+  if (!cfg.anchorPalace) continue;
+  check(`${cfg.label}：本命底盤以${cfg.anchorPalace}三方四正為主`,
+    l.steps[0].readings.some((r) => r.fact.includes('主題本宮') && r.fact.includes(cfg.anchorPalace)));
+  check(`${cfg.label}：練習題問到本主題`, l.steps.some((st) => st.quiz.prompt.includes(cfg.label)));
+  check(`${cfg.label}：無關宮位標成不採用而非直接刪掉`,
+    l.steps.flatMap((st) => st.readings).some((r) => r.topical === false));
+  check(`${cfg.label}：前提說明本主題只採用哪些宮位`, l.steps[0].dataNote.includes(cfg.relatedPalaces[0]));
+}
+check('整年總覽不做主題篩選，不會出現不採用標記',
+  byTopic[0].steps.flatMap((st) => st.readings).every((r) => r.topical !== false));
+
+// ---------- 九個主題全數開放 ----------
+check('九個主題全部可用，沒有「即將開放」', Object.values(ANNUAL_TOPIC_CONFIG).length === 9
+  && Object.values(ANNUAL_TOPIC_CONFIG).every((c) => c.available));
+check('每個主題都有本宮、相關宮位、策略與限制', Object.entries(ANNUAL_TOPIC_CONFIG)
+  .filter(([key]) => key !== 'overview')
+  .every(([, c]) => c.anchorPalace && Array.isArray(c.relatedPalaces) && c.relatedPalaces.includes(c.anchorPalace)
+    && c.strategy?.length > 10 && Array.isArray(c.limits) && c.limits.length >= 2));
+check('身心狀態主題明確不做醫療判斷', ANNUAL_TOPIC_CONFIG.wellbeing.limits.join('').includes('不能診斷疾病')
+  && ANNUAL_TOPIC_CONFIG.wellbeing.limits.join('').includes('就醫'));
+check('涉及他人的主題不替對方下判斷', ANNUAL_TOPIC_CONFIG.people.limits.join('').includes('不代表對方的意圖')
+  && ANNUAL_TOPIC_CONFIG.family.limits.join('').includes('看對方自己的命盤'));
+check('每個主題的限制都不承諾具體結果', Object.values(ANNUAL_TOPIC_CONFIG)
+  .every((c) => (c.limits ?? []).join('').includes('不能')));
+check('所有可用主題都能完整跑出八步驟', topics.every((topic) => {
+  const l = buildAnnualLesson({ ziWei, input: golden.input, year: golden.year, topic });
+  return l.steps.length === 8 && l.steps.every((st) => st.readings.length > 0 || st.id === 'decadal');
+}));
 
 console.log(`\n流年學習測試：${failed ? `${failed} 項失敗` : '全部通過'}`);
 process.exit(failed ? 1 : 0);

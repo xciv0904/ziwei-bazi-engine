@@ -847,8 +847,8 @@ check('流年學習顯示年份、干支、虛歲、大限、流年命宮與主�
   const text = $('.annual-meta').textContent;
   return ['流年', '虛歲', '所屬大限', '流年命宮', '研究主題'].every((x) => text.includes(x));
 })());
-check('九個流年主題保留入口，四個可用、五個明確停用', $$('.annual-topics [data-annual-topic]').length === 9
-  && $$('.annual-topics [data-annual-topic]:disabled').length === 5);
+check('九個流年主題全部開放，沒有停用的', $$('.annual-topics [data-annual-topic]').length === 9
+  && $$('.annual-topics [data-annual-topic]:disabled').length === 0);
 $('#annual-start').click();
 await settle();
 check('開始後只揭露目前一個步驟，不先顯示完整結論', $$('.annual-step-card').length === 1
@@ -863,7 +863,7 @@ check('每條盤面資料都配一句白話解讀', (() => {
   return items.length > 0 && items.every((li) => {
     const fact = li.querySelector('.annual-reading__fact')?.textContent ?? '';
     const plain = li.querySelector('.annual-reading__plain')?.textContent ?? '';
-    return fact.length > 0 && plain.length > 20 && plain !== fact;
+    return fact.length > 0 && plain.length >= 6 && plain !== fact;
   });
 })());
 for (let i = 0; i < 7; i++) { $('#annual-next').click(); await settle(); }
@@ -884,8 +884,39 @@ check('第六步解釋本命／大限／流年／自化各是什麼', (() => {
   const text = $('.annual-step-card').textContent;
   return text.includes('出生就帶著') || text.includes('十年') ? text.includes('你自己的反應方式') : false;
 })());
-check('第六步說明跨層重複為什麼比較值得看', $('.annual-step-card').textContent.includes('層數越多'));
+check('第六步把共用觀念講在前提，不逐條重複', (() => {
+  const note = $('.annual-step-card .annual-data-note')?.textContent ?? '';
+  const plains = $$('.annual-step-card .annual-reading__plain').map((el) => el.textContent);
+  return note.includes('越不像偶發') && plains.every((t) => !t.includes('越不像偶發'));
+})());
 check('第六步條目有分組小標', $$('.annual-step-card .annual-reading-group').length > 0);
+check('同一步裡沒有兩條解讀一字不差', (() => {
+  const plains = $$('.annual-step-card .annual-reading__plain').map((el) => el.textContent);
+  return new Set(plains).size === plains.length;
+})());
+
+// 切換主題必須真的改變內容（實測回饋：切了跟沒切一樣）
+const topicSignature = () => $('.annual-step-card').textContent + $$('.annual-data-note').map((el) => el.textContent).join('');
+const beforeTopic = topicSignature();
+$('[data-annual-topic="love"]').click();
+await settle();
+$('#annual-start').click();
+await settle();
+check('換主題後第一步內容跟著換', topicSignature() !== beforeTopic);
+check('選了主題會先給該主題的本命底盤', $$('.annual-reading-group').some((el) => el.textContent.includes('感情的本命底盤')));
+check('主題前提說明本主題只看哪些宮位', $('.annual-data-note').textContent.includes('只採用'));
+check('主題練習題問到該主題', $('.annual-quiz').textContent.includes('感情'));
+// 三方四正那一步一定會出現與感情無關的宮位，用它驗「不採用」標記
+for (let i = 0; i < 3; i++) { $('#annual-next').click(); await settle(); }
+check('回到第四步：流年命宮三方四正', $('.annual-step-card').dataset.annualStepCard === 'annual-triad');
+check('主題會標出哪些資料不採用，而不是直接藏起來', $$('.annual-reading.is-offtopic').length > 0);
+$('[data-annual-topic="overview"]').click();
+await settle();
+$('#annual-start').click();
+await settle();
+for (let i = 0; i < 3; i++) { $('#annual-next').click(); await settle(); }
+check('整年總覽不做主題篩選', $$('.annual-reading.is-offtopic').length === 0);
+for (let i = 0; i < 2; i++) { $('#annual-next').click(); await settle(); }
 for (let i = 0; i < 2; i++) { $('#annual-next').click(); await settle(); }
 check('流年命盤依據預設收合', !!$('.annual-evidence') && !$('.annual-evidence').open);
 check('流年學習移除筆記並保留年份比較', !$('.annual-notes') && !!$('.annual-compare'));

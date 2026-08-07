@@ -1316,19 +1316,29 @@ const annualFlightText = (f, layer) => `${layer}${f.star}化${f.mutagen} → ${f
  * 使用者回饋原本「只列事實不解釋」看不懂，所以每一條事實下面緊接一句白話；
  * 條目多的步驟（尤其第六步）再依 group 下小標，免得變成一大坨。
  */
-function annualReadingListHtml(readings) {
+function annualReadingListHtml(step) {
+  const readings = step.readings ?? [];
+  const groupNotes = step.groupNotes ?? {};
   let lastGroup = null;
   const items = readings.map((r) => {
+    // 共用觀念只在小標下方講一次；每一條 reading 只留自己的差異。
     const head = r.group && r.group !== lastGroup
-      ? `<li class="annual-reading-group">${esc(r.group)}</li>`
+      ? `<li class="annual-reading-group">${esc(r.group)}${groupNotes[r.group] ? `<small>${esc(groupNotes[r.group])}</small>` : ''}</li>`
       : '';
     lastGroup = r.group ?? lastGroup;
-    return `${head}<li class="annual-reading">
-      <span class="annual-reading__fact">${esc(r.fact)}</span>
+    // topical === false 代表這條與目前主題無關。留著但標示出來，
+    // 讓使用者看得到「本主題沒有採用哪些資料」，而不是被偷偷藏起來。
+    const off = r.topical === false;
+    return `${head}<li class="annual-reading${off ? ' is-offtopic' : ''}">
+      <span class="annual-reading__fact">${esc(r.fact)}${off ? '<em>本主題不採用</em>' : ''}</span>
       <span class="annual-reading__plain">${esc(r.plain)}</span>
     </li>`;
   }).join('');
-  return `<ul class="annual-reading-list">${items}</ul>`;
+  const note = step.dataNote ? `<p class="annual-data-note">${esc(step.dataNote)}</p>` : '';
+  const cautions = step.cautions?.length
+    ? `<details class="annual-cautions"><summary>這幾個四化常被誤會的地方</summary><ul>${step.cautions.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></details>`
+    : '';
+  return `${note}<ul class="annual-reading-list">${items}</ul>${cautions}`;
 }
 
 function annualStepDataHtml(step, lesson) {
@@ -1337,7 +1347,7 @@ function annualStepDataHtml(step, lesson) {
   if (step.id === 'decadal' && !d.majorLimit) {
     return `<p class="annual-step-empty">${esc(d.limitStatus?.note ?? '這一年沒有可引用的十年大限。')}</p>`;
   }
-  if (step.id !== 'synthesis' && step.readings?.length) return annualReadingListHtml(step.readings);
+  if (step.id !== 'synthesis' && step.readings?.length) return annualReadingListHtml(step);
   if (step.id === 'natal') return annualPalaceList(d.members.map((m) => `${m.role === 'self' ? '命宮' : m.role === 'opposite' ? '對宮' : '三合宮'}：${m.name}（${m.position}）・${m.stars.join('、') || '無十四主星'}`));
   if (step.id === 'decadal') {
     // 起運前與超出末大限的年份沒有大限可看，這不是資料缺漏而是命理本身就沒有這一層。

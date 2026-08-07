@@ -1530,6 +1530,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* ---------- 盤面事實 + 白話解讀 ---------- */
 /* 事實用等寬感的深色小字（方便回命盤對照），解讀用一般行文色，兩者靠左邊線串起來，
    讀者一眼就知道「上面那行是盤上查得到的，下面那段是它在講什麼」。 */
+.annual-data-note{margin:0 0 14px;padding:10px 12px;border-radius:8px;background:rgba(43,38,33,.045);font:400 11.5px/1.8 var(--sans);color:var(--ink-60,#5d564d)}
 .annual-reading-list{margin:0;padding:0;list-style:none}
 .annual-reading{margin:0 0 12px;padding:0 0 0 12px;border-left:2px solid rgba(166,61,47,.28)}
 .annual-reading:last-child{margin-bottom:0}
@@ -1537,6 +1538,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .annual-reading__plain{display:block;margin-top:4px;font:400 12.5px/1.9 var(--sans);color:var(--ink-60,#5d564d)}
 .annual-reading-group{margin:16px 0 8px;font:600 11.5px/1.6 var(--sans);color:var(--muted,#706a62);letter-spacing:.02em}
 .annual-reading-group:first-child{margin-top:0}
+.annual-reading-group small{display:block;margin-top:3px;font:400 11px/1.75 var(--sans);color:var(--muted,#706a62);letter-spacing:0}
+.annual-reading.is-offtopic{opacity:.55;border-left-color:rgba(43,38,33,.18)}
+.annual-reading.is-offtopic em{margin-left:6px;padding:1px 6px;border-radius:999px;background:rgba(43,38,33,.1);font:600 10px/1.6 var(--sans);font-style:normal;color:var(--muted,#706a62)}
+.annual-cautions{margin-top:14px;border-top:1px dashed rgba(43,38,33,.16);padding-top:10px}
+.annual-cautions>summary{cursor:pointer;font:600 11.5px/1.6 var(--sans);color:var(--muted,#706a62)}
+.annual-cautions ul{margin:8px 0 0;padding-left:16px}
+.annual-cautions li{margin-bottom:5px;font:400 11.5px/1.8 var(--sans);color:var(--ink-60,#5d564d)}
 .annual-watch{border-left:3px solid rgba(46,125,91,.4);background:rgba(46,125,91,.05)}
 .annual-watch h5{color:#2e7d5b}
 .annual-step-empty{margin:0;padding:12px 13px;border:1px dashed rgba(43,38,33,.22);border-radius:9px;background:rgba(0,0,0,.02);font:400 12.5px/1.8 var(--sans);color:var(--ink-60,#5d564d)}

@@ -135,6 +135,9 @@ export function buildAnnualLearningContext({ ziWei, input, year, topic = 'overvi
   const decadalPalace = majorLimit ? palaceByBranch(ziWei, majorLimit.ganZhi[1]) : null;
   const annualPalace = palaceByBranch(ziWei, ganZhi[1]);
   const natalTriad = triadOf(ziWei, '命宮');
+  // 選了主題（工作／感情／財務）時，該主題的本宮三方四正才是判讀底盤，
+  // 只給命宮那一組會讓四個主題看起來一模一樣。
+  const anchorTriad = topicConfig.anchorPalace ? triadOf(ziWei, topicConfig.anchorPalace) : null;
   const annualTriad = annualPalace ? triadOf(ziWei, annualPalace.name) : null;
   const related = topicConfig.relatedPalaces;
   const annualFlights = flyingOfStem(ziWei, ganZhi[0]);
@@ -194,7 +197,7 @@ export function buildAnnualLearningContext({ ziWei, input, year, topic = 'overvi
 
   return {
     year, ganZhi, nominalAge, topic, topicConfig, majorLimit, limitStatus, decadalPalace, annualPalace,
-    natalTriad, annualTriad, birthFlights, decadalFlights, annualFlights, selfTransformations,
+    natalTriad, anchorTriad, annualTriad, birthFlights, decadalFlights, annualFlights, selfTransformations,
     smallLimit, snapshots, adjacentFocus, evidence: uniqueEvidence(allEvidence),
   };
 }
@@ -317,7 +320,13 @@ function quizOf(context, stepId) {
   const palacePool = context.evidence.map((e) => e.targetPalace).filter(Boolean);
   const annualName = context.annualPalace?.name ?? '資料不足';
   const definitions = {
-    natal: { prompt: '本命底盤第一步應先看哪一組？', answer: '命宮三方四正', pool: ['只看流年命宮', '只看化忌', '只看小限'] },
+    natal: context.topicConfig.anchorPalace
+      ? {
+        prompt: `判讀「${context.topicConfig.label}」時，本命底盤要以哪一組為主？`,
+        answer: `${context.topicConfig.anchorPalace}三方四正`,
+        pool: ['命宮三方四正', '只看流年命宮', '只看化忌', '十二宮全部平均看'],
+      }
+      : { prompt: '整年總覽的本命底盤要先看哪一組？', answer: '命宮三方四正', pool: ['只看流年命宮', '只看化忌', '只看小限'] },
     decadal: context.majorLimit
       ? { prompt: `${context.year}年屬於哪一個大限？`, answer: `${context.majorLimit.ageRange}歲・${context.majorLimit.ganZhi}`, pool: ['只看流年，不看大限', '小限取代大限'] }
       : {
@@ -325,10 +334,34 @@ function quizOf(context, stepId) {
         answer: context.limitStatus.status === 'before-start' ? '這一年還沒起運，沒有大限' : '這一年已超出排定的大限，沒有大限',
         pool: ['套用第一個大限', '套用最後一個大限', '用小限當成大限'],
       },
-    'annual-palace': { prompt: `${context.year}年的流年命宮落入本命哪一宮？`, answer: annualName, pool: palacePool },
+    'annual-palace': context.topicConfig.relatedPalaces
+      ? {
+        prompt: `${context.year}年的流年命宮（${annualName}）算不算「${context.topicConfig.label}」的相關宮位？`,
+        answer: context.topicConfig.relatedPalaces.includes(annualName)
+          ? '算，本主題今年會被流年直接推動'
+          : '不算，本主題今年主要看大限與本命那兩層',
+        pool: ['流年命宮永遠是主題本宮', '每個主題的相關宮位都一樣', '流年命宮跟主題無關，不用判斷'],
+      }
+      : { prompt: `${context.year}年的流年命宮落入本命哪一宮？`, answer: annualName, pool: palacePool },
     'annual-triad': { prompt: `下列哪一宮屬於${annualName}的三方四正？`, answer: context.annualTriad?.members[1]?.name ?? annualName, pool: palacePool },
-    'annual-mutagens': { prompt: `${context.year}年流年化忌落在哪一宮？`, answer: context.annualFlights.find((f) => f.mutagen === '忌')?.palaceName ?? '盤上未找到', pool: palacePool },
-    focus: { prompt: '哪一種訊號應優先放進年度結論？', answer: '跨時間層重複指向的訊號', pool: ['單一顆雜曜', '任何化忌都算災難', '只挑最吉利的資料'] },
+    'annual-mutagens': (() => {
+      const related = context.topicConfig.relatedPalaces;
+      const hit = related ? context.annualFlights.filter((f) => related.includes(f.palaceName)) : [];
+      // 選了主題就改考「哪一條和這個主題有關」，而不是每個主題都問同一題化忌落宮
+      if (related) {
+        return hit.length
+          ? { prompt: `今年的四條流年四化裡，哪一條落在與「${context.topicConfig.label}」直接相關的宮位？`, answer: `${hit[0].star}化${hit[0].mutagen}→${hit[0].palaceName}`, pool: context.annualFlights.filter((f) => !related.includes(f.palaceName)).map((f) => `${f.star}化${f.mutagen}→${f.palaceName}`) }
+          : { prompt: `今年的四條流年四化，有幾條落在與「${context.topicConfig.label}」直接相關的宮位？`, answer: '一條都沒有', pool: ['四條都是', '剛好一半', '至少三條'] };
+      }
+      return { prompt: `${context.year}年流年化忌落在哪一宮？`, answer: context.annualFlights.find((f) => f.mutagen === '忌')?.palaceName ?? '盤上未找到', pool: palacePool };
+    })(),
+    focus: context.topicConfig.relatedPalaces
+      ? {
+        prompt: `判讀「${context.topicConfig.label}」時，落在無關宮位的跨層訊號要怎麼處理？`,
+        answer: '標為不採用，不拿來補滿結論',
+        pool: ['一併寫進結論湊字數', '改寫成和本主題有關', '直接刪掉不讓使用者看到'],
+      }
+      : { prompt: '哪一種訊號應優先放進年度結論？', answer: '跨時間層重複指向的訊號', pool: ['單一顆雜曜', '任何化忌都算災難', '只挑最吉利的資料'] },
     supplement: { prompt: '自化與小限在這套判讀中的角色是？', answer: '完成主結構後的補充', pool: ['取代大限與流年', '直接判定事件', '資料不足時自行推算'] },
     synthesis: { prompt: '合格的流年結論必須包含什麼？', answer: '舞台、機會、壓力、策略與限制', pool: ['只寫吉凶', '保證事件結果', '只列星曜名稱'] },
   };
@@ -366,6 +399,11 @@ export function buildAnnualLearningSteps(context, focus, conclusion) {
     number: index + 1,
     data: stepData[step.id],
     readings: readings[step.id] ?? [],
+    // 共用觀念集中在 dataNote / groupNotes / cautions，只講一次；
+    // 每一條 reading 就只留自己的差異，避免整步讀起來像跳針。
+    dataNote: stepDataNote(context, step.id),
+    groupNotes: STEP_GROUP_NOTES[step.id] ?? {},
+    cautions: stepCautions(context, step.id),
     watch: STEP_WATCH[step.id] ?? '',
     quiz: quizOf(context, step.id),
   }));
@@ -574,44 +612,79 @@ const layerOf = (key) => LAYER_MEANING[key] ?? { label: key, span: '—', source
 const layerLabels = (keys) => keys.map((k) => layerOf(k).label).join('、');
 const starCore = (name) => starMeanings[name]?.core ?? null;
 
-/** 一條解讀＝一句盤面事實 + 一句白話。fact 保持原本的摘要格式，方便對照命盤查證。 */
-const reading = (fact, plain, group = null) => ({ fact, plain, group });
+/**
+ * 一條解讀＝一句盤面事實 + 一句白話。
+ * group 用來下小標；共用的觀念不放在這裡，放在 step.groupNotes / step.dataNote，只講一次。
+ * 這是實測回饋修掉的問題：原本每一條後面都掛同一段「層數越多代表…」，五條就重複五次，
+ * 整段變得又長又難讀，真正該讀的差異反而被淹掉。
+ */
+const reading = (fact, plain, group = null, topical = null) => ({ fact, plain, group, topical });
+
+/**
+ * 這一宮跟目前選的主題有沒有直接關係。
+ * overview（整年總覽）沒有指定宮位，所有宮位一律視為相關（回傳 null＝不做標記）。
+ * 這是實測回饋修掉的問題：原本切換總覽／工作／感情／財務，八個步驟的資料與練習題
+ * 一字不差，主題只影響結論最後兩句，等於切了跟沒切一樣。
+ */
+function topicalOf(context, palaceName) {
+  const related = context.topicConfig.relatedPalaces;
+  if (!related || !palaceName) return null;
+  return related.includes(palaceName);
+}
+
+/** 由實際的層組合產生一句「這代表什麼」，讓每一條都不一樣，而不是共用同一句結尾 */
+function layerCombo(layers) {
+  const has = (k) => layers.includes(k);
+  const parts = [];
+  if (has('annual') && has('decadal')) parts.push('這十年的背景本來就在，今年又被再推一次');
+  else if (has('annual')) parts.push('主要是今年才被推上檯面，明年落點就會換');
+  else if (has('decadal')) parts.push('這十年持續存在，但今年沒有額外加碼');
+  if (has('birth')) parts.push('本命也有，表示你長期就容易在這裡打轉');
+  if (has('self')) parts.push('並帶你自己的反應方式');
+  return parts.join('；') || '訊號集中在單一層，份量比跨層的輕';
+}
 
 function natalReadings(context) {
   const members = context.natalTriad?.members ?? [];
-  return members.map((m) => {
+  const anchor = context.topicConfig.anchorPalace;
+  // 選了主題就多給一組：該主題的本宮三方四正。
+  // 例如看「感情」時，只給命宮三方四正是不夠的——夫妻宮那一組才是主題底盤。
+  const anchorRows = anchor && context.anchorTriad
+    ? context.anchorTriad.members.map((m) => reading(
+      `${m.role === 'self' ? '主題本宮' : m.role === 'opposite' ? '對宮' : '三合宮'}　${m.name}・${m.stars.join('、') || '無十四主星'}`,
+      `${lifeWord(m.name)}${m.isEmpty ? '（空宮，要借對宮的星來看）' : ''}${m.role === 'self' ? `——本主題的判讀以這一組為主` : ''}。`,
+      `${context.topicConfig.label}的本命底盤（${anchor}三方四正）`,
+      true,
+    ))
+    : [];
+  const lifeRows = members.map((m) => {
     const stars = m.stars.join('、') || '無十四主星';
-    const fact = `${m.role === 'self' ? '本宮' : m.role === 'opposite' ? '對宮' : '三合宮'}：${m.name}（${m.position}）・${stars}`;
+    const label = m.role === 'self' ? '本宮' : m.role === 'opposite' ? '對宮' : '三合宮';
+    const fact = `${label}　${m.name}（${m.position}）・${stars}`;
     const core = m.stars.map(starCore).filter(Boolean)[0];
-    if (m.isEmpty) {
-      return reading(fact, `${m.name}沒有十四主星，判讀時要借對宮的星來看，不能當成「這一塊什麼都沒有」。空宮多半表示這個領域比較沒有固定套路，受外在情境影響大。`);
-    }
-    if (m.role === 'self') {
-      return reading(fact, `命宮是你面對任何一年的預設反應方式${core ? `——${stars}這組星偏向「${core}」` : ''}。這一年外面發生什麼，你多半會先用這種方式去接。後面看到的所有流年訊號，都是加在這個底盤上，不是取代它。`);
-    }
-    if (m.role === 'opposite') {
-      return reading(fact, `${m.name}是命宮的對宮，代表${lifeWord(m.name)}上的變化會直接反過來影響你怎麼看自己。${TRIAD_ROLE_MEANING.opposite}`);
-    }
-    return reading(fact, `${m.name}是命宮的三合宮，代表${lifeWord(m.name)}。${TRIAD_ROLE_MEANING.triad}`);
+    const group = anchor ? '命宮三方四正（不分主題都要先看）' : null;
+    if (m.isEmpty) return reading(fact, `${lifeWord(m.name)}。空宮，借對宮的星來看。`, group, topicalOf(context, m.name));
+    if (m.role === 'self') return reading(fact, `你的預設反應方式${core ? `偏向「${core}」` : ''}。今年發生什麼，你多半先用這種方式接。`, group, topicalOf(context, m.name));
+    return reading(fact, `${lifeWord(m.name)}。`, group, topicalOf(context, m.name));
   });
+  return [...anchorRows, ...lifeRows];
 }
 
 function decadalReadings(context) {
   if (!context.majorLimit) return [];
   const out = [reading(
-    `大限：${context.majorLimit.ageRange}歲・${context.majorLimit.ganZhi}`,
-    `你目前落在這個十年裡。${layerOf('decadal').plain}`,
+    `大限　${context.majorLimit.ageRange}歲・${context.majorLimit.ganZhi}`,
+    '你目前落在這個十年裡。',
   )];
   if (context.decadalPalace) {
-    out.push(reading(
-      `大限命宮：${context.decadalPalace.name}`,
-      `這十年，生活重心比較常繞著${lifeWord(context.decadalPalace.name)}打轉。這是十年的常態，不是今年才有的事。`,
-    ));
+    out.push(reading(`大限命宮　${context.decadalPalace.name}`, `這十年，重心比較常繞著${lifeWord(context.decadalPalace.name)}打轉。`));
   }
   for (const f of context.decadalFlights) {
     out.push(reading(
-      `大限：${f.star}化${f.mutagen} → ${f.palaceName}`,
-      `這十年在${lifeWord(f.palaceName)}上，會反覆出現「${MUTAGEN_ACTION[f.mutagen]}」這類情形。${MUTAGEN_CAUTION[f.mutagen]}`,
+      `${f.star}化${f.mutagen} → ${f.palaceName}`,
+      `${lifeWord(f.palaceName)}，這十年容易「${MUTAGEN_ACTION[f.mutagen]}」。`,
+      '這十年的四化落點',
+      topicalOf(context, f.palaceName),
     ));
   }
   return out;
@@ -624,14 +697,20 @@ function annualPalaceReadings(context) {
   const core = palace.majorStars.map((s) => starCore(s.name)).filter(Boolean)[0];
   return [
     reading(
-      `${context.year} ${context.ganZhi}年，流年命宮：${palace.name}（${palace.position}）`,
-      `流年命宮是由今年的地支決定的，所以每年都會換一宮。落在${palace.name}，表示${context.year}年你比較常被要求處理、或比較容易遇到具體情境的地方是${lifeWord(palace.name)}。它決定的是「舞台在哪」，不是「結果好不好」。`,
+      `流年命宮　${palace.name}（${palace.position}）`,
+      `${context.year}年比較常被要求處理的是${lifeWord(palace.name)}。這決定「舞台在哪」，不是「結果好不好」。`
+        + (topicalOf(context, palace.name) === false
+          ? `　今年的舞台不在「${context.topicConfig.label}」的相關宮位上，表示這個主題今年多半不是由流年主導，要回頭看大限與本命那兩層。`
+          : topicalOf(context, palace.name) === true
+            ? `　這一宮正好是「${context.topicConfig.label}」的相關宮位，本主題今年會被流年直接推動。` : ''),
+      null,
+      topicalOf(context, palace.name),
     ),
     reading(
-      `主星：${stars}`,
+      `主星　${stars}`,
       palace.majorStars.length
-        ? `你在這個舞台上的表現方式，偏向${core ? `「${core}」` : '這組星的性質'}。同樣一件事，不同主星的人處理起來會很不一樣，這就是為什麼不能只看「今年走到哪一宮」就下結論。`
-        : '這一宮沒有主星，表示今年的舞台比較沒有固定劇本，受外在情境與對宮影響大，要連對宮一起看。',
+        ? `你在這個舞台上的表現方式${core ? `偏向「${core}」` : '看這組星的性質'}。同樣走到這一宮，不同主星的人處理起來很不一樣。`
+        : '沒有主星，今年的舞台比較沒有固定劇本，要連對宮一起看。',
     ),
   ];
 }
@@ -640,66 +719,69 @@ function annualTriadReadings(context) {
   const members = context.annualTriad?.members ?? [];
   return members.map((m) => {
     const label = m.role === 'self' ? '流年命宮' : m.role === 'opposite' ? '對宮' : '三合宮';
-    const fact = `${label}：${m.name}・${m.stars.join('、') || '無十四主星'}`;
-    return reading(fact, `${m.name}對應${lifeWord(m.name)}。${TRIAD_ROLE_MEANING[m.role] ?? ''}`);
+    return reading(`${label}　${m.name}・${m.stars.join('、') || '無十四主星'}`,
+      `${lifeWord(m.name)}${m.isEmpty ? '（空宮）' : ''}。`, null, topicalOf(context, m.name));
   });
 }
 
 function annualMutagenReadings(context) {
   return context.annualFlights.map((f) => reading(
-    `流年：${f.star}化${f.mutagen} → ${f.palaceName}`,
-    `${context.year}年的天干「${context.ganZhi[0]}」把${f.star}引動成化${f.mutagen}，落在${f.palaceName}。意思是今年在${lifeWord(f.palaceName)}上，比較容易出現「${MUTAGEN_ACTION[f.mutagen]}」這類動作。${MUTAGEN_CAUTION[f.mutagen]}`,
+    `${f.star}化${f.mutagen} → ${f.palaceName}`,
+    `今年在${lifeWord(f.palaceName)}上容易「${MUTAGEN_ACTION[f.mutagen]}」。`,
+    null,
+    topicalOf(context, f.palaceName),
   ));
 }
 
 /**
- * 第六步是使用者實測最看不懂的一步。
- * 原本只印「財帛宮：大限、流年、自化重複指向」，沒說這三層各是什麼、疊起來為什麼比較重要。
- * 這裡把每一種項目都攤開講：重複指向、同宮矛盾、落在流年三方四正、同星不同化。
+ * 第六步是實測最看不懂的一步。
+ * 共用觀念（四層各是什麼、為什麼跨層比較重要）交給 groupNotes 講一次，
+ * 這裡每一條只留它自己的差異：哪幾層、對應生活的哪一塊、這個層組合代表什麼。
  */
 function focusReadings(context, focus) {
   const out = [];
   for (const item of focus.repeated.slice(0, 5)) {
-    const layers = item.layers;
-    const detail = layers.map((k) => `${layerOf(k).label}（${layerOf(k).source}，${layerOf(k).span}）`).join('、');
     out.push(reading(
-      `${item.palaceName}：${layerLabels(layers)}重複指向`,
-      `${lifeWord(item.palaceName)}同時被 ${layers.length} 個時間層指到——${detail}。層數越多，代表這個訊號越不像偶發：`
-        + `它不是只有今年才冒出來，也不是只有你自己的想像。跨層重複出現的宮位，比孤立的一顆星更適合當成今年真正的主線。`,
+      `${item.palaceName}　${item.layers.length} 層：${layerLabels(item.layers)}`,
+      `${lifeWord(item.palaceName)}。${layerCombo(item.layers)}。`,
       '跨層重複指向的宮位',
+      topicalOf(context, item.palaceName),
     ));
   }
   for (const item of focus.tensions.slice(0, 3)) {
     out.push(reading(
-      `${item.palaceName}同時有推動與壓力訊號`,
-      `${lifeWord(item.palaceName)}這一塊，今年同時出現祿權科（推動）和忌（壓力）。這兩者不會互相抵消，而是同時發生——`
-        + `常見的感覺是「想往前推，但同一件事又一直卡著」。看到這種組合時，重點不是判斷好壞，而是認出這一塊今年注定要花比較多力氣。`,
+      `${item.palaceName}　推力與阻力同時出現`,
+      `${lifeWord(item.palaceName)}今年容易出現「想往前推、同一件事又卡著」的感覺。`,
       '同一宮同時有推力與阻力',
+      topicalOf(context, item.palaceName),
     ));
   }
   for (const item of focus.triadOverlaps.slice(0, 4)) {
     out.push(reading(
-      `${item.star}化${item.transformation}落在流年三方四正的${item.palaceName}`,
-      `這條四化沒有落在流年命宮本身，而是落在今年舞台的其他三宮之一。表示${lifeWord(item.palaceName)}會從旁邊牽動今年的主場景——`
-        + `不是主角，但整年會一直在旁邊出現，常常是資源來源或代價所在。`,
+      `${item.star}化${item.transformation} → ${item.palaceName}`,
+      `${lifeWord(item.palaceName)}，化${item.transformation}＝${MUTAGEN_ACTION[item.transformation]}。`,
       '落在今年舞台四宮的四化',
+      topicalOf(context, item.palaceName),
     ));
   }
   for (const item of focus.sameStarDifferent.slice(0, 3)) {
-    const parts = item.signals.map((sig) => `${layerLabels(sig.sourceLayers)}把它化${sig.transformation}，落在${sig.palaceName}`);
-    const actions = [...new Set(item.signals.map((sig) => `化${sig.transformation}＝${MUTAGEN_ACTION[sig.transformation]}`))];
+    const parts = item.signals.map((sig) => `${layerLabels(sig.sourceLayers)}化${sig.transformation}（${MUTAGEN_ACTION[sig.transformation]}）`);
+    const places = [...new Set(item.signals.map((sig) => lifeWord(sig.palaceName)))];
     out.push(reading(
-      `${item.star}跨層出現不同四化：${item.signals.map((sig) => `${sig.transformation}→${sig.palaceName}`).join('、')}`,
-      `同一顆${item.star}，在不同時間層被引動成不同的作用：${parts.join('；')}。`
-        + `換句話說，同一件事在不同層面要求你做的動作不一樣（${actions.join('、')}）。`
-        + `這種情形不是矛盾，而是同一個主題的不同面向——通常表示這件事你既有東西進來，也得自己扛起來。`,
+      `${item.star}　${item.signals.map((sig) => `${layerLabels(sig.sourceLayers)}化${sig.transformation}→${sig.palaceName}`).join('｜')}`,
+      `同樣在${places.join('、')}上，${parts.join('，')}——不同層要你做的動作不一樣。`,
       '同一顆星在不同層有不同作用',
+      item.signals.some((sig) => topicalOf(context, sig.palaceName)) ? true : topicalOf(context, item.signals[0]?.palaceName),
     ));
   }
   if (!out.length) {
-    out.push(reading('沒有跨層重複的訊號', '今年各層指向的宮位都不一樣，沒有集中的主線。這種年份反而比較平均，不必硬找一個「今年的主題」。'));
+    out.push(reading('沒有跨層重複的訊號', '今年各層指向的宮位都不一樣，沒有集中的主線；這種年份反而比較平均，不必硬找主題。'));
   }
-  return out;
+  // 同一組小標內，與主題直接相關的排前面；無關的留著但沉到後面，
+  // 讓使用者看得到「本主題不採用哪些資料」，而不是偷偷藏起來。
+  const rank = (r) => (r.topical === true ? 0 : r.topical === null ? 1 : 2);
+  const order = [...new Set(out.map((r) => r.group))];
+  return out.slice().sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || rank(a) - rank(b));
 }
 
 function supplementReadings(context) {
@@ -707,26 +789,18 @@ function supplementReadings(context) {
   const rows = context.selfTransformations.filter((r) => r.outgoing.length || r.incoming.length).slice(0, 4);
   for (const row of rows) {
     for (const x of row.outgoing) {
-      out.push(reading(
-        `${row.palaceName}：${x.star}化${x.mutagen} 離心自化`,
-        `離心自化是這一宮把能量往外送出去。表示在${lifeWord(row.palaceName)}上，你容易自己主動投入或自己消耗掉，不一定有人要求你這麼做。${layerOf('self').plain}`,
-      ));
+      out.push(reading(`${row.palaceName}　${x.star}化${x.mutagen}　離心（往外送）`,
+        `${lifeWord(row.palaceName)}，化${x.mutagen}＝${MUTAGEN_ACTION[x.mutagen]}。`, '自化'));
     }
     for (const x of row.incoming) {
-      out.push(reading(
-        `${row.palaceName}：${x.star}化${x.mutagen} 向心自化`,
-        `向心自化是對宮的能量自己流進這一宮。表示${lifeWord(row.palaceName)}這一塊，外面的人事物容易自己找上門，你未必是主動去找的那一方。`,
-      ));
+      out.push(reading(`${row.palaceName}　${x.star}化${x.mutagen}　向心（自己流進來）`,
+        `${lifeWord(row.palaceName)}，化${x.mutagen}＝${MUTAGEN_ACTION[x.mutagen]}。`, '自化'));
     }
   }
-  if (context.smallLimit) {
-    out.push(reading(
-      `小限：虛歲 ${context.smallLimit.age ?? context.nominalAge} 歲・${context.smallLimit.palaceName ?? context.smallLimit.name ?? '資料不足'}`,
-      layerOf('minor').plain,
-    ));
-  } else {
-    out.push(reading('小限：這個虛歲沒有可引用的資料', '排盤結果沒有這個虛歲的小限宮位，這裡就不補算。缺資料時標明缺，比硬湊一個答案有用。'));
-  }
+  out.push(context.smallLimit
+    ? reading(`小限　虛歲 ${context.smallLimit.age ?? context.nominalAge} 歲・${context.smallLimit.palaceName ?? context.smallLimit.name ?? '資料不足'}`,
+      '另一套年度推法，只作補充；與流年說法不同時以流年為主。', '小限')
+    : reading('小限　這個虛歲沒有可引用的資料', '排盤結果沒有這個虛歲的小限宮位，這裡就不補算。', '小限'));
   return out;
 }
 
@@ -745,10 +819,54 @@ function synthesisReadings(conclusion) {
 }
 
 /**
- * 每一步結尾的「這一步可以觀察什麼」。
- * 刻意寫成觀察方向而不是行動建議——網站的定位是幫人看懂自己的盤，
- * 不是代替使用者決定該不該換工作、投資或結婚。
+ * 共用觀念只講一次。
+ * dataNote 是整步的前提，groupNotes 是各小標底下的前提；
+ * 每一條解讀就不必再重複同一段話（原本重複五次，讀起來像跳針）。
  */
+function stepDataNote(context, stepId) {
+  const layerLegend = ['birth', 'decadal', 'annual', 'self']
+    .map((k) => `${layerOf(k).label}＝${layerOf(k).source}（${layerOf(k).span}）`).join('、');
+  const cfg = context.topicConfig;
+  const roleLine = '本宮＝主場，事情最常在這裡發生；對宮＝外面丟進來的那一面；三合宮＝資源與代價的來源。';
+  // 主題會決定「哪些宮位算數」。不把這件事寫出來，四個主題看起來就會一樣。
+  const scope = cfg.relatedPalaces
+    ? `本主題「${cfg.label}」只採用${cfg.relatedPalaces.join('、')}的訊號，其餘標為不採用，不拿來補滿結論。`
+    : '整年總覽不限定宮位，十二宮的訊號都納入比較。';
+  return {
+    natal: `這是你長期的底盤，先立基準線，後面每一層看到的都要放回這裡比對。${roleLine}${scope}`,
+    decadal: `大限是十年尺度的背景音，這十年都在；同一個流年訊號放進不同大限，要處理的事會不一樣。`,
+    'annual-palace': '流年命宮由今年的地支決定，每年換一宮。',
+    'annual-triad': `四宮一起看才找得到「資源從哪來、代價付在哪」。${roleLine}`,
+    'annual-mutagens': `今年天干「${context.ganZhi[0]}」引動這四顆星。四化描述動力方向，不描述吉凶。${scope}`,
+    focus: `四個時間層：${layerLegend}。同一個宮位被越多層指到，越不像偶發，也越適合當成今年的主線。${scope}`,
+    supplement: '這一層是補充，不能取代前面的本命、大限與流年。',
+    synthesis: '以下每一句都應該能指回前面某一步的盤面資料。',
+  }[stepId] ?? '';
+}
+
+/**
+ * 四化的常見誤解只列「這一步真的出現的那幾個」，而且整步只講一次。
+ * 原本是每一條四化後面都掛一段澄清，四條就重複四次。
+ */
+function stepCautions(context, stepId) {
+  const flights = stepId === 'annual-mutagens' ? context.annualFlights
+    : stepId === 'decadal' ? context.decadalFlights : [];
+  const seen = [...new Set(flights.map((f) => f.mutagen))];
+  return seen.map((m) => MUTAGEN_CAUTION[m]).filter(Boolean);
+}
+
+const STEP_GROUP_NOTES = {
+  decadal: { '這十年的四化落點': '這是十年尺度，不是今年才有。' },
+  focus: {
+    '同一宮同時有推力與阻力': '祿權科（推動）和忌（壓力）落在同一宮，兩者不會互相抵消，而是同時發生。重點不是判斷好壞，是認出這塊今年要花比較多力氣。',
+    '落在今年舞台四宮的四化': '這些四化沒落在流年命宮本身，而是落在舞台的其他三宮——不是主角，但整年會一直在旁邊出現。',
+    '同一顆星在不同層有不同作用': '同一顆星被不同時間層引動成不同四化。這不是矛盾，是同一個主題的不同面向：通常表示這件事你既有東西進來，也得自己扛起來。',
+  },
+  supplement: {
+    自化: '自化不是外界給的，是這一宮自己把能量放大或消耗掉，四層裡最有機會靠自覺調整。離心＝你容易自己主動投入或自己消耗，不一定有人要求你；向心＝外面的人事物容易自己找上門。',
+  },
+};
+
 const STEP_WATCH = {
   natal: '這一步的用途是先立基準線：把「你本來就是這樣的人」和「今年特別的事」分開。後面每一層看到的東西，都要放回這四宮上比對，才不會把長期特質誤讀成年度變化。',
   decadal: '這一步在校準比例尺。後面看到的流年訊號，如果剛好落在大限也指到的宮位，份量就比只有流年指到的重；反過來，只有流年出現的，通常一年就過去了。',

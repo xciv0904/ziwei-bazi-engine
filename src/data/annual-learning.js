@@ -93,11 +93,51 @@ export const ANNUAL_TOPIC_CONFIG = {
     strategy: '把收入來源、固定支出、合作資源與決策風險分開記錄；重要金額先留緩衝，再決定是否投入。',
     limits: ['不能由命盤預測股票漲跌、具體報酬或保證獲利。', '化祿與化權只表示資源投入或掌握增加，不等於實際收入必然增加。'],
   },
-  study: { label: '學習與考試', available: false, reason: '第一版先完成整年、工作、感情與財務的完整證據規則。' },
-  people: { label: '人際合作', available: false, reason: '第一版先完成整年、工作、感情與財務的完整證據規則。' },
-  family: { label: '家庭與長輩', available: false, reason: '第一版先完成整年、工作、感情與財務的完整證據規則。' },
-  travel: { label: '外出、轉換環境', available: false, reason: '第一版先完成整年、工作、感情與財務的完整證據規則。' },
-  wellbeing: { label: '身心狀態', available: false, reason: '第一版先完成整年、工作、感情與財務的完整證據規則。' },
+  // 後五個主題與前四個走完全相同的證據規則：指定本宮與相關宮位之後，
+  // 步驟資料、練習題與結論都會自動依 relatedPalaces 篩選，不需要另寫一套判讀邏輯。
+  study: {
+    label: '學習與考試',
+    available: true,
+    anchorPalace: '官祿宮',
+    relatedPalaces: ['官祿宮', '父母宮', '命宮', '福德宮', '遷移宮'],
+    strategy: '把「要學什麼」「跟誰學」「在哪裡學」分開確認；先鎖定一個可驗收的進度，再安排時間與資源。',
+    limits: ['不能由流年判定一定考上、落榜或拿到學位。', '文昌、文曲只作補充，不單獨判定考試結果。'],
+  },
+  people: {
+    label: '人際合作',
+    available: true,
+    anchorPalace: '僕役宮',
+    relatedPalaces: ['僕役宮', '兄弟宮', '命宮', '遷移宮', '夫妻宮'],
+    strategy: '把「誰主動」「怎麼分工」「誰承擔風險」分開記錄；合作條件先講清楚，再看互動實際怎麼走。',
+    limits: ['不能由流年判定某個人一定會幫你或害你。', '命盤描述的是你較容易遇到的互動情境，不代表對方的意圖。'],
+  },
+  family: {
+    label: '家庭與長輩',
+    available: true,
+    anchorPalace: '父母宮',
+    relatedPalaces: ['父母宮', '田宅宮', '兄弟宮', '子女宮', '命宮'],
+    strategy: '把長輩、住所與同住成員三件事分開看；先確認實際需要處理的事務，再談情緒與期待。',
+    limits: ['不能由流年判定家人的健康、壽命或家庭一定發生什麼事。', '涉及他人的部分要看對方自己的命盤，不能由你的盤代為判定。'],
+  },
+  travel: {
+    label: '外出、轉換環境',
+    available: true,
+    anchorPalace: '遷移宮',
+    relatedPalaces: ['遷移宮', '命宮', '官祿宮', '田宅宮', '僕役宮'],
+    strategy: '把「為什麼要換」「換去哪」「換了之後誰接手」分開確認；先評估可回復的小幅調整，再考慮大幅變動。',
+    limits: ['不能由流年判定一定搬家、出國或換環境。', '遷移宮描述的是外出時較容易遇到的情境，不預測交通或旅程安全。'],
+  },
+  wellbeing: {
+    label: '身心狀態',
+    available: true,
+    anchorPalace: '疾厄宮',
+    relatedPalaces: ['疾厄宮', '福德宮', '命宮', '父母宮', '田宅宮'],
+    strategy: '把作息、情緒負荷與生活環境分開記錄，觀察哪一項先出現變化；身體不適一律以就醫檢查為準。',
+    limits: [
+      '命盤不能診斷疾病、不能取代醫療，也不能判定會不會生病或何時生病。',
+      '疾厄宮描述的是你較容易感受到壓力的方式，不是健康預測；身體有狀況請直接就醫。',
+    ],
+  },
 };
 
 export const MUTAGEN_ACTION = {
