@@ -1,6 +1,27 @@
-// src/engines/ziwei.js — 紫微斗數排盤引擎（iztro；四化採欽天／飛星版，見 compose-annual.js FLOW_SIHUA）
+// src/engines/ziwei.js — 紫微斗數排盤引擎（iztro）
 // convertToZiWei(input) → 統一 schema 的 ziWei 物件
+//
+// 流派設定：紫微各派在「晚子時算哪一天」「安星用通行版還是中州派」上本來就有分歧，
+// 免責聲明寫「不同流派可能造成差異」是誠實，但使用者無法對齊自己學的那一派。
+// iztro 支援這兩項設定，所以開放給使用者選，並在畫面上標明預設值。
+// 四化表沒有開放選擇：本站生年四化來自 iztro 預設表，流年飛化用 compose-annual.js 的
+// FLOW_SIHUA，兩張表已驗證完全一致（見 tests/reports/cross-validation.json）。
+// 只換其中一張會讓生年四化與流年四化分屬不同流派，比不給選項更糟。
 import { astro } from 'iztro';
+import { normalizeZiWeiSchool } from './ziwei-school.js';
+
+export { ZIWEI_SCHOOL_OPTIONS, normalizeZiWeiSchool, isDefaultZiWeiSchool, describeZiWeiSchool } from './ziwei-school.js';
+
+/**
+ * iztro 的 astro.config() 是全域狀態，不是傳進 bySolar 的參數。
+ * 因此每次排盤前都要重設一次——否則上一張盤選的流派會殘留到下一張盤，
+ * 而那種錯誤在畫面上完全看不出來（盤看起來正常，只是規則不對）。
+ */
+function applySchoolConfig(school) {
+  const n = normalizeZiWeiSchool(school);
+  astro.config({ dayDivide: n.dayDivide, algorithm: n.algorithm });
+  return n;
+}
 
 const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
@@ -39,7 +60,8 @@ function normalizePalaceName(name) {
  * @param {'male'|'female'} input.gender
  * @param {Date}   [input.refDate=new Date()]  流年/小限/年齡的基準日
  */
-export function convertToZiWei({ year, month, day, hour, gender, refDate = new Date() }) {
+export function convertToZiWei({ year, month, day, hour, gender, school, refDate = new Date() }) {
+  const appliedSchool = applySchoolConfig(school);
   const chart = astro.bySolar(
     `${year}-${month}-${day}`,
     hourToTimeIndex(hour),
@@ -111,6 +133,8 @@ export function convertToZiWei({ year, month, day, hour, gender, refDate = new D
   ])));
 
   return {
+    // 實際採用的流派設定跟著結果一起回傳，畫面與 AI 提示詞才能標明這張盤是用哪一派排的
+    school: appliedSchool,
     fiveElementBureau: chart.fiveElementsClass,
     lifePalace: chart.earthlyBranchOfSoulPalace,
     bodyPalace: chart.earthlyBranchOfBodyPalace,

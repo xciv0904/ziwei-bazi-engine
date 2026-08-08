@@ -1,13 +1,16 @@
 import { convertToZiWei } from './src/engines/ziwei.js';
+import { makeReporter } from './cross-test-report.mjs';
 
 const z = convertToZiWei({ year: 2006, month: 7, day: 12, hour: 19, gender: 'male', refDate: new Date('2026-07-09') });
 
-let pass = 0, fail = 0;
-const cmp = (label, exp, act) => {
-  const ok = exp === act;
-  ok ? pass++ : fail++;
-  console.log(`${ok ? '✅' : '❌'} ${label}: 預期=${exp} 實際=${act}`);
-};
+// 比對結果同時寫進 tests/reports/cross-validation.json，供公開驗證頁使用
+const { cmp, finish } = makeReporter({
+  suite: 'ziwei-core',
+  title: '紫微斗數：命身宮、五行局、大限、流年、十二宮主星',
+  reference: '另一份人工核對的命盤（弟弟命盤）',
+  subject: '2006-07-12 19:23 男',
+  scope: ['命宮與身宮落宮', '命主與身主', '五行局', '十年大限起訖與干支', '流年與小限', '十二宮干支與主星（含亮度、四化）'],
+});
 
 // --- 核心五值 ---
 cmp('五行局', '火六局', z.fiveElementBureau);
@@ -60,5 +63,4 @@ for (const [name, [pos, stars]] of Object.entries(expPalaces)) {
   cmp(`${name}|主星`, stars, p ? fmt(p) : '?');
 }
 
-console.log(`\n合計:${pass} 通過 / ${fail} 不一致`);
-process.exit(fail === 0 ? 0 : 1); // 供 CI 當部署門檻
+process.exit(finish()); // 供 CI 當部署門檻

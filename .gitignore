@@ -33,3 +33,9 @@ actual-chart-data.json
 public/wiki
 public/sitemap.xml
 public/robots.txt
+
+# 建置產物：排盤驗證頁與交叉驗證結果都由 npm run build 重新生成。
+# 不進版控的理由是它們會在每次執行時變動（含執行日期），
+# 一旦提交就會每次 build 都產生無意義的 diff。
+public/verify/
+tests/reports/cross-validation.json

@@ -2,15 +2,18 @@
 // 驗證範圍:主星七階亮度、生年四化、斗君、自化(離心/向心)、來因宮
 import { convertToZiWei } from './src/engines/ziwei.js';
 import { computeSelfTransformations, computeLaiyinPalace, douJunBranchOf } from './src/engines/compose-annual.js';
+import { makeReporter } from './cross-test-report.mjs';
 
 const z = convertToZiWei({ year: 2002, month: 9, day: 4, hour: 14, gender: 'female', refDate: new Date('2026-07-09') });
 
-let pass = 0, fail = 0;
-const cmp = (label, exp, act) => {
-  const ok = JSON.stringify(exp) === JSON.stringify(act);
-  ok ? pass++ : fail++;
-  console.log(`${ok ? '✅' : '❌'} ${label}: 預期=${JSON.stringify(exp)} 實際=${JSON.stringify(act)}`);
-};
+// 比對結果同時寫進 tests/reports/cross-validation.json，供公開驗證頁使用（見 scripts/build-verification.mjs）
+const { cmp, finish } = makeReporter({
+  suite: 'ziwei-wenmo',
+  title: '紫微斗數：亮度、生年四化、斗君、自化、來因宮',
+  reference: '文墨天機',
+  subject: '2002-09-04 14:11 女',
+  scope: ['十四主星七階亮度', '生年四化（含輔星）', '斗君落宮', '離心／向心自化', '來因宮'],
+});
 
 // --- 斗君(文墨:子年斗君在丑) ---
 cmp('子年斗君', '丑', douJunBranchOf(z, '子'));
@@ -55,5 +58,4 @@ cmp('財帛宮向心', '巨門↑權', fmtIn('財帛宮'));
 cmp('夫妻宮離心', '文曲↓科', fmtOut('夫妻宮'));
 cmp('夫妻宮向心', '天梁↑權', fmtIn('夫妻宮'));
 
-console.log(`\n合計:${pass} 通過 / ${fail} 不一致`);
-process.exit(fail === 0 ? 0 : 1);
+process.exit(finish());

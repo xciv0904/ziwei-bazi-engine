@@ -121,6 +121,11 @@
               <small>校正完全在瀏覽器內計算。若不知道精確時間、經度或當時時區，請勿啟用。</small>
             </div>
           </div>
+          <details class="field school-field" id="school-field">
+            <summary>流派設定<span id="school-badge" class="school-badge" hidden>已改</span></summary>
+            <div id="school-options" class="school-options"></div>
+            <small>不同流派在換日與安星規則上本來就有分歧。預設是最普及的通行版，也是<a href="./verify/">排盤驗證</a>採用的基準。</small>
+          </details>
           <div class="field">
             <label>性別</label>
             <div class="pill-group" id="gender-toggle">
@@ -168,12 +173,16 @@
 
       <!-- ============ 主內容 ============ -->
       <main id="main-content" class="main" tabindex="-1">
+        <!-- 列印/存 PDF 時才出現。紙本會被轉給別人看，所以命盤資訊與免責聲明都要跟著紙走 -->
+        <div id="print-header" class="print-only print-header"></div>
         <div class="page-head">
           <h1 id="page-title">的命盤</h1>
           <div id="birth-summary" class="birth-summary"></div>
           <!-- 三段式閱讀模式（白話／學習／專業）的按鈕由 main.js syncModeToggleUI() 依目前頁面重建，
                這裡只留容器，避免同一組標籤在 HTML 與 JS 各寫一份、改了一邊忘了另一邊 -->
           <div class="reading-mode-toggle" id="reading-mode-toggle" role="group" aria-label="閱讀模式" hidden></div>
+          <button type="button" id="copy-link-btn" class="print-btn" hidden>複製這一頁連結</button>
+          <button type="button" id="print-btn" class="print-btn" hidden>列印／存 PDF</button>
         </div>
         <section id="view-dashboard"></section>
         <section id="view-topics" hidden></section>
@@ -185,11 +194,12 @@
         <section id="view-metaphysics" hidden></section>
         <section id="view-share" hidden></section>
 
+        <div id="print-footer" class="print-only print-footer"></div>
         <footer class="site-footer">
           本站內容由傳統命理規則自動組裝生成，僅供娛樂與文化參考，不構成醫療、財務或任何人生決策建議。
           所有排盤計算皆在你的瀏覽器內完成，生辰資料只儲存在本機，不會上傳到任何伺服器。
           <a href="https://github.com/xciv0904/ziwei-bazi-engine" target="_blank" rel="noopener">原始碼（GitHub）</a>
-          <details class="method-note"><summary>排盤規則與精確度說明</summary><p>預設採出生地鐘錶時間與傳統時辰排盤，支援 1900–2100 年。若使用者提供精確分鐘、出生地經度與出生地當時的 UTC 時差，可選用真太陽時校正；系統不會自行猜測出生地或歷史時區。子時換日仍依本站既有規則。不同流派、換日與四化規則可能造成結果差異。若時辰不確定，系統會以午時暫排，紫微宮位與八字時柱僅供參考。</p></details>
+          <details class="method-note"><summary>排盤規則與精確度說明</summary><p>預設採出生地鐘錶時間與傳統時辰排盤，支援 1900–2100 年。若使用者提供精確分鐘、出生地經度與出生地當時的 UTC 時差，可選用真太陽時校正；系統不會自行猜測出生地或歷史時區。不同流派、換日與四化規則可能造成結果差異，可在側欄「流派設定」自行選擇。若時辰不確定，系統會以午時暫排，紫微宮位與八字時柱僅供參考。</p><p>排盤結果與其他工具的逐項交叉驗證結果公開在<a href="./verify/">排盤驗證</a>頁：驗了哪些欄位、一致率多少、哪裡不一致都寫清楚。注意那一頁只涵蓋排盤，解讀的準確度沒有經過實證檢驗。</p></details>
         </footer>
       </main>
     </div>

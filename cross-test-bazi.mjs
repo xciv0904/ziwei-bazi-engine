@@ -1,13 +1,16 @@
 import { convertToBaZi } from './src/engines/bazi.js';
+import { makeReporter } from './cross-test-report.mjs';
 
 const b = convertToBaZi({ year: 2006, month: 7, day: 12, hour: 19, minute: 23, gender: 'male', refDate: new Date('2026-07-09') });
 
-let pass = 0, fail = 0;
-const cmp = (label, exp, act) => {
-  const ok = JSON.stringify(exp) === JSON.stringify(act);
-  ok ? pass++ : fail++;
-  console.log(`${ok ? '✅' : '❌'} ${label}: 預期=${JSON.stringify(exp)} 實際=${JSON.stringify(act)}`);
-};
+// 比對結果同時寫進 tests/reports/cross-validation.json，供公開驗證頁使用
+const { cmp, finish } = makeReporter({
+  suite: 'bazi-core',
+  title: '八字：四柱、藏干、十神、納音、五行分布、大運',
+  reference: '另一份人工核對的命盤（弟弟命盤）',
+  subject: '2006-07-12 19:23 男',
+  scope: ['年月日時四柱干支', '各柱藏干', '十神', '納音', '五行分布統計', '大運起運與排列'],
+});
 
 // 四柱
 const j = (p) => p.stem + p.branch;
@@ -64,5 +67,4 @@ expCycles.forEach(([gz, y, range], i) => {
   cmp(`大運${i+1}`, `${gz} ${y} ${range}`, `${c.ganZhi} ${c.startYear} ${c.ageRange}`);
 });
 
-console.log(`\n合計:${pass} 通過 / ${fail} 不一致`);
-process.exit(fail === 0 ? 0 : 1); // 供 CI 當部署門檻
+process.exit(finish()); // 供 CI 當部署門檻

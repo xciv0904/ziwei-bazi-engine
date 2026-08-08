@@ -380,7 +380,7 @@ if (ungrouped.length) {
 }
 
 // ---------- sitemap / robots ----------
-const urls = [SITE, `${SITE}wiki/`,
+const urls = [SITE, `${SITE}wiki/`, `${SITE}verify/`,
   ...CATEGORY_GROUPS.map((g) => `${SITE}wiki/${g.slug}.html`),
   ...CATEGORY_GROUPS.flatMap((g) => g.order.filter((cat) => byCat[cat]?.length)
     .map((cat) => `${SITE}wiki/${encodeURIComponent(categorySlug(cat))}.html`)),

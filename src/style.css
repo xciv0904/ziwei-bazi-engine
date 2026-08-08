@@ -1613,3 +1613,110 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .annual-review__options{grid-template-columns:1fr 1fr}
 }
 @media(max-width:720px){.annual-learn-head{align-items:stretch;flex-direction:column}.annual-meta{grid-template-columns:1fr 1fr}.annual-compare-grid{grid-template-columns:1fr}.annual-step-card>section,.annual-quiz,.annual-step-summary{padding:13px}.annual-step-nav{bottom:5px}.annual-learn-head select{width:100%}}
+
+/* ==================== 列印 / 存 PDF ==================== */
+/* 使用者花十幾分鐘讀完報告，想留著、想印給家人看、想離線再讀——原本三件都做不到：
+   「匯出」產出的是 命盤收藏.json（給程式重新匯入用，人讀不了），而畫面直接列印會
+   把側欄、導覽、模式切換鈕、分享按鈕全印出來，折疊區塊還是收合的。
+   這一段只用 CSS 處理，不引入任何 PDF 套件——瀏覽器的「列印 → 另存為 PDF」已經夠用，
+   而且少一個相依就少一個要維護的東西。 */
+@media print {
+  /* 1. 只留內容。互動元件在紙上沒有意義，還會佔掉版面 */
+  .sidebar,
+  .side-nav,
+  .sidebar-toggle,
+  .reading-mode-toggle,
+  .copy-ai-btn,
+  .toast,
+  .skip-link,
+  .chart-tabs,
+  .annual-view-tabs,
+  .learning-kind-tabs,
+  .annual-timeline,
+  .annual-step-nav,
+  .result-paths,
+  .result-path-more,
+  .annual-entry,
+  .mini-btn,
+  .submit-btn,
+  .save-btn,
+  .saved-tools,
+  .btn-primary,
+  .btn-ghost,
+  .share-btn,
+  .topic-pill,
+  .level-pill,
+  .quiz-options,
+  .annual-review__options,
+  button[data-goto],
+  button[data-result-goto] { display: none !important; }
+
+  /* 2. 版面攤平：螢幕上的側欄 + 主區塊格線改成單欄 */
+  html, body { background: #fff !important; color: #000 !important; }
+  .layout { display: block !important; }
+  .main { padding: 0 !important; max-width: none !important; }
+  .dashboard-details__body { display: block !important; }
+  .row, .chart-area { display: block !important; }
+
+  /* 3. 折疊區塊全部展開。紙上沒有「點開」這個動作，收合等於資料遺失 */
+  details { display: block !important; }
+  details > summary { list-style: none; font-weight: 700; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > *:not(summary) { display: revert !important; }
+
+  /* 4. 分頁控制：卡片與命盤不要被切成兩半 */
+  .card,
+  .analysis-card,
+  .annual-step-card,
+  .palace-brief,
+  .chart-frame,
+  .bazi-grid,
+  .annual-reading { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3, h4, h5 { break-after: avoid; page-break-after: avoid; }
+  .site-footer { break-before: auto; }
+
+  /* 5. 去掉螢幕用的陰影與動畫，省墨也避免灰底吃掉文字 */
+  * { box-shadow: none !important; text-shadow: none !important; animation: none !important; transition: none !important; }
+  .card { border: 1px solid #bbb !important; background: #fff !important; }
+
+  /* 6. 連結印出網址，紙本才追得回來源 */
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 10px; color: #555; }
+
+  /* 7. 列印專用的頁首與頁尾。免責聲明必須跟著紙本走——
+        報告被轉給別人看時，看到的人不會知道這是娛樂與文化參考 */
+  .print-only { display: block !important; }
+  .print-header {
+    margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid #000;
+    font: 400 11px/1.7 var(--sans);
+  }
+  .print-header b { display: block; font: 700 16px/1.4 var(--serif); margin-bottom: 4px; }
+  .print-footer {
+    margin-top: 18px; padding-top: 10px; border-top: 1px solid #999;
+    font: 400 10px/1.65 var(--sans); color: #333;
+  }
+  @page { margin: 14mm 12mm; }
+}
+
+/* 列印專用元素平時完全不出現 */
+.print-only { display: none; }
+
+.print-btn {
+  padding: 7px 12px; border: 1px solid var(--line,#ded6ca); border-radius: 999px;
+  background: #fff; color: var(--ink-60,#5d564d); font: 600 11.5px/1 var(--sans); cursor: pointer;
+}
+.print-btn:hover { border-color: rgba(166,61,47,.45); color: var(--red,#b94132); }
+@media(max-width:720px){ .print-btn { display: none; } } /* 手機幾乎不會列印，省掉頁首擁擠 */
+
+/* 流派設定：折疊起來，不佔用必填流程的視線 */
+.school-field { border: 1px dashed rgba(43,38,33,.22); border-radius: 9px; padding: 10px 12px; }
+.school-field > summary { cursor: pointer; font: 600 12.5px/1.6 var(--sans); list-style: none; }
+.school-field > summary::-webkit-details-marker { display: none; }
+.school-field > summary::after { content: '＋'; float: right; color: var(--red,#b94132); }
+.school-field[open] > summary::after { content: '−'; }
+.school-badge { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--red,#b94132); color: #fff; font: 600 10px/1.6 var(--sans); }
+.school-options { margin-top: 10px; }
+.school-group { margin-bottom: 12px; }
+.school-group b { display: block; font: 600 12px/1.6 var(--sans); }
+.school-group small { display: block; font: 400 10.5px/1.6 var(--sans); color: var(--muted,#706a62); margin-bottom: 5px; }
+.school-note { margin-top: 4px !important; font-style: normal; }
+.school-field > small { display: block; margin-top: 4px; font: 400 10.5px/1.65 var(--sans); color: var(--muted,#706a62); }

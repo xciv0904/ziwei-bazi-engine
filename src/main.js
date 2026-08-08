@@ -4,6 +4,7 @@ import { LAYOUT_POSITIONS } from './data/layout-positions.js';
 import { palaceMeanings } from './data/palace-meanings.js';
 import { lookupTransformation } from './data/transformation-meanings.js';
 import { toTrueSolarTime } from './engines/true-solar-time.js';
+import { ZIWEI_SCHOOL_OPTIONS, normalizeZiWeiSchool, isDefaultZiWeiSchool } from './engines/ziwei-school.js';
 
 // 排盤引擎（iztro、lunar-javascript 合計約 700KB）改為動態載入：
 // 訪客進站先看到歡迎頁，不需要馬上載排盤庫；第一次按「排盤」時才抓，之後快取重用。
@@ -238,6 +239,9 @@ const state = {
   chartTab: 'ziwei', // 手機版：命盤總覽一次只顯示一張卡
   cal: 'solar',
   gender: 'female',
+  // 流派設定。key 與值都會進 localStorage 與網址，所以名稱要穩定；
+  // 合法值一律由 normalizeZiWeiSchool() 夾回，不信任外部輸入。
+  school: { dayDivide: 'forward', algorithm: 'default' },
   // 閱讀模式（單一狀態，兩段式）:
   //   'public' 白話模式——只給結論與生活化說明，全站不出現任何命理術語（預設）
   //   'learn'  學習模式——術語與完整依據都給，但每一條都必須說明它從命盤哪裡來
@@ -332,7 +336,7 @@ async function computeAllInner(parsed) {
     solarTime = { civil, corrected, selectedHour: Number(hourRaw) };
     ({ year: y, month: m, day: d, hour } = corrected);
   }
-  const input = { year: y, month: m, day: d, hour, gender: state.gender, solarTime };
+  const input = { year: y, month: m, day: d, hour, gender: state.gender, school: { ...state.school }, solarTime };
 
   const ziWei = convertToZiWei(input);
   const baZi = convertToBaZi(input);
@@ -445,6 +449,39 @@ function currentLuckSelection() {
 }
 
 // ---------- 命盤收藏（localStorage） ----------
+// ---------- 流派設定 ----------
+// 選擇記在 localStorage：使用者對齊過自己學的派別之後，不該每次進站都要重選一次。
+const SCHOOL_KEY = 'zwbz-ziwei-school';
+
+function loadSchool() {
+  try {
+    return normalizeZiWeiSchool(JSON.parse(safeLocalStorage().getItem(SCHOOL_KEY) ?? '{}'));
+  } catch {
+    return normalizeZiWeiSchool({});
+  }
+}
+
+function saveSchool(school) {
+  try { safeLocalStorage().setItem(SCHOOL_KEY, JSON.stringify(school)); } catch { /* 無痕模式忽略 */ }
+}
+
+/** 流派選項的 UI。每一項都附「這個選項會影響什麼」，不讓使用者盲選。 */
+function renderSchoolOptions() {
+  const host = $('#school-options');
+  if (!host) return;
+  host.innerHTML = Object.entries(ZIWEI_SCHOOL_OPTIONS).map(([key, spec]) => `
+    <div class="school-group">
+      <b>${esc(spec.label)}</b>
+      <small>${esc(spec.hint)}</small>
+      <div class="pill-group" data-school-key="${esc(key)}">
+        ${spec.choices.map((c) => `<button type="button" class="pill${state.school[key] === c.value ? ' active' : ''}" data-school-value="${esc(c.value)}" aria-pressed="${state.school[key] === c.value}" title="${esc(c.note)}">${esc(c.label)}</button>`).join('')}
+      </div>
+      <small class="school-note">${esc(spec.choices.find((c) => c.value === state.school[key])?.note ?? '')}</small>
+    </div>`).join('');
+  const badge = $('#school-badge');
+  if (badge) badge.hidden = isDefaultZiWeiSchool(state.school);
+}
+
 const SAVED_KEY = 'zwbz-saved-charts';
 
 /**
@@ -485,6 +522,10 @@ async function loadSavedEntry(c) {
   $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === c.gender));
   state.cal = c.cal ?? 'solar';
   $$('#cal-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === state.cal));
+  // 存檔時是用哪一派排的，帶回來就要用同一派——否則同一筆命盤在不同設定下會排出不同結果，
+  // 使用者會以為資料壞了。舊存檔沒有這個欄位，normalize 會自動夾回預設值。
+  state.school = normalizeZiWeiSchool(c.school ?? {});
+  renderSchoolOptions();
   if (await computeAll()) renderAll();
 }
 
@@ -551,6 +592,9 @@ function isValidChartEntry(c) {
   if (probe.getFullYear() !== y || probe.getMonth() !== m - 1 || probe.getDate() !== d) return false; // 例如 1949-02-29
   if (!VALID_HOURS.has(String(c.hour))) return false;
   if (c.gender !== 'male' && c.gender !== 'female') return false;
+  // school 是後來才加的欄位：舊存檔沒有它仍算合法（載入時 normalize 會夾回預設）。
+  // 有給就必須是物件，避免塞進字串或陣列後在 normalize 裡出現非預期行為。
+  if (c.school !== undefined && (typeof c.school !== 'object' || c.school === null || Array.isArray(c.school))) return false;
   if (c.solarTime) {
     if (!/^\d{2}:\d{2}$/.test(c.solarTime.clockTime ?? '')) return false;
     if (!Number.isFinite(Number(c.solarTime.longitude)) || Math.abs(Number(c.solarTime.longitude)) > 180) return false;
@@ -597,6 +641,7 @@ function saveCurrentChart() {
     hour: state.data.hourUnknown ? 'unknown' : input.hour, // 時辰未知照實記錄，載入時維持「不確定」
     gender: input.gender,
     cal: 'solar', // computeAll 已把農曆轉成陽曆，存陽曆版本最不易混淆
+    school: { ...state.school }, // 記下當時用哪一派排的，載入時才會得到同一張盤
   };
   if (input.solarTime) {
     const { civil } = input.solarTime;
@@ -634,6 +679,17 @@ function renderHead() {
     `${baZi.fourPillars.yearPillar.stem}${baZi.fourPillars.yearPillar.branch}年` +
     `${lunarDateStr}　${shichenLabel}　` +
     `${input.gender === 'female' ? '女' : '男'}　${ziWei.fiveElementBureau}`;
+  // 列印專用頁首/頁尾：紙本會脫離網站被單獨閱讀，所以命盤資訊、產出日期與免責聲明
+  // 都要印在紙上。這裡跟著 renderHead() 更新，換命盤時不會殘留上一張盤的資料。
+  const printStamp = new Date().toISOString().slice(0, 10);
+  $('#print-header').innerHTML = `<b>${esc(name)}　的命盤</b>`
+    + `${esc($('#birth-summary').textContent)}<br>產出日期 ${printStamp}｜紫微斗數・八字排盤 xciv0904.github.io/ziwei-bazi-engine`;
+  $('#print-footer').textContent = '本內容由傳統命理規則自動組裝生成，僅供娛樂與文化參考，'
+    + '不構成醫療、財務或任何人生決策建議。不同流派、換日與四化規則可能造成結果差異。'
+    + `${state.data.hourUnknown ? '本張命盤時辰未知，以午時暫排：紫微宮位與八字時柱僅供參考，年月日柱不受影響。' : ''}`;
+  $('#print-btn').hidden = false;
+  $('#copy-link-btn').hidden = false;
+
   $('#chart-profile').hidden = false;
   $('#chart-profile-text').textContent =
     `${name}｜${input.year}/${input.month}/${input.day}｜${shichenLabel}｜${input.gender === 'female' ? '女' : '男'}`;
@@ -3027,7 +3083,15 @@ function renderSynastry() {
 }
 
 // ---------- 分頁三：分享命卡 ----------
-function shareUrl() {
+/**
+ * 分享連結。
+ * 原本只帶生辰，對方點進來會落在首頁——想說「你看我流年這段」，對方得自己摸到
+ * 命盤總覽 → 學習模式 → 流年 → 切到那一年。現在把「你正在看的位置」也帶上：
+ * 目前分頁、流年學習的年份與主題、以及排盤用的流派（不同流派會排出不同的盤，
+ * 不帶的話對方看到的根本不是同一張）。
+ * 每個參數在回填時都走白名單驗證，見 init() 裡的參數處理。
+ */
+function shareUrl({ withLocation = true } = {}) {
   const { input, name } = state.data;
   const params = new URLSearchParams({
     name,
@@ -3035,6 +3099,18 @@ function shareUrl() {
     hour: input.hour,
     gender: input.gender,
   });
+  // 非預設流派才寫進網址，維持一般連結的簡潔
+  for (const [key, spec] of Object.entries(ZIWEI_SCHOOL_OPTIONS)) {
+    if (state.school[key] !== spec.default) params.set(key, state.school[key]);
+  }
+  if (withLocation) {
+    if (state.view !== 'dashboard') params.set('view', state.view);
+    // 只有真的在看流年學習時才帶年份與主題，否則對方會被塞進一個他沒要求的畫面
+    if (state.readingMode === 'learn' && state.learning?.kind === 'annual') {
+      params.set('annual', String(annualLearningYear()));
+      if (state.annualLearning.topic !== 'overview') params.set('topic', state.annualLearning.topic);
+    }
+  }
   return `${location.origin}${location.pathname}?${params}`;
 }
 
@@ -3122,7 +3198,7 @@ function renderShare() {
 
   // 真實 QR Code(內容 = 可分享的命盤連結;qrcode 套件動態載入)
   import('qrcode')
-    .then((m) => (m.default ?? m).toDataURL(shareUrl(), {
+    .then((m) => (m.default ?? m).toDataURL(shareUrl({ withLocation: false }), {
       width: 168, margin: 1,
       color: { dark: '#2b2621', light: '#fbf6ec' },
     }))
@@ -3133,12 +3209,12 @@ function renderShare() {
 
   $('#btn-copy').addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl());
+      await navigator.clipboard.writeText(shareUrl({ withLocation: false }));
       toast('已複製命盤連結');
     } catch { toast('複製失敗，請手動複製網址'); }
   });
   $('#btn-line').addEventListener('click', () =>
-    window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl())}`, '_blank'));
+    window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl({ withLocation: false }))}`, '_blank'));
   $('#btn-download').addEventListener('click', async () => {
     try {
       toast('產生圖片中…');
@@ -3891,6 +3967,46 @@ function setupControls() {
     }
   });
 
+  // 流派設定：載入上次選擇、渲染選項、綁一次委派。
+  // 改流派會改變排盤結果，所以切換後若已有命盤就即時重排，不讓畫面停在舊盤上。
+  state.school = loadSchool();
+  renderSchoolOptions();
+  $('#school-options')?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-school-value]');
+    if (!btn) return;
+    const key = btn.closest('[data-school-key]')?.dataset.schoolKey;
+    if (!key) return;
+    state.school = normalizeZiWeiSchool({ ...state.school, [key]: btn.dataset.schoolValue });
+    saveSchool(state.school);
+    renderSchoolOptions();
+    if (state.data) {
+      // computeAll() 只重算資料，畫面要另外重繪——少了 renderAll() 會變成
+      // 「盤已經換了但畫面還是舊的」，而那種錯誤在畫面上完全看不出來。
+      if (await computeAll()) renderAll();
+      toast(`已改用${btn.textContent.replace('（預設）', '')}，命盤已重排`);
+    }
+  });
+
+  // 複製這一頁的連結：帶上目前分頁、流年年份與主題，讓「你看我 2026 這段」點進去就到位。
+  // 生辰會出現在網址裡，所以按鈕文案要講清楚，不能讓人以為只是分享一個網站首頁。
+  $('#copy-link-btn').addEventListener('click', async () => {
+    if (!state.data) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl());
+      toast('已複製這一頁的連結（含生辰與目前位置），可貼給朋友');
+    } catch {
+      toast('複製失敗，請確認瀏覽器剪貼簿權限');
+    }
+  });
+
+  // 列印：展開所有折疊區塊再叫瀏覽器列印。
+  // CSS 的 @media print 已經強制 details 內容顯示，但把 open 也打開，
+  // 使用者取消列印回到畫面時才看得到剛剛印了什麼，不會覺得「按了沒反應」。
+  $('#print-btn').addEventListener('click', () => {
+    document.querySelectorAll('#main-content details').forEach((d) => { d.open = true; });
+    if (typeof globalThis.print === 'function') globalThis.print();
+  });
+
   // 年份時間軸與多年總覽的年份按鈕：事件委派，綁定一次。
   // 這裡刻意放在 init()，不放在 bindLearningPanel()——後者每次 renderDashboard() 都會執行，
   // 綁在那裡會每重繪一次就多掛一個監聽器，接著互相觸發重繪，畫面會直接卡死。
@@ -3973,15 +4089,63 @@ function setupControls() {
       state.gender = rawGender;
       $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === state.gender));
     }
+    // 流派：normalizeZiWeiSchool 本身就是白名單比對，非法值會被夾回預設，
+    // 所以這裡直接把整組交給它，不必逐鍵手寫驗證。
+    const urlSchool = {};
+    for (const key of Object.keys(ZIWEI_SCHOOL_OPTIONS)) {
+      const v = params.get(key);
+      if (v) urlSchool[key] = v;
+    }
+    if (Object.keys(urlSchool).length) {
+      state.school = normalizeZiWeiSchool({ ...state.school, ...urlSchool });
+      saveSchool(state.school);
+      renderSchoolOptions();
+    }
+    // 「你正在看的位置」：分頁、流年年份、流年主題。
+    // 這些不能直接落地——排盤還沒完成，view 容器是空的、流年年份也還沒有命盤可算。
+    // 所以先記在 pendingLocation，等 renderAll() 之後再套用（見 applySharedLocation）。
+    pendingLocation = {
+      view: VIEWS.includes(params.get('view')) ? params.get('view') : null,
+      annual: /^\d{4}$/.test(params.get('annual') ?? '') ? Number(params.get('annual')) : null,
+      topic: params.get('topic'),
+    };
     return true;
   }
   return false;
 }
 
+/**
+ * 套用分享連結帶來的「位置」。
+ * 必須在排盤與首次 renderAll() 之後才呼叫：流年年份要有命盤才算得出合法範圍，
+ * 分頁容器也要先有內容。年份與主題一律夾回合法值，不信任網址。
+ */
+let pendingLocation = null;
+async function applySharedLocation() {
+  const loc = pendingLocation;
+  pendingLocation = null;
+  if (!loc || !state.data) return;
+  if (loc.annual) {
+    setReadingMode('learn');
+    applyReadingMode();
+    state.learning.kind = 'annual';
+    state.annualLearning.started = false;
+    if (loc.topic && R.ANNUAL_TOPIC_CONFIG[loc.topic]?.available) state.annualLearning.topic = loc.topic;
+    setAnnualLearningYear(loc.annual); // 內部會夾回出生年～虛歲120
+    state.dashboardOpenDetails.add('dashboard-detail');
+    syncModeToggleUI();
+    renderDashboard();
+  }
+  if (loc.view && loc.view !== 'dashboard') await switchView(loc.view);
+}
+
 const hasSharedParams = setupControls();
 renderEmpty(); // 先渲染歡迎畫面（不需要排盤庫）；分享連結進站則在引擎載完後自動蓋掉
 if (hasSharedParams) {
-  computeAll().then((ok) => { if (ok) renderAll(); });
+  computeAll().then(async (ok) => {
+    if (!ok) return;
+    renderAll();
+    await applySharedLocation();
+  });
 }
 
 // ---------- 輕量錯誤監控：未預期錯誤時給使用者一個提示，避免畫面靜默壞掉 ----------

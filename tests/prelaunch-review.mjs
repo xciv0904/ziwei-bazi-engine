@@ -156,6 +156,89 @@ $('[data-annual-view="step"]').click();
 await settle();
 
 
+// ---------- F1 列印 / 存 PDF ----------
+check('有列印按鈕', !$('#print-btn').hidden);
+check('列印專用頁首帶命盤資訊與產出日期', (() => {
+  const t = $('#print-header').textContent;
+  return t.includes('的命盤') && /\d{4}-\d{2}-\d{2}/.test(t);
+})());
+check('列印專用頁尾帶免責聲明', (() => {
+  const t = $('#print-footer').textContent;
+  return t.includes('僅供娛樂與文化參考') && t.includes('不同流派');
+})());
+check('列印專用元素平時不顯示（靠 CSS 的 .print-only）', (() => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf-8');
+  return css.includes('.print-only { display: none; }');
+})());
+check('列印樣式隱藏互動元件並展開折疊區塊', (() => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf-8');
+  const block = css.slice(css.indexOf('@media print'));
+  return ['.sidebar', '.side-nav', '.copy-ai-btn'].every((sel) => block.includes(sel))
+    && block.includes('details > *:not(summary)')
+    && block.includes('break-inside: avoid');
+})());
+$('#print-btn').click();
+await settle();
+check('按列印會展開所有折疊區塊，取消後看得到印了什麼',
+  $$('#main-content details').length > 0 && $$('#main-content details').every((d) => d.open));
+
+// ---------- T2 流派設定 ----------
+check('側欄有流派設定，且可選晚子時換日與安星方法', (() => {
+  const keys = $$('#school-options [data-school-key]').map((el) => el.dataset.schoolKey);
+  return keys.includes('dayDivide') && keys.includes('algorithm');
+})());
+check('預設不顯示「已改」標記', $('#school-badge').hidden);
+check('每個流派選項都附說明，不讓使用者盲選',
+  $$('#school-options .school-note').every((el) => el.textContent.trim().length > 5));
+// 指紋只取宮格的雜曜列（.p-minor）。
+// 一開始取整個宮格的文字，結果切回預設時比不出「還原」——但差異不是流派造成的：
+// computeAll() 會把大限流年選擇重設回現行年，於是「年」標記與流年四化落點跟著移動。
+// 那是正確行為，只是不該進指紋。流派實際影響的就是雜曜落宮
+// （本張盤：截路↔截空、天傷↔天使），取 .p-minor 最精準也最穩定。
+const starPos = () => {
+  const details = $('#dashboard-detail');
+  if (details) details.open = true;
+  return $$('.palace-cell .p-minor').map((c) => c.textContent.replace(/\s+/g, '')).join('|');
+};
+const beforeSchool = starPos();
+$('[data-school-key="algorithm"] [data-school-value="zhongzhou"]').click();
+await settle();
+check('切換到中州派會即時重排，盤面真的改變', starPos() !== beforeSchool);
+check('改過流派後顯示「已改」標記', !$('#school-badge').hidden);
+$('[data-school-key="algorithm"] [data-school-value="default"]').click();
+await settle();
+check('切回通行版盤面還原', starPos() === beforeSchool);
+check('切回預設後「已改」標記消失', $('#school-badge').hidden);
+
+// ---------- F2 分享連結帶位置 ----------
+$('.mode-pill[data-mode="learn"]').click();
+await settle();
+$('#learn-card [data-learning-kind="annual"]').click();
+await settle();
+const sharedYear = Number($('.annual-year-chip.active').dataset.annualYear);
+// navigator.clipboard 在 happy-dom 是唯讀屬性，要用 defineProperty 覆蓋（同 smoke.mjs 做法）
+let copied = '';
+const clipboardStub = { writeText: async (text) => { copied = text; } };
+Object.defineProperty(w.navigator, 'clipboard', { value: clipboardStub, configurable: true });
+if (globalThis.navigator !== w.navigator) {
+  Object.defineProperty(globalThis.navigator, 'clipboard', { value: clipboardStub, configurable: true });
+}
+$('#copy-link-btn').click();
+await settle();
+check('複製的連結帶生辰', copied.includes('date=') && copied.includes('gender='));
+check('複製的連結帶目前看的流年年份', copied.includes(`annual=${sharedYear}`));
+check('複製的連結不帶預設流派（保持簡潔）', !copied.includes('algorithm='));
+$('[data-annual-topic="love"]').click();
+await settle();
+$('#copy-link-btn').click();
+await settle();
+check('非預設主題會寫進連結', copied.includes('topic=love'));
+$('[data-annual-topic="overview"]').click();
+await settle();
+$('#copy-link-btn').click();
+await settle();
+check('預設主題不寫進連結', !copied.includes('topic='));
+
 console.log(`\n上架審查回歸：${failed ? `${failed} 項失敗` : '全部通過'}`);
 if (consoleErrors.length) {
   console.log(`❌ 過程中出現 ${consoleErrors.length} 次 console.error`);

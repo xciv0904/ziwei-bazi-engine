@@ -30,6 +30,10 @@ jobs:
       - run: node cross-test-bazi.mjs                    # 八字交叉驗證(弟弟命盤)
       - run: node cross-test-wenmo.mjs                   # 文墨天機交叉驗證(亮度/四化/斗君/自化/來因)
       - run: node --import ./css-hook.mjs smoke.mjs      # UI 冒煙測試(happy-dom)
+      - run: npm run prelaunch                           # 上架審查回歸(逸出、二次確認、事件委派、掃描去重)
+      - run: npm run verify-test                         # 排盤驗證頁與流派設定
+      # 注意：CI 是逐支執行，不是跑 npm run smoke。新增測試套件要記得加在這裡，
+      # 否則它不會成為部署門檻——不會擋任何東西的測試只是裝飾。
       - run: npm run build         # 先生成命理小百科靜態頁+sitemap,再 vite build(base './')
       - uses: actions/upload-pages-artifact@v3
         with:
