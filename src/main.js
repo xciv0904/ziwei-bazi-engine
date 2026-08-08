@@ -83,7 +83,24 @@ document.getElementById('font-css')?.setAttribute('media', 'all');
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// 單引號與反引號也要轉義。目前全站屬性都用雙引號，漏轉單引號不會立刻出事，
+// 但這是「今天安全、改天有人寫成單引號屬性就破功」的那種洞——屬性引號風格屬於
+// 隨時會被改動的細節，逸出函式不該依賴它。反引號則是防模板字串注入。
+/**
+ * 破壞性操作的二次確認。
+ * 刪除命盤與重設全部學習進度都是不可復原、且沒有備份的動作，
+ * 原本點一下就直接執行，只回一個 toast——手滑就沒了。
+ * 這裡不做自訂彈窗（多一套焦點管理與無障礙處理），直接用原生 confirm，
+ * 它在鍵盤與螢幕閱讀器上的行為最可靠。
+ */
+function confirmDestructive(message) {
+  if (typeof globalThis.confirm !== 'function') return true; // 測試環境沒有 confirm 時不阻擋
+  return globalThis.confirm(message);
+}
+
+const esc = (s) => String(s).replace(/[&<>"'`]/g, (c) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;',
+}[c]));
 const flat = (s) => String(s).replace(/\n+/g, ' '); // 多行解讀 → 單段落
 // 注意：這裡的冒號是物件字面值的語法，不是中文標點，不要跟著全形化。
 const trad = (s) => String(s).replace(/[动开会亲纳采订盟医药猎机械坏垣]/g, (c) => ({ 动: '動', 开: '開', 会: '會', 亲: '親', 纳: '納', 采: '採', 订: '訂', 盟: '盟', 医: '醫', 药: '藥', 猎: '獵', 机: '機', 械: '械', 坏: '壞', 垣: '垣' }[c] ?? c));
@@ -493,9 +510,13 @@ function renderSavedList() {
   $$('#saved-list [data-del]').forEach((btn) =>
     btn.addEventListener('click', () => {
       const list2 = loadSavedCharts();
+      const target = list2[Number(btn.dataset.del)];
+      if (!target) return;
+      if (!confirmDestructive(`要刪除「${target.name}」這筆命盤嗎？刪除後無法復原。`)) return;
       list2.splice(Number(btn.dataset.del), 1);
       persistSavedCharts(list2);
       renderSavedList();
+      toast(`已刪除「${target.name}」`);
     }));
 }
 
@@ -1421,6 +1442,23 @@ function annualYearBounds() {
 }
 
 /**
+ * 120 年掃描的單筆快取。
+ * 掃描本身只要 6ms，但流年學習畫面在一次互動裡會重繪多次（點步驟、答題、換檢視都會重畫），
+ * 而且時間軸與總覽表格都要用它。鍵用命盤代碼＋主題，換命盤或換主題就自然失效，
+ * 不需要手動清——這是先前決定不做快取的顧慮，用鍵值解掉之後就沒有這個風險了。
+ */
+let annualScanCache = null;
+function annualScanCached(bounds, topic) {
+  const key = `${learningChartKey()}|${topic}|${bounds.from}-${bounds.to}`;
+  if (annualScanCache?.key === key) return annualScanCache.value;
+  const value = R.buildAnnualOverview({
+    ziWei: state.data.ziWei, input: state.data.input, fromYear: bounds.from, toYear: bounds.to, topic,
+  });
+  annualScanCache = { key, value };
+  return value;
+}
+
+/**
  * 切換流年學習的年份。
  * 年份若還落在大限範圍內，順便把大限瀏覽器（limitIdx/yearIdx）同步過去，
  * 這樣上面的命盤高亮才會跟著走；起運前或超過末大限時沒有對應的大限索引，就只更新年份。
@@ -1626,19 +1664,23 @@ function renderAnnualLearningPanel() {
     ${progress.lastStep ? '<button type="button" class="btn-ghost" id="annual-continue">繼續上次學習</button>' : ''}
     <button type="button" class="btn-primary" id="annual-start">${progress.lastStep ? '從第一步開始' : '開始逐步判讀'}</button></div>`;
 
-  // 總覽掃描 120 年只要幾毫秒（純查表，不重新排盤），所以每次重繪都重算，
-  // 不另外做快取——快取反而會在切主題、切命盤時忘記失效。
+  // 原本這裡跑兩次 buildAnnualOverview：一次給時間軸（整段 120 年）、一次給總覽表格（區間）。
+  // 但區間永遠是整段的子集合，第二次掃描等於白算。改成只掃一次整段，再切片給總覽用。
+  // 掃描結果也用命盤＋主題當鍵做單筆快取——同一次互動裡常會連續重繪好幾次（點步驟、答題、
+  // 展開折疊都會重畫），沒必要每次重掃。鍵包含 chartKey 與 topic，換命盤或換主題就自然失效。
   const bounds = annualYearBounds();
   const span = state.annualLearning.span;
   const overviewRange = span === 0
     ? { from: bounds.from, to: bounds.to }
     : { from: Math.max(bounds.from, year - span), to: Math.min(bounds.to, year + span) };
-  const timelineScan = R.buildAnnualOverview({
-    ziWei: state.data.ziWei, input: state.data.input, fromYear: bounds.from, toYear: bounds.to, topic,
-  });
-  const overview = R.buildAnnualOverview({
-    ziWei: state.data.ziWei, input: state.data.input, fromYear: overviewRange.from, toYear: overviewRange.to, topic,
-  });
+  const timelineScan = annualScanCached(bounds, topic);
+  const overview = {
+    ...timelineScan,
+    from: overviewRange.from,
+    to: overviewRange.to,
+    rows: timelineScan.rows.filter((row) => row.year >= overviewRange.from && row.year <= overviewRange.to),
+  };
+  overview.keyYears = overview.rows.filter((row) => row.key).sort((a, b) => b.score - a.score || a.year - b.year);
   const isOverview = state.annualLearning.view === 'overview';
   const thisYear = new Date().getFullYear();
 
@@ -1790,9 +1832,9 @@ function bindLearningPanel() {
       state.monthIdx = null;
       renderDashboard();
     };
-    // 年份時間軸：chip、上一年/下一年/回到今年，以及總覽表格裡的年份按鈕共用同一組 data-annual-year
-    $$('#view-dashboard [data-annual-year]').forEach((btn) =>
-      btn.addEventListener('click', () => jumpToYear(Number(btn.dataset.annualYear))));
+    // 年份 chip 與總覽表格的年份按鈕改用事件委派，綁定在 init() 裡只做一次
+    // （見 #view-dashboard 的 data-annual-year 委派）。這裡不再逐一綁定：
+    // 時間軸 120 顆 chip 加總覽 120 列，逐一綁等於每次重繪掛 240 個監聽器。
     $('#annual-year-prev')?.addEventListener('click', () => jumpToYear(annualLearningYear() - 1));
     $('#annual-year-next')?.addEventListener('click', () => jumpToYear(annualLearningYear() + 1));
     $('#annual-year-today')?.addEventListener('click', () => jumpToYear(new Date().getFullYear()));
@@ -1813,6 +1855,7 @@ function bindLearningPanel() {
         renderDashboard();
       }));
     $('#annual-review-clear')?.addEventListener('click', () => {
+      // 單一年份的回顧紀錄影響很小，重填也容易，不用二次確認打斷流程
       R.clearAnnualReview(storage, chartKey, annualLearningYear());
       state.dashboardOpenDetails.add('annual-review');
       renderDashboard();
@@ -1853,6 +1896,7 @@ function bindLearningPanel() {
       toast('已重新開始這個年份與主題');
     });
     $('#annual-reset-all')?.addEventListener('click', () => {
+      if (!confirmDestructive('要重設這張命盤「全部年份」的流年學習進度嗎？已完成的步驟與練習紀錄都會清空，無法復原。')) return;
       R.resetAnnualProgress(storage, chartKey);
       state.annualLearning = { ...state.annualLearning, started: false, openStep: 0, answers: {} };
       renderDashboard();
@@ -3845,6 +3889,17 @@ function setupControls() {
       state.readingMode = 'learn';
       switchView('dashboard');
     }
+  });
+
+  // 年份時間軸與多年總覽的年份按鈕：事件委派，綁定一次。
+  // 這裡刻意放在 init()，不放在 bindLearningPanel()——後者每次 renderDashboard() 都會執行，
+  // 綁在那裡會每重繪一次就多掛一個監聽器，接著互相觸發重繪，畫面會直接卡死。
+  $('#view-dashboard').addEventListener('click', (event) => {
+    const target = event.target.closest('[data-annual-year]');
+    if (!target || !state.data || state.learning?.kind !== 'annual') return;
+    setAnnualLearningYear(Number(target.dataset.annualYear));
+    state.monthIdx = null;
+    renderDashboard();
   });
 
   $('#reading-mode-toggle').addEventListener('click', (e) => {

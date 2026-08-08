@@ -27,6 +27,7 @@ const $$ = (s) => [...doc.querySelectorAll(s)];
 
 let failed = 0;
 const check = (label, ok) => { console.log(`${ok ? '✅' : '❌'} ${label}`); if (!ok) failed++; };
+
 // 排盤引擎改為動態載入（submit 後非同步），送出表單後需等引擎載入+渲染完成
 const settle = () => new Promise((r) => setTimeout(r, 300));
 // 深度解析／合盤／姓名學／進階玄學的引擎改為動態載入後,switchView 變成非同步：
