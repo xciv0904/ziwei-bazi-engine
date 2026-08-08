@@ -214,8 +214,26 @@ const bare = (raw) => String(raw).replace(/[(（].*$/, '').trim();
     if (narrative === plainLines.join('')) {
       fail(`${card.title} 的敘事版只是把逐條版接起來，不算另一種寫法`);
     }
-    if (!narrative.includes('除了上面說的')) {
+    // 框架句：敘事版要交代「這幾項跟前面談的是同一個領域」。
+    // 原本這裡寫死檢查「除了上面說的」，但那句已經拿掉了——
+    // 使用者回報整段是贅字，實際輸出確實如此：卡片標題已經是
+    //「這一塊，你跟別人不一樣的地方」，內文再寫「${領域}這一塊，除了上面說的」
+    // 是同一件事講第二次，收尾句的「上面那段話」又講第三次。
+    // 現在的框架是「同樣是${領域}」，一句帶完，所以改成檢查意圖而不是字面。
+    if (!narrative.startsWith('同樣是')) {
       fail(`${card.title} 的敘事版缺少承接上文的框架句`);
+    }
+    // 防退回冗長版：這幾個詞就是當初被判定為贅字的來源
+    for (const filler of ['除了上面說的', '上面那段話', '還有幾件事一起在影響', '這一塊，']) {
+      if (narrative.includes(filler)) {
+        fail(`${card.title} 的敘事版又出現贅句「${filler}」`);
+      }
+    }
+    // 數量詞要對得上實際項數。原本只有一項時也寫「還有幾件事」。
+    const listed = narrative.split('：')[1]?.split('、').length ?? 0;
+    const expectWord = listed > 1 ? '這幾項' : '這一項';
+    if (!narrative.includes(expectWord)) {
+      fail(`${card.title} 列了 ${listed} 項卻用了錯的數量詞（應為「${expectWord}」）`);
     }
     // 逐條版是一項一句、句末句號；敘事版把幾項串進同一句。
     // 句子邊界不同，兩頁的「相同句」比例才壓得下來。

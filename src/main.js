@@ -238,7 +238,10 @@ const state = {
   reportTab: 'ziwei',
   chartTab: 'ziwei', // 手機版：命盤總覽一次只顯示一張卡
   cal: 'solar',
-  gender: 'female',
+  // 性別沒有預設值。紫微大限順逆行由陰陽男女決定，選錯整張盤的運程全錯，
+  // 而畫面上不會有任何異常訊號——預選一邊等於有一半的人拿到看起來正常的錯盤。
+  // 未選時 computeAll() 會擋下排盤並就地提示，見 requireGender()。
+  gender: null,
   // 流派設定。key 與值都會進 localStorage 與網址，所以名稱要穩定；
   // 合法值一律由 normalizeZiWeiSchool() 夾回，不信任外部輸入。
   school: { dayDivide: 'forward', algorithm: 'default' },
@@ -275,7 +278,7 @@ const state = {
   // 每次重繪都會回到預設收合。集中保存所有總覽折疊狀態，讓內部互動不再把使用者彈出去。
   dashboardOpenDetails: new Set(),
   // 雙人合盤：乙方表單值、關係型態與已排好的乙方命盤
-  synastry: { form: { name: '', date: '', hour: '0', gender: 'female', rel: '戀人' }, b: null },
+  synastry: { form: { name: '', date: '', hour: '0', gender: '', rel: '戀人' }, b: null }, // gender 空字串＝未選，理由同上方 state.gender
   monthIdx: null, // 流月瀏覽（null = 未展開）
   shareCard: 'life', // 分享命卡：'life' 本命卡 | 'annual' 流年卡
   compareSelected: new Set(), // 命盤比對：目前勾選的已存命盤 index
@@ -286,9 +289,50 @@ const state = {
 };
 
 // ---------- 排盤 ----------
+/**
+ * 藥丸群組的視覺與無障礙狀態同步。
+ * 性別群組是 role=radio（用 aria-checked，且允許「都沒選」）；
+ * 曆法群組是切換鈕（用 aria-pressed）。value 傳 null 代表全部取消選取。
+ */
+function syncPillGroup(groupId, value) {
+  const isRadio = groupId === '#gender-toggle';
+  $$(`${groupId} .pill`).forEach((p) => {
+    const on = p.dataset.value === value;
+    p.classList.toggle('active', on);
+    p.setAttribute(isRadio ? 'aria-checked' : 'aria-pressed', String(on));
+  });
+}
+
+const clearGenderError = () => {
+  const el = $('#gender-error');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+  $('#gender-toggle')?.classList.remove('field-invalid');
+};
+
+/**
+ * 性別必選。
+ * 排盤前擋下來，而不是給一個預設值——紫微大限的順逆行由陰陽男女決定，
+ * 性別錯了整張盤的運程全錯，但畫面上完全看不出異常。
+ * 讓表單擋下來，遠好過讓人拿到一張看起來正常的錯盤。
+ */
+function requireGender() {
+  if (state.gender === 'male' || state.gender === 'female') return true;
+  const el = $('#gender-error');
+  if (el) {
+    el.hidden = false;
+    el.textContent = '請選擇性別。紫微斗數的大限順逆行由此決定，選錯會讓整張命盤的運程都不對。';
+  }
+  $('#gender-toggle')?.classList.add('field-invalid');
+  $('#gender-toggle .pill')?.focus();
+  return false;
+}
+
 async function computeAll() {
   const parsed = birthDateCtl?.read();
   if (!parsed) return false; // 錯誤原因已由 birthDateCtl 就地顯示在欄位下方
+  if (!requireGender()) return false; // 同樣就地顯示，不用 toast——toast 會消失，欄位錯誤會留著
   try {
     return await computeAllInner(parsed);
   } catch (err) {
@@ -519,9 +563,10 @@ async function loadSavedEntry(c) {
     $('#birth-utc-offset').value = c.solarTime.utcOffset;
   }
   state.gender = c.gender;
-  $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === c.gender));
+  syncPillGroup('#gender-toggle', state.gender);
+  clearGenderError();
   state.cal = c.cal ?? 'solar';
-  $$('#cal-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === state.cal));
+  syncPillGroup('#cal-toggle', state.cal);
   // 存檔時是用哪一派排的，帶回來就要用同一派——否則同一筆命盤在不同設定下會排出不同結果，
   // 使用者會以為資料壞了。舊存檔沒有這個欄位，normalize 會自動夾回預設值。
   state.school = normalizeZiWeiSchool(c.school ?? {});
@@ -691,8 +736,12 @@ function renderHead() {
   $('#copy-link-btn').hidden = false;
 
   $('#chart-profile').hidden = false;
+  // 曆法保留「陽曆」預設（身分證與多數場合都用陽曆），但一定要標出實際採用哪一種——
+  // 把農曆生日填進陽曆欄位會排出完全不同的盤，而那種錯誤在畫面上原本毫無線索。
+  // 這裡顯示的是使用者「輸入時選的曆法」與換算後的陽曆日期，兩者並列才對得出誤選。
+  const calLabel = state.cal === 'lunar' ? '依農曆輸入' : '依陽曆輸入';
   $('#chart-profile-text').textContent =
-    `${name}｜${input.year}/${input.month}/${input.day}｜${shichenLabel}｜${input.gender === 'female' ? '女' : '男'}`;
+    `${name}｜${calLabel}｜換算陽曆 ${input.year}/${input.month}/${input.day}｜${shichenLabel}｜${input.gender === 'female' ? '女' : '男'}`;
 }
 
 function elementPlainSummary(elements) {
@@ -2973,6 +3022,15 @@ async function runSynastry(selectedHourOverride = null) {
   const parsed = synDateCtl?.read();
   if (!parsed) return; // 錯誤原因已就地顯示
   const { y, m, d } = parsed;
+  // 乙方性別同樣必選。合盤會用到雙方的大限順逆行，乙方性別錯了合盤結論一樣不對。
+  const pickedGender = $('#syn-gender')?.value ?? f.gender;
+  if (pickedGender !== 'male' && pickedGender !== 'female') {
+    const err = $('#syn-date-error');
+    if (err) { err.hidden = false; err.textContent = '請選擇乙方性別。合盤會用到雙方的大限順逆行，選錯結論就不對。'; }
+    $('#syn-gender')?.focus();
+    return;
+  }
+  f.gender = pickedGender;
   const { convertToZiWei, convertToBaZi } = await loadEngines();
   // 送出當下再從畫面讀一次，避免 select 的 change/input 事件在部分手機瀏覽器尚未同步到表單狀態。
   const selectedHour = selectedHourOverride ?? $('#syn-hour')?.value ?? f.hour;
@@ -3035,7 +3093,7 @@ function renderSynastry() {
           <select id="syn-day" aria-label="乙方出生日"></select>
         </div>
         <select id="syn-hour" aria-label="乙方時辰">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}<option value="unknown">不確定時辰（以午時暫排）</option></select>
-        <select id="syn-gender"><option value="female">女</option><option value="male">男</option></select>
+        <select id="syn-gender" aria-label="乙方性別" required><option value="">性別（必選）</option><option value="female">女</option><option value="male">男</option></select>
         <select id="syn-rel"><option>戀人</option><option>親子</option><option>朋友</option><option>同事</option></select>
         <button type="button" class="submit-btn syn-submit" id="syn-run">合盤</button>
       </div>
@@ -3921,16 +3979,15 @@ function setupControls() {
     $('#solar-time-fields').hidden = !event.target.checked;
   });
 
-  // 藥丸切換
+  // 藥丸切換。曆法是 aria-pressed（切換鈕語意），性別是 role=radio 的 aria-checked
+  // （單選群組語意，且允許「都沒選」這個初始狀態）。
   for (const [id, key] of [['#cal-toggle', 'cal'], ['#gender-toggle', 'gender']]) {
     $(id).addEventListener('click', (e) => {
       const btn = e.target.closest('.pill');
       if (!btn) return;
       state[key] = btn.dataset.value;
-      $$(`${id} .pill`).forEach((p) => {
-        p.classList.toggle('active', p === btn);
-        p.setAttribute('aria-pressed', String(p === btn));
-      });
+      syncPillGroup(id, state[key]);
+      if (key === 'gender') clearGenderError();
     });
   }
 
@@ -4087,7 +4144,7 @@ function setupControls() {
     const rawGender = params.get('gender');
     if (rawGender === 'male' || rawGender === 'female') {
       state.gender = rawGender;
-      $$('#gender-toggle .pill').forEach((p) => p.classList.toggle('active', p.dataset.value === state.gender));
+      syncPillGroup('#gender-toggle', state.gender);
     }
     // 流派：normalizeZiWeiSchool 本身就是白名單比對，非法值會被夾回預設，
     // 所以這裡直接把整組交給它，不必逐鍵手寫驗證。

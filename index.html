@@ -127,11 +127,16 @@
             <small>不同流派在換日與安星規則上本來就有分歧。預設是最普及的通行版，也是<a href="./verify/">排盤驗證</a>採用的基準。</small>
           </details>
           <div class="field">
-            <label>性別</label>
-            <div class="pill-group" id="gender-toggle">
-              <button type="button" class="pill" data-value="male" aria-pressed="false">男</button>
-              <button type="button" class="pill active" data-value="female" aria-pressed="true">女</button>
+            <!-- 性別沒有預設值，這是刻意的。紫微大限順逆行由陰陽男女決定，
+                 性別選錯整張盤的運程全錯，而畫面上不會有任何異常訊號——
+                 預選一邊等於有一半的人拿到看起來很正常的錯盤。 -->
+            <label id="gender-label">性別<span class="required-mark" aria-hidden="true">必選</span></label>
+            <div class="pill-group" id="gender-toggle" role="radiogroup" aria-labelledby="gender-label"
+                 aria-required="true" aria-describedby="gender-error">
+              <button type="button" class="pill" role="radio" data-value="male" aria-checked="false">男</button>
+              <button type="button" class="pill" role="radio" data-value="female" aria-checked="false">女</button>
             </div>
+            <div id="gender-error" class="field-error" hidden></div>
           </div>
           <button type="submit" class="submit-btn">排盤</button>
           <button type="button" id="save-chart-btn" class="save-btn" hidden>☆ 儲存目前命盤</button>

@@ -1720,3 +1720,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .school-group small { display: block; font: 400 10.5px/1.6 var(--sans); color: var(--muted,#706a62); margin-bottom: 5px; }
 .school-note { margin-top: 4px !important; font-style: normal; }
 .school-field > small { display: block; margin-top: 4px; font: 400 10.5px/1.65 var(--sans); color: var(--muted,#706a62); }
+
+/* 必選標記與群組層級的錯誤狀態 */
+.required-mark {
+  margin-left: 5px; padding: 1px 5px; border-radius: 3px;
+  background: rgba(166,61,47,.12); color: var(--red,#b94132);
+  font: 600 9.5px/1.6 var(--sans); vertical-align: middle;
+}
+.pill-group.field-invalid {
+  border-radius: 8px; outline: 2px solid rgba(166,61,47,.55); outline-offset: 3px;
+}

@@ -66,10 +66,14 @@ const confirmLog = [];
 globalThis.confirm = (message) => { confirmLog.push(String(message)); return confirmReply; };
 w.confirm = globalThis.confirm;
 
+// 性別改為必選（沒有預設值），所以排盤前要先選
+const pickGender = (v = 'female') => $$('#gender-toggle .pill').find((p) => p.dataset.value === v)?.click();
+
 // 先排一張基準盤，後面的檢查都建立在它上面
 $('#name-input').value = '基準';
 setDateParts('birth', 2002, 9, 4);
 $('#birth-hour').value = '13';
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 check('前置：基準盤排出 12 宮', $$('.palace-cell').length === 12);
@@ -86,6 +90,7 @@ const injection = `O'Brien"><img src=x onerror="1">` + String.fromCharCode(96); 
 $('#name-input').value = injection;
 setDateParts('birth', 1990, 6, 15);
 $('#birth-hour').value = '9';
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 check('姓名含引號與標籤時仍能完成排盤', $$('.palace-cell').length === 12);
@@ -238,6 +243,34 @@ await settle();
 $('#copy-link-btn').click();
 await settle();
 check('預設主題不寫進連結', !copied.includes('topic='));
+
+// ---------- U2 性別必選（沒有預設值） ----------
+// 紫微大限順逆行由陰陽男女決定：性別選錯整張盤的運程全錯，而畫面上不會有異常訊號。
+// 預選一邊等於有一半的人拿到看起來很正常的錯盤，所以這裡守的是「不准給預設值」。
+check('state 初始沒有性別預設值（原始碼層面）', (() => {
+  const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
+  return /gender: null,/.test(src) && !/gender: 'female',/.test(src);
+})());
+check('命盤摘要標明依哪種曆法輸入，讓誤選可被發現', (() => {
+  const t = $('#chart-profile-text').textContent;
+  return t.includes('依陽曆輸入') && t.includes('換算陽曆');
+})());
+
+// 合盤乙方性別同樣必選
+await nav('synastry');
+check('合盤乙方性別預設是「請選擇」而非預選女', $('#syn-gender').value === '');
+check('合盤乙方性別選單第一項是必選提示', $('#syn-gender').options[0].textContent.includes('必選'));
+$('#syn-name').value = '乙方';
+setDateParts('syn', 1995, 3, 8);
+$('#syn-hour').value = '9';
+$('#syn-run').click();
+await settle();
+check('乙方沒選性別時合盤被擋下，並說明原因', !$('#syn-date-error').hidden
+  && $('#syn-date-error').textContent.includes('乙方性別'));
+$('#syn-gender').value = 'male';
+$('#syn-run').click();
+await settle();
+check('選了乙方性別後合盤成功', !!$('.syn-names'));
 
 console.log(`\n上架審查回歸：${failed ? `${failed} 項失敗` : '全部通過'}`);
 if (consoleErrors.length) {

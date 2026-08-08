@@ -48,6 +48,10 @@ const setDateParts = (prefix, y, m, d) => {
   $(`#${prefix}-day`).dispatchEvent(new w.Event('change'));
 };
 
+// 性別改為必選（沒有預設值），所以每次排盤都要先選。
+// 舊測試的預期值都是以「女」算出來的，這裡沿用女，既有斷言才不必全部重算。
+const pickGender = (v = 'female') => $$('#gender-toggle .pill').find((p) => p.dataset.value === v)?.click();
+
 // --- 進站空白狀態（未排盤） ---
 check('進站顯示歡迎畫面', $('#view-dashboard').textContent.includes('免費排盤，開始看重點'));
 check('進站不顯示任何命盤', $$('.palace-cell').length === 0);
@@ -59,11 +63,30 @@ await settle();
 check('出生年留空送出時顯示錯誤訊息', !$('#birth-date-error').hidden && $('#birth-date-error').textContent.includes('西元年'));
 check('留空送出不會產生命盤', $$('.palace-cell').length === 0);
 
-// --- 填表排盤 ---
+// --- 性別必選：不給預設值，因為選錯會讓整張盤的運程都錯，而畫面上看不出異常 ---
+check('性別兩顆都沒有預先選取', $$('#gender-toggle .pill.active').length === 0);
+check('性別群組有單選語意與必填標示', (() => {
+  const g = $('#gender-toggle');
+  return g.getAttribute('role') === 'radiogroup' && g.getAttribute('aria-required') === 'true'
+    && $$('#gender-toggle .pill').every((p) => p.getAttribute('role') === 'radio' && p.getAttribute('aria-checked') === 'false');
+})());
 $('#name-input').value = 'Shelly';
 setDateParts('birth', 2002, 9, 4);
 check('日期選完後會自動接到時辰', doc.activeElement === $('#birth-hour'));
 $('#birth-hour').value = '13';
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+check('日期填好但沒選性別，排盤會被擋下', $$('.palace-cell').length === 0);
+check('未選性別時就地顯示錯誤，並說明為什麼重要', !$('#gender-error').hidden
+  && $('#gender-error').textContent.includes('大限順逆行'));
+check('未選性別時群組有錯誤樣式', $('#gender-toggle').classList.contains('field-invalid'));
+
+// --- 填表排盤 ---
+pickGender('female');
+check('選了性別後錯誤訊息消失', $('#gender-error').hidden && !$('#gender-toggle').classList.contains('field-invalid'));
+check('選取狀態同步到 aria-checked', $('#gender-toggle .pill[data-value="female"]').getAttribute('aria-checked') === 'true'
+  && $('#gender-toggle .pill[data-value="male"]').getAttribute('aria-checked') === 'false');
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 check('排盤成功後錯誤訊息應消失', $('#birth-date-error').hidden);
@@ -495,11 +518,13 @@ $$('#view-share [data-card]').find((t) => t.dataset.card === 'life')?.click();
 // --- 時辰未知流程 ---
 await nav('dashboard');
 $('#birth-hour').value = 'unknown';
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 check('時辰未知警示', $('#view-dashboard').textContent.includes('時辰未知'));
 check('摘要標示暫排', $('#birth-summary').textContent.includes('時辰未知'));
 $('#birth-hour').value = '13';
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 
@@ -1209,6 +1234,7 @@ await nav('dashboard');
 setDateParts('birth', 1998, 3, 15);
 $('#birth-hour').value = '11';
 $$('#gender-toggle .pill').find((p) => p.dataset.value === 'male').click();
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 check('重排後摘要更新（戊寅年）', $('#birth-summary').textContent.includes('戊寅年'));
@@ -1217,6 +1243,7 @@ check('重排後仍 12 宮', $$('.palace-cell').length === 12);
 // --- 姓名學 ---
 $('#name-input').value = '張萱利';
 $('#birth-hour').value = '13';
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 await nav('naming');
@@ -1243,6 +1270,7 @@ $('#naming-run').click();
 check('未收錄字誠實提示，不做臆測', $('#view-naming').textContent.includes('不在收錄的姓名用字字典裡'));
 
 $('#name-input').value = '歐陽小明';
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 await nav('naming');
@@ -1338,6 +1366,7 @@ check('奇門提示保留資料限制並使用短版規則',
 // has-chart 沒被加上、側邊導覽全部停用，畫面卻不顯示任何錯誤訊息。
 setDateParts('birth', 1980, 8, 12);
 $('#birth-hour').value = '19';
+pickGender();
 $('#birth-form').dispatchEvent(new w.Event('submit'));
 await settle();
 check('大限流年同宮的邊界案例排盤後仍標記已有命盤（has-chart）', doc.body.classList.contains('has-chart'));
