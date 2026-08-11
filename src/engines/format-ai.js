@@ -454,7 +454,49 @@ export function formatChartForAI({
  * 單題主題提示詞只帶 Topic Contract 允許且已綁定 answerTarget 的證據。
  * 不復用 formatChartForAI()，避免把十二宮、48 條飛化與其他人生領域重新丟給 AI。
  */
-export function formatTopicPromptForAI({ contract, report }) {
+/**
+ * 命主的基本盤面。
+ *
+ * 使用者回報「這裡沒有命主的盤」——完全正確。原本這支提示詞只給了結論式的
+ * 「已篩選命盤依據」（「夫妻宮的主要訊號」＋一句轉譯），AI 拿到的是別人的判斷，
+ * 不是可以核對的事實：它無從確認這些話是從哪顆星、哪個宮位來的，也沒辦法延伸。
+ *
+ * 但也不能改用 formatChartForAI()——那是整張盤（十二宮、48 條飛化、大限流年），
+ * 單一主題丟這麼多資料，AI 一定會跑去談其他人生領域，扣題就沒了。
+ * 折衷是只給兩樣：命主身分（性別、生日、五行局、命宮身宮、四柱）與
+ * 這一題對應宮位的原始事實。前者讓 AI 知道在談誰，後者讓每一句話都回得到命盤。
+ */
+function topicChartFacts({ input, ziWei, baZi, report }) {
+  const rows = [];
+  if (input || ziWei) {
+    const basics = [];
+    if (input?.gender) basics.push(`性別:${input.gender === 'female' ? '女' : '男'}`);
+    if (input?.year) basics.push(`生日:${input.year}年${input.month}月${input.day}日 ${input.hour}時（陽曆,24小時制）`);
+    if (ziWei?.fiveElementBureau) basics.push(`五行局:${ziWei.fiveElementBureau}`);
+    if (ziWei?.lifePalace) basics.push(`命宮地支:${ziWei.lifePalace}`);
+    if (ziWei?.bodyPalace) basics.push(`身宮地支:${ziWei.bodyPalace}`);
+    const fp = baZi?.fourPillars;
+    if (fp) {
+      basics.push(`四柱:${['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar']
+        .map((k) => `${fp[k].stem}${fp[k].branch}`).join(' ')}`);
+      if (fp.dayPillar?.stem) basics.push(`日主:${fp.dayPillar.stem}`);
+    }
+    if (basics.length) rows.push('【命主基本資料】', ...basics.map((t) => `・${t}`), '');
+  }
+
+  // chartBasis 後半段（「這些星怎麼改變判斷」起）跟下面的【判讀修正】是同一批資料，
+  // 同一份提示詞裡講兩次只會稀釋權重，所以在那一列切斷，這裡只留可核對的硬事實。
+  const basis = report?.chartBasis ?? [];
+  const cut = basis.findIndex((item) => item.label === '這些星怎麼改變判斷');
+  const facts = cut >= 0 ? basis.slice(0, cut) : basis;
+  if (facts.length) {
+    rows.push('【本題對應的命盤事實（可回到命盤上核對）】',
+      ...facts.map((item) => `・${item.label}：${item.detail}`), '');
+  }
+  return rows;
+}
+
+export function formatTopicPromptForAI({ contract, report, input = null, ziWei = null, baZi = null }) {
   if (!contract || !report) throw new TypeError('formatTopicPromptForAI 需要 contract 與 report');
   const evidenceLines = report.selectedEvidence.map((item, index) => [
     `${index + 1}. 來源：${item.publicBasis}`,
@@ -469,6 +511,7 @@ export function formatTopicPromptForAI({ contract, report }) {
     `必須回答：${contract.answerTargets.join('、')}`,
     `不得延伸：${contract.excludedTargets.join('、')}`,
     '',
+    ...topicChartFacts({ input, ziWei, baZi, report }),
     '【網站已用相同證據生成的直接答案】',
     current.answer,
     '',
@@ -492,7 +535,7 @@ export function formatTopicPromptForAI({ contract, report }) {
     '你可以怎麼判斷或處理：一至兩項可執行做法。',
     '',
     `全文最多 ${contract.wordBudget.directAnswer} 個中文字。先刪重複句，不得直接截斷句子。`,
-    '只能使用上面三項以內的已篩選依據；不重新排盤，不自行補星曜、宮位、十神或事件。',
+    '推論只能用上面列出的命盤事實與已篩選依據；不重新排盤，不自行補星曜、宮位、十神或事件。',
     '不輸出任何內部欄位、稽核理由、知識庫短句或程式標籤。',
     '每個結論必須能對回上面某一項「支持的回答目標」；無法對回就刪除。',
     '使用臺灣繁體中文，不作醫療診斷、不預測具體金額、日期或必然事件。',

@@ -130,9 +130,17 @@ const VOICE = {
   天馬: '停不下來，也留不太住，你在這裡一直是移動的狀態',
 
   // 生年四化：{領域} 會換成這一宮實際的生活用語
-  祿: '{領域}的資源會自己找上你，起步比別人容易',
+  //
+  // 化祿原本寫「{領域}的資源會自己找上你」，落在夫妻宮讀起來是
+  //「感情與伴侶關係的資源會自己找上你」——使用者回報看不懂，理由很清楚：
+  // 「資源」是命理端的抽象詞，感情裡沒有一樣東西叫資源。讀者要的是
+  // 「所以我的感情會怎樣」。改寫成看得到畫面的說法（機會、願意幫你的人），
+  // 換到財帛、官祿等事物宮一樣讀得通，語意也沒有改變。
+  祿: '{領域}這一塊，機會跟願意幫你的人多半會自己出現，你起步比別人容易',
   權: '{領域}這一塊你躲不掉，最後多半是你在扛、你在決定',
-  科: '{領域}你做的事會被看見，名聲上你是加分的',
+  // 原本是「{領域}你做的事會被看見」，代換後變成「感情與伴侶關係你做的事」，
+  // 少了一個「這一塊」就不成句。
+  科: '{領域}這一塊你做的事會被看見，名聲上你是加分的',
   忌: '{領域}是你最放不下的一塊，會反覆回來處理，也最容易卡住',
 
   // 雜曜：補「以什麼形式呈現」
@@ -242,9 +250,25 @@ export function composePalaceModifiers(palace, options = {}) {
   // effect  教學視角：這顆星的作用（學習模式與 AI 用，跟小百科的說法一致）
   // voice   讀者視角：所以我會怎樣（白話修正句用，第二人稱、給得出畫面）
   // detail  這顆星落在這一宮的具體表現，中性描述，不套語氣框
+  // {領域} 是文案表裡的模板變數，在這裡就換成這一宮的生活用語。
+  //
+  // 原本是各個消費端各自 replaceAll，結果漏了兩處：主題分析的「命盤依據」
+  // （topic-report.js）與複製給 AI 的提示詞（format-ai.js）都直接印 item.effect，
+  // 使用者實際看到的是「生年四化｜天梁化祿：{領域}有資源會流過來」——模板變數裸奔。
+  // 代換移到來源端，之後新增的消費端不必再記得做這件事。
+  const domainWord = PALACE_LIFE_WORD[palaceName] ?? '這一塊';
+  const fillDomain = (text) => (text ? String(text).replaceAll('{領域}', domainWord) : text);
   const push = (star, category, tone, effect, source, detail = null, voiceKey = null) => {
     if (!effect) return;
-    items.push({ star, category, tone, effect, source, detail, voice: VOICE[voiceKey ?? star] ?? effect });
+    items.push({
+      star,
+      category,
+      tone,
+      effect: fillDomain(effect),
+      source,
+      detail,
+      voice: fillDomain(VOICE[voiceKey ?? star] ?? effect),
+    });
   };
 
   // 1) 廟旺：主星的力道。放第一個，因為它修飾的是骨架本身。
@@ -302,7 +326,7 @@ export function composePalaceModifiers(palace, options = {}) {
       boosts,
       drags,
       shifts,
-      lines: items.map((i) => `${i.source}｜${i.star}：${i.effect.replaceAll('{領域}', PALACE_LIFE_WORD[palaceName] ?? '這一塊')}。${i.detail ? `落在${palaceName}：${i.detail}` : ''}`),
+      lines: items.map((i) => `${i.source}｜${i.star}：${i.effect}。${i.detail ? `落在${palaceName}：${i.detail}` : ''}`),
     },
   };
 }
@@ -362,11 +386,16 @@ const trimEnd = (text) => String(text).replace(/[。，、；\s]+$/, '');
 // 每種各給四個寫法，依宮位輪替。完整報告一頁會出現四段修正層，
 // 用同一句開頭會立刻露出模板感——而且可讀性檢查本來就會擋下一頁的重複句。
 const LEAD = {
+  // 生年四化的開頭句原本混了兩個比喻——「一輩子的底色」與「貫穿一生的線」。
+  // 使用者回報「另外有一條貫穿一生的線：…」看不懂，兩個毛病：
+  //   1. 讀者得先把「線」解碼成「一項天生的條件」才讀得到內容，多一道手續；
+  //   2. 生年四化是這張卡的第一句，前面沒有東西，「另外」跟「還有」都無所指。
+  // 四個變體改成直說「這是天生的、不會變」，不開場、不比喻。
   mutagen: [
-    (t) => `還有一件出生就定下來、不會變的事：${t}。`,
-    (t) => `這一塊有個一輩子的底色：${t}。`,
-    (t) => `從出生就帶著、也改不掉的一項：${t}。`,
-    (t) => `另外有一條貫穿一生的線：${t}。`,
+    (t) => `先講一件不會變的：${t}。`,
+    (t) => `這一項是出生就定下來的：${t}。`,
+    (t) => `有一件事一輩子都在，換環境也不會變：${t}。`,
+    (t) => `天生就帶著、也改不掉的一項：${t}。`,
   ],
   boost: [
     (t) => `這件事你還有別人不一定有的條件：${t}。`,

@@ -2607,7 +2607,10 @@ function renderTopics() {
       const contract = topic.contracts[index];
       const report = topicReportFor(contract, ziWei, baziCards);
       await ensureModules('formatAi');
-      const text = mod.formatAi.formatTopicPromptForAI({ contract, report });
+      // 帶上命主身分與四柱：少了它，AI 收到的只有結論，沒有可以核對的盤。
+      const text = mod.formatAi.formatTopicPromptForAI({
+        contract, report, input: state.data.input, ziWei, baZi,
+      });
       try {
         await navigator.clipboard.writeText(text);
         toast(`已複製「${contract.question}」AI 解讀提示`);
