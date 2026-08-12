@@ -25,15 +25,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node test.js                                # 排盤核心值回歸
-      - run: node cross-test.mjs                         # 紫微交叉驗證(弟弟命盤)
-      - run: node cross-test-bazi.mjs                    # 八字交叉驗證(弟弟命盤)
-      - run: node cross-test-wenmo.mjs                   # 文墨天機交叉驗證(亮度/四化/斗君/自化/來因)
-      - run: node --import ./css-hook.mjs smoke.mjs      # UI 冒煙測試(happy-dom)
-      - run: npm run prelaunch                           # 上架審查回歸(逸出、二次確認、事件委派、掃描去重)
-      - run: npm run verify-test                         # 排盤驗證頁與流派設定
-      # 注意：CI 是逐支執行，不是跑 npm run smoke。新增測試套件要記得加在這裡，
-      # 否則它不會成為部署門檻——不會擋任何東西的測試只是裝飾。
+      - run: node test.js          # 排盤核心值回歸（唯一沒被 smoke 串進去的一支）
+      # 這裡原本是逐支列出測試，旁邊還寫著「新增測試套件要記得加在這裡，否則它不會成為
+      # 部署門檻——不會擋任何東西的測試只是裝飾」。那句話是對的，而它預言了自己的下場：
+      # 實際清點時，smoke 串的 16 支裡只有 3 支在這份清單上，另外 13 支（readability、
+      # text-quality、modifiers、reading-modes、topic-contracts…）全都不是門檻。
+      # 也就是改壞解讀文案、寫出術語外洩、產生跨頁重複句，CI 一樣是綠的，直接上線。
+      #
+      # 靠人記得「新增測試要同步兩個地方」是行不通的——這份清單就是證據。
+      # 改成直接跑 npm run smoke：它本身是 && 串接，第一支失敗就停，
+      # CI log 一樣看得出是哪一支擋下來的，但從此不可能漏掉任何一支。
+      # tests/prelaunch-review.mjs 另有一條檢查守住這一行不被改回逐支列舉。
+      - run: npm run smoke         # 16 支測試套件（含 cross-test 三支、prelaunch、verify-test）
       - run: npm run build         # 先生成命理小百科靜態頁+sitemap,再 vite build(base './')
       - uses: actions/upload-pages-artifact@v3
         with:

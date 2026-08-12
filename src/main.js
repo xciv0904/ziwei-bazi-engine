@@ -23,6 +23,15 @@ function loadEngines() {
   enginesPromise ??= Promise.all([
     import('./engines/ziwei.js'),
     import('./engines/bazi.js'),
+    // lunar-javascript 是這一批裡最大的一支（305.95 kB / gzip 101.17 kB），
+    // 曾經評估要把它移出關鍵路徑：main.js 只用它做兩個日期換算，而 iztro 的依賴
+    // lunar-lite 本來就在 bundle 裡，看起來是白白多背了一份曆法庫。
+    //
+    // 實測之後放棄了，原因是 bazi.js 需要它：八字四柱靠 getEightChar()、
+    // 月令司令靠 getPrevJie() 取節氣，這兩件事 lunar-lite 都沒有
+    //（它只有 solar2lunar / lunar2solar 與四柱干支，沒有節氣分野）。
+    // 八字排盤在關鍵路徑上，換掉它等於拿核心正確性換 100 KB,不划算。
+    // 要省這 100 KB 必須先找到有節氣資料的輕量替代品，那是另一件事。
     import('lunar-javascript'),
     import('./engines/reading.js'),
   ]).then(([z, b, l, r]) => {
@@ -78,6 +87,33 @@ function preloadViewEngines() {
   else setTimeout(run, 1200);
 }
 
+/**
+ * 使用者一開始填生辰，就趁閒置把排盤引擎抓回來。
+ *
+ * 原本的載入時機是「按下排盤」——那一刻才開始下載 iztro、lunar 與整套解讀資料。
+ * 但從歡迎頁走到按下排盤，中間要打姓名、輸年份、選月、選日、選時辰、選性別，
+ * 少說十幾秒，這段時間網路完全閒置。等於把最長的一段等待，
+ * 精準地排在使用者最沒有耐心的那一刻（他剛按下按鈕，正在等結果）。
+ *
+ * 改成碰到表單就開始下載。這不省任何一個 byte——總下載量完全一樣——
+ * 但按下排盤時多半已經在記憶體裡，可感知的等待直接消失。
+ *
+ * 幾個刻意的選擇：
+ *   - 綁 focusin 而不是 pointerover：滑過側欄不算意圖，真的把游標放進欄位才算。
+ *   - once：只需要觸發一次，loadEngines() 本身有 enginesPromise 快取，重複呼叫也無害。
+ *   - 走 requestIdleCallback：使用者正在打字，下載不該跟輸入回應搶主執行緒。
+ *   - 失敗完全忽略：computeAll() 會再 await 一次 loadEngines(),那時才需要處理錯誤。
+ */
+function preloadEnginesOnIntent() {
+  const form = $('#birth-form');
+  if (!form) return;
+  const run = () => { loadEngines().catch(() => {}); };
+  form.addEventListener('focusin', () => {
+    if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 2000 });
+    else setTimeout(run, 200);
+  }, { once: true });
+}
+
 // index.html 把 Google Fonts 的 <link> 以 media="print" 掛載，讓它不擋首次繪製；
 // 這支模組是 type=module(自帶 defer),執行時 HTML 已解析完、首屏已可繪製，這時再切回 all。
 document.getElementById('font-css')?.setAttribute('media', 'all');
@@ -104,7 +140,9 @@ const esc = (s) => String(s).replace(/[&<>"'`]/g, (c) => ({
 }[c]));
 const flat = (s) => String(s).replace(/\n+/g, ' '); // 多行解讀 → 單段落
 // 注意：這裡的冒號是物件字面值的語法，不是中文標點，不要跟著全形化。
-const trad = (s) => String(s).replace(/[动开会亲纳采订盟医药猎机械坏垣]/g, (c) => ({ 动: '動', 开: '開', 会: '會', 亲: '親', 纳: '納', 采: '採', 订: '訂', 盟: '盟', 医: '醫', 药: '藥', 猎: '獵', 机: '機', 械: '械', 坏: '壞', 垣: '垣' }[c] ?? c));
+// 腊/闰 是後來補的：頁首的農曆日期字串（「腊月初五」「闰四月初三」）也走 lunar-javascript,
+// 但它不在原本這張表的涵蓋範圍內，於是農曆十二月或閏月出生的人一直看到簡體字。
+const trad = (s) => String(s).replace(/[动开会亲纳采订盟医药猎机械坏垣腊闰]/g, (c) => ({ 动: '動', 开: '開', 会: '會', 亲: '親', 纳: '納', 采: '採', 订: '訂', 盟: '盟', 医: '醫', 药: '藥', 猎: '獵', 机: '機', 械: '械', 坏: '壞', 垣: '垣', 腊: '臘', 闰: '閏' }[c] ?? c));
 
 // ---------- 出生日期輸入(年/月/日三欄，取代原生 date input——
 // 原生 date input 分段輸入時，年份欄位打超過4碼或按方向鍵切換欄位方式不直覺，
@@ -416,8 +454,10 @@ async function computeAllInner(parsed) {
   const byBranch = Object.fromEntries(ziWei.palaces.map((p) => [p.position[1], p]));
 
   // 頁首的農曆日期字串在這裡先算好（renderHead 不再依賴 lunar 套件，方便動態載入）
+  // 套 trad()：lunar-javascript 回傳的是簡體，農曆十二月會寫成「腊月」、閏月寫成「闰四月」，
+  // 是站上少數幾個漏掉繁化的字串（其餘八字欄位早就在 bazi.js 裡轉過了）。
   const lunarDate = Solar.fromYmd(y, m, d).getLunar();
-  const lunarDateStr = `${lunarDate.getMonthInChinese()}月${lunarDate.getDayInChinese()}`;
+  const lunarDateStr = trad(`${lunarDate.getMonthInChinese()}月${lunarDate.getDayInChinese()}`);
 
   state.data = {
     name, input, ziWei, baZi, byBranch, lunarDateStr, hourUnknown,
@@ -492,6 +532,7 @@ function setReadingMode(mode) {
   if (state.view === 'report') state.reportViewMode[state.reportTab] = mode;
   else state.readingMode = mode;
 }
+
 // 兩段式閱讀模式的按鈕定義（標籤與說明集中一份，不要在各 renderer 各寫一次）
 const READING_MODES = [
   { mode: 'public', label: '白話模式', hint: '只看結論，完全不出現命理術語' },
@@ -4001,6 +4042,7 @@ function renderEmpty() {
 // ---------- 初始化 ----------
 function setupControls() {
   birthDateCtl = wireDateParts({ yearId: '#birth-year', monthId: '#birth-month', dayId: '#birth-day', errorId: '#birth-date-error', nextId: '#birth-hour' });
+  preloadEnginesOnIntent(); // 使用者開始填表就先抓引擎，把填表的十幾秒拿來下載
 
   // 命盤上的符號（限/年/祿權科忌小標記、・身）原本只靠 title 屬性做 hover 提示，手機沒有 hover 等於看不到說明——
   // 綁一個委派點擊事件，點到這些符號時直接用 toast 顯示同樣的文字，桌面版 hover 仍然保留，手機版多了點擊也能看

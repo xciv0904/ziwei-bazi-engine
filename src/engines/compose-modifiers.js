@@ -129,6 +129,26 @@ const VOICE = {
   祿存: '你手上留得住一份底，不至於全部押空',
   天馬: '停不下來，也留不太住，你在這裡一直是移動的狀態',
 
+  // 廟旺利陷的讀者視角。
+  //
+  // 這幾句原本不存在，因為廟旺被排除在白話修正句之外——當時的理由是
+  //「廟旺講的是主星自己，不是別的星，混進『同宮還有其他星』會讀不通」，那是對的。
+  // 但排除之後產生了新的問題：主題分析那張「你的盤上還有這些條件」只剩下加分項。
+  // 實測一張天梁落陷又帶生年化祿的夫妻宮，卡片上四句話全是好消息
+  //（機會會自己出現、對方有才藝、能帶來經濟支持），落陷那一面完全消失。
+  // 命盤說的是「有資源但發揮吃力」，使用者讀到的是「一路順風」。
+  //
+  // 解法不是把廟旺塞回「其他星」那一段，而是給它自己的位置：它講的是
+  // 這一塊的底子，所以排在最前面，句子也自己講清楚是在說哪一塊生活，不套框架句。
+  // 用詞一律零術語——不出現廟、旺、陷，也不出現主星。
+  廟: '{領域}這一塊是你天生就順的地方，同樣的事你做起來比別人省力',
+  旺: '{領域}這一塊你的狀態很穩，不太會忽好忽壞',
+  得: '{領域}這一塊你的底子夠用，只是還沒到最好的狀態',
+  利: '{領域}這一塊你的表現中規中矩，不特別突出，也不特別弱',
+  平: '{領域}這一塊你的先天條件普通，成不成要看其他條件推不推得動',
+  不: '{領域}這一塊你的力氣不太使得出來，要環境夠順才看得到',
+  陷: '{領域}這一塊你天生比較吃力，同樣一件事你要花更久，也更需要別人幫一把',
+
   // 生年四化：{領域} 會換成這一宮實際的生活用語
   //
   // 化祿原本寫「{領域}的資源會自己找上你」，落在夫妻宮讀起來是
@@ -275,7 +295,9 @@ export function composePalaceModifiers(palace, options = {}) {
   const lead = (palace.majorStars ?? [])[0];
   if (lead?.brightness && BRIGHTNESS_TONE[lead.brightness]) {
     const b = BRIGHTNESS_TONE[lead.brightness];
-    push(`${lead.name}（${lead.brightness}）`, 'brightness', b.tone, b.effect, '廟旺利陷');
+    // voiceKey 傳亮度字（廟/旺/…）,才取得到上面那組零術語的讀者視角文案；
+    // 不傳的話會退回 effect,而 effect 寫的是「主星的特質…」——那是教學視角，帶術語。
+    push(`${lead.name}（${lead.brightness}）`, 'brightness', b.tone, b.effect, '廟旺利陷', null, lead.brightness);
   }
 
   // 2) 生年四化：決定能量往哪走，屬於主結構而不是補充
@@ -497,12 +519,24 @@ function plainLinesOf(items, palaceName) {
   // 我先前為了避免語氣矛盾把它降級成補充細節，代價是句子跟宮位對不上，太大了。
   const say = (item) => trimEnd(humanize(item.detail ?? item.voice, palaceName).replaceAll('{領域}', domain));
 
+  const brightness = items.filter((i) => i.category === 'brightness');
   const fromOtherStars = items.filter((i) => i.category !== 'brightness');
   const mutagens = fromOtherStars.filter((i) => i.category === 'mutagen');
   const others = fromOtherStars.filter((i) => i.category !== 'mutagen');
   const lines = [];
 
-  // 生年四化屬主結構，先講，而且要標明它是一輩子的。
+  // 底子（廟旺利陷）先講。
+  //
+  // 它一度被整個排除在白話句之外，代價是這張卡只剩下加分項：
+  // 天梁落陷帶化祿的夫妻宮，四句話全是好消息，發揮吃力那一面完全不見。
+  // 現在放回來，但放在最前面而不是混進「同宮還有其他星」——
+  // 它講的是這一塊的先天條件，順序上本來就該在加減項之前。
+  // 不套框架句：這幾句自己就講清楚了在說哪一塊生活，前面再加開頭語反而囉唆。
+  for (const item of brightness.slice(0, 1)) {
+    lines.push(`${trimEnd(item.voice.replaceAll('{領域}', domain))}。`);
+  }
+
+  // 生年四化屬主結構，接著講，而且要標明它是一輩子的。
   // 四化本來就是依領域寫的，不需要逐宮文案。
   for (const item of mutagens.slice(0, 1)) {
     lines.push(leadOf('mutagen', palaceName)(trimEnd(item.voice.replaceAll('{領域}', domain))));

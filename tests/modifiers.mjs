@@ -24,6 +24,46 @@ import { TOPIC_CONTRACTS } from '../src/data/topic-contracts.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./golden/cases/learning-mode-charts.json', import.meta.url), 'utf8'));
 
+/**
+ * 第 5 件事：白話修正句不可以只講好消息。
+ *
+ * 由來：一張天梁落陷又帶生年化祿的夫妻宮，主題分析的「你的盤上還有這些條件」
+ * 印出四句話，全部是加分項——機會會自己出現、對方有才藝、能帶來經濟支持。
+ * 落陷（發揮吃力）那一面完全不見，因為廟旺當時被整個排除在白話句之外。
+ * 命盤說的是「有資源但吃力」，使用者讀到的是「一路順風」。
+ *
+ * 這一條守的是：只要主星有亮度，白話修正句的第一句就必須交代底子，
+ * 不論那個底子是好是壞。有沒有講清楚無法自動判斷，但「有沒有講」可以。
+ */
+function checkBrightnessAlwaysSpoken(charts) {
+  let missing = 0;
+  let checked = 0;
+  let dragCases = 0;
+  for (const chart of charts) {
+    const ziWei = convertToZiWei(chart);
+    for (const palace of ziWei.palaces) {
+      const lead = (palace.majorStars ?? [])[0];
+      if (!lead?.brightness) continue;
+      const mods = composePalaceModifiers(palace);
+      if (!mods?.hasSignal) continue;
+      checked++;
+      const brightnessItem = mods.technical.items.find((i) => i.category === 'brightness');
+      if (!brightnessItem) continue;
+      // 底子必須是第一句，而且必須真的出現在白話句裡
+      const voice = brightnessItem.voice.replaceAll('{領域}', '').slice(0, 6);
+      if (!mods.plainLines[0] || !mods.plainLines[0].includes(voice.slice(-4))) missing++;
+      // 底子偏弱時特別要盯：這正是「四句話全是好消息」的來源。
+      // 第一句必須是那句底子，而不是某個加分項。
+      if (brightnessItem.tone === 'drag') {
+        dragCases++;
+        const first = mods.plainLines[0] ?? '';
+        if (/會自己出現|加分|省力|狀態很穩/.test(first)) missing++;
+      }
+    }
+  }
+  return { missing, checked, dragCases };
+}
+
 let failed = 0;
 const fail = (message) => { failed++; console.log(`❌ ${message}`); };
 const ok = (message) => console.log(`✅ ${message}`);
@@ -271,6 +311,12 @@ const bare = (raw) => String(raw).replace(/[(（].*$/, '').trim();
     if (!topicPrompt.includes('對應宮位的判讀修正')) fail('主題 AI 提示詞沒有帶上判讀修正');
   }
   ok('重點解讀、主題分析與三種 AI 提示詞都吃得到修正層');
+}
+
+{
+  const { missing, checked, dragCases } = checkBrightnessAlwaysSpoken(fixture.cases.map((c) => c.input ?? c));
+  if (missing) fail(`白話修正句漏掉主星力道：${missing} 處只印了加分項，讀起來像一路順風`);
+  else ok(`白話修正句一定先交代底子：${checked} 個有亮度的宮位（其中 ${dragCases} 個底子偏弱）都講了`);
 }
 
 console.log(failed ? `\n${failed} 項失敗 ❌` : '\n輔星、煞曜、雜曜與四化都真的進到解讀裡了 ✅');

@@ -281,6 +281,29 @@ check('匯入的真太陽時只取白名單欄位（原始碼層面）', (() => 
   const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
   return !/entry\.solarTime = \{ \.\.\.c\.solarTime \}/.test(src);
 })());
+// ---------- U5 填表時就預載排盤引擎 ----------
+// 從歡迎頁到按下排盤中間要填六個欄位，網路整段閒置；原本卻是按下去才開始下載
+// iztro + lunar + 解讀資料（gzip 四百多 KB）,等於把最長的等待排在最沒耐心的那一刻。
+check('一碰生辰表單就開始預載引擎（原始碼層面）', (() => {
+  const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
+  return /preloadEnginesOnIntent/.test(src)
+    && /form\.addEventListener\('focusin'/.test(src)
+    && /preloadEnginesOnIntent\(\);/.test(src);
+})());
+
+// ---------- U4 每一支測試都必須是部署門檻 ----------
+// deploy.yml 原本逐支列出要跑哪些測試，結果 smoke 串的 16 支裡只有 3 支在清單上，
+// 另外 13 支不擋任何東西。這條檢查守住「CI 跑的是 npm run smoke」這個決定，
+// 因為只要改回逐支列舉，同樣的漂移就會再發生一次。
+check('CI 直接跑 npm run smoke，不逐支列舉（每一支測試都是部署門檻）', (() => {
+  const yml = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf-8');
+  const steps = [...yml.matchAll(/^\s*- run: (.+?)(?:\s+#.*)?$/gm)].map((m) => m[1].trim());
+  if (!steps.includes('npm run smoke')) return false;
+  // 逐支列舉的殘留會讓人以為清單還有效，反而更危險
+  const perSuite = steps.filter((s) => /^npm run (?!smoke$|build$)/.test(s) || /^node .*tests\//.test(s));
+  return perSuite.length === 0;
+})());
+
 // 正式站沒有後端，connect-src 不該留著 HMR 用的 ws:（等於替 XSS 留一條外送通道）
 check('打包設定會在正式版收緊 CSP 的 connect-src（原始碼層面）', (() => {
   const cfg = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf-8');
