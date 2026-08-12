@@ -106,8 +106,13 @@
             <div id="birth-date-error" class="field-error" hidden></div>
           </div>
           <div class="field">
-            <label for="birth-hour">時辰</label>
-            <select id="birth-hour"></select>
+            <!-- 時辰跟性別一樣沒有預設值，理由也一樣：時辰決定紫微的命宮起點與八字時柱，
+                 選錯整張盤全錯，而畫面上不會有任何異常訊號。原本預選子時（清單第一項），
+                 但「子時」看起來就像一個正常的選擇，沒有人會察覺自己根本沒選過。
+                 真的不知道時辰的人請選最後一項「不確定時辰」，那一項會在畫面上標示僅供參考。 -->
+            <label for="birth-hour">時辰<span class="required-mark" aria-hidden="true">必選</span></label>
+            <select id="birth-hour" aria-required="true" aria-describedby="birth-hour-error"></select>
+            <div id="birth-hour-error" class="field-error" hidden></div>
           </div>
           <div class="field">
             <label class="optional-check"><input id="solar-time-enabled" type="checkbox" /> 使用真太陽時校正（選用）</label>

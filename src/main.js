@@ -278,7 +278,9 @@ const state = {
   // 每次重繪都會回到預設收合。集中保存所有總覽折疊狀態，讓內部互動不再把使用者彈出去。
   dashboardOpenDetails: new Set(),
   // 雙人合盤：乙方表單值、關係型態與已排好的乙方命盤
-  synastry: { form: { name: '', date: '', hour: '0', gender: '', rel: '戀人' }, b: null }, // gender 空字串＝未選，理由同上方 state.gender
+  // hour 與 gender 都是空字串＝未選，理由同上方 state.gender：
+  // 乙方的時辰同樣決定乙方紫微命宮與八字時柱，預設子時會讓合盤結論建立在一張錯盤上。
+  synastry: { form: { name: '', date: '', hour: '', gender: '', rel: '戀人' }, b: null },
   monthIdx: null, // 流月瀏覽（null = 未展開）
   shareCard: 'life', // 分享命卡：'life' 本命卡 | 'annual' 流年卡
   compareSelected: new Set(), // 命盤比對：目前勾選的已存命盤 index
@@ -301,6 +303,32 @@ function syncPillGroup(groupId, value) {
     p.classList.toggle('active', on);
     p.setAttribute(isRadio ? 'aria-checked' : 'aria-pressed', String(on));
   });
+}
+
+const clearHourError = () => {
+  const el = $('#birth-hour-error');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+  $('#birth-hour')?.classList.remove('field-invalid');
+};
+
+/**
+ * 時辰必選，理由與 requireGender 完全相同：
+ * 時辰決定紫微的命宮起點、身宮與八字時柱，選錯整張盤都不對，
+ * 而畫面上看不出任何異常。與其讓人拿到一張看起來正常的錯盤，不如在表單這裡擋下來。
+ * 真的不知道時辰的人有「不確定時辰」可選——那是明確的宣告，不是預設值。
+ */
+function requireHour() {
+  if (VALID_HOURS.has(String($('#birth-hour')?.value ?? ''))) return true;
+  const el = $('#birth-hour-error');
+  if (el) {
+    el.hidden = false;
+    el.textContent = '請選擇時辰。時辰決定命宮起點與八字時柱，沒有選會讓整張命盤都不對；真的不知道請選「不確定時辰」。';
+  }
+  $('#birth-hour')?.classList.add('field-invalid');
+  $('#birth-hour')?.focus();
+  return false;
 }
 
 const clearGenderError = () => {
@@ -332,6 +360,7 @@ function requireGender() {
 async function computeAll() {
   const parsed = birthDateCtl?.read();
   if (!parsed) return false; // 錯誤原因已由 birthDateCtl 就地顯示在欄位下方
+  if (!requireHour()) return false;   // 依表單上的欄位順序檢查，使用者才不會被跳著提示
   if (!requireGender()) return false; // 同樣就地顯示，不用 toast——toast 會消失，欄位錯誤會留著
   try {
     return await computeAllInner(parsed);
@@ -555,6 +584,7 @@ async function loadSavedEntry(c) {
   const [cy, cm, cd] = c.date.split('-').map(Number);
   birthDateCtl.set(cy, cm, cd);
   $('#birth-hour').value = String(c.hour); // 'unknown' 也直接對應到「不確定時辰」選項
+  clearHourError();
   $('#solar-time-enabled').checked = Boolean(c.solarTime);
   $('#solar-time-fields').hidden = !c.solarTime;
   if (c.solarTime) {
@@ -662,7 +692,17 @@ function importSavedCharts(file) {
       let added = 0;
       for (const c of valid) {
         const entry = { name: String(c.name).trim().slice(0, 20), date: c.date, hour: String(c.hour), gender: c.gender, cal: 'solar' };
-        if (c.solarTime) entry.solarTime = { ...c.solarTime };
+        // 只取用得到的三個欄位，不整包展開。
+        // isValidChartEntry 驗過這三個欄位的格式，但沒有限制物件裡還有什麼；
+        // 原本的 { ...c.solarTime } 會把匯入檔裡任何多餘的鍵一起寫進 localStorage，
+        // 之後再被 loadSavedEntry 讀回表單。匯入檔是外部來源，落地前先收斂成已知形狀。
+        if (c.solarTime) {
+          entry.solarTime = {
+            clockTime: String(c.solarTime.clockTime),
+            longitude: Number(c.solarTime.longitude),
+            utcOffset: Number(c.solarTime.utcOffset),
+          };
+        }
         if (!list.some((x) => x.date === entry.date && String(x.hour) === entry.hour && x.gender === entry.gender)) {
           list.push(entry);
           added++;
@@ -3025,6 +3065,20 @@ async function runSynastry(selectedHourOverride = null) {
   const parsed = synDateCtl?.read();
   if (!parsed) return; // 錯誤原因已就地顯示
   const { y, m, d } = parsed;
+  // 三個必填欄位依畫面上的排列順序檢查（日期 → 時辰 → 性別），
+  // 使用者才會被一路往下帶，而不是先跳到最下面那一欄、修好再被送回上面。
+  //
+  // 送出當下再從畫面讀一次，避免 select 的 change/input 事件在部分手機瀏覽器尚未同步到表單狀態。
+  const selectedHour = selectedHourOverride ?? $('#syn-hour')?.value ?? f.hour;
+  // 乙方時辰必選，理由同甲方（見 requireHour）：預設子時會讓合盤建立在一張錯盤上，
+  // 而且合盤只輸出一個分數，錯得比單盤更看不出來。
+  if (!VALID_HOURS.has(String(selectedHour))) {
+    const err = $('#syn-date-error');
+    if (err) { err.hidden = false; err.textContent = '請選擇乙方時辰。時辰決定乙方的命宮起點與時柱，沒有選會讓合盤結論不準；真的不知道請選「不確定時辰」。'; }
+    $('#syn-hour')?.focus();
+    return;
+  }
+  f.hour = selectedHour;
   // 乙方性別同樣必選。合盤會用到雙方的大限順逆行，乙方性別錯了合盤結論一樣不對。
   const pickedGender = $('#syn-gender')?.value ?? f.gender;
   if (pickedGender !== 'male' && pickedGender !== 'female') {
@@ -3035,9 +3089,6 @@ async function runSynastry(selectedHourOverride = null) {
   }
   f.gender = pickedGender;
   const { convertToZiWei, convertToBaZi } = await loadEngines();
-  // 送出當下再從畫面讀一次，避免 select 的 change/input 事件在部分手機瀏覽器尚未同步到表單狀態。
-  const selectedHour = selectedHourOverride ?? $('#syn-hour')?.value ?? f.hour;
-  f.hour = selectedHour;
   // renderSynastry() 會重建整張表單，先保存日期才能在產生結果後完整回填；
   // 否則第二次調整時辰再合盤，日期會變回空白而被驗證擋下。
   f.date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -3095,7 +3146,7 @@ function renderSynastry() {
           <select id="syn-month" aria-label="乙方出生月"></select>
           <select id="syn-day" aria-label="乙方出生日"></select>
         </div>
-        <select id="syn-hour" aria-label="乙方時辰">${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}<option value="unknown">不確定時辰（以午時暫排）</option></select>
+        <select id="syn-hour" aria-label="乙方時辰" required><option value="">時辰（必選）</option>${SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')}<option value="unknown">不確定時辰（以午時暫排）</option></select>
         <select id="syn-gender" aria-label="乙方性別" required><option value="">性別（必選）</option><option value="female">女</option><option value="male">男</option></select>
         <select id="syn-rel"><option>戀人</option><option>親子</option><option>朋友</option><option>同事</option></select>
         <button type="button" class="submit-btn syn-submit" id="syn-run">合盤</button>
@@ -3900,13 +3951,17 @@ function renderEmpty() {
       <p class="welcome-text muted">生辰資料不會上傳。內容供文化研究與自我探索參考。</p>
     </div>
   </div>${reminder ? `<div class="welcome-secondary reveal-section">${reminder}</div>` : ''}</div>`;
-  for (const v of VIEWS) $(`#view-${v}`).innerHTML = welcome;
-  // 歡迎內容沿用既有做法預先放進各分頁，但動態星盤只保留在真正可見的首頁，
-  // 避免隱藏分頁同時執行不必要的背景動畫。
-  for (const v of VIEWS) {
-    if (v !== 'dashboard') $(`#view-${v} .welcome-cosmos`)?.remove();
-  }
-  dirtyViews.clear(); // 歡迎畫面已把每一頁都填成同一份內容，沒有待補畫的分頁
+  // 歡迎畫面只放進真正看得到的那一頁。
+  //
+  // 原本是九個 view 各塞一份，衍生兩個問題：
+  //   1. 這段 HTML 帶著 id="welcome-start"，複製九份就是九個重複 id。
+  //      重複 id 不只是驗證器會抱怨——$('#welcome-start') 只會拿到第一個，
+  //      另外八顆按鈕永遠不會被綁上事件，等於八顆死按鈕。
+  //   2. 純浪費：尚未排盤時側欄導覽是 disabled 的，其他八頁根本切不過去，
+  //      卻要為它們各建一份含軌道動畫與預覽卡的節點。
+  // 現在只填 dashboard，其餘八頁清空；使用者能看到的內容完全不變。
+  for (const v of VIEWS) $(`#view-${v}`).innerHTML = v === 'dashboard' ? welcome : '';
+  dirtyViews.clear(); // 尚未排盤，沒有任何分頁需要補畫
   $$('[data-remind]').forEach((btn) =>
     btn.addEventListener('click', async () => {
       const c = loadSavedCharts()[Number(btn.dataset.remind)];
@@ -3972,12 +4027,22 @@ function setupControls() {
     else state.dashboardOpenDetails.delete(key);
   }, true);
 
-  // 時辰選單(預設子時，列表第一個選項，避免下拉選單一開始就停在中間某個時辰，
-  // 讓使用者誤以為那是自動判斷出來的值——時辰務必由使用者自己選，這裡只是給一個不易混淆的起始值)
-  $('#birth-hour').innerHTML = SHICHEN
-    .map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')
+  // 時辰選單第一項是佔位選項，不是子時。
+  //
+  // 原本預選子時，理由是「列表第一個選項最不易被誤認為自動判斷的結果」。
+  // 實際走一次流程就知道這個推論不成立：下拉選單顯示「子時（23–1）」的時候，
+  // 它跟使用者自己選的子時長得一模一樣，沒有任何訊號告訴你「你還沒選」。
+  // 於是不知道要選時辰的人會直接按排盤，拿到一張以子時排出來的盤——
+  // 命宮起點、身宮、八字時柱全錯，但畫面完全正常，錯了也看不出來。
+  //
+  // 這正是性別改為必選時處理過的同一個問題（見 requireGender），這裡沿用同樣的做法：
+  // 不給預設值，排盤前擋下來。真的不知道時辰的人選「不確定時辰」，
+  // 那是一個明確的宣告，畫面上也會標示紫微宮位與八字時柱僅供參考。
+  $('#birth-hour').innerHTML = '<option value="">請選擇時辰</option>'
+    + SHICHEN.map((s) => `<option value="${s.hour}">${s.label}</option>`).join('')
     + '<option value="unknown">不確定時辰（以午時暫排）</option>';
-  $('#birth-hour').value = '0';
+  $('#birth-hour').value = '';
+  $('#birth-hour').addEventListener('change', clearHourError);
   $('#solar-time-enabled').addEventListener('change', (event) => {
     $('#solar-time-fields').hidden = !event.target.checked;
   });

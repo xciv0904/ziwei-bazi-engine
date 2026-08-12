@@ -69,6 +69,27 @@ w.confirm = globalThis.confirm;
 // 性別改為必選（沒有預設值），所以排盤前要先選
 const pickGender = (v = 'female') => $$('#gender-toggle .pill').find((p) => p.dataset.value === v)?.click();
 
+// ---------- U3 時辰必選（沒有預設值） ----------
+// 跟性別是同一類問題：時辰決定紫微命宮起點與八字時柱，沒選就排等於整張盤都不對，
+// 而畫面上完全看不出異常。這幾條守的是「不准有預設時辰」與「沒選就要被擋下來」。
+// 位置刻意放在基準盤之前——基準盤會把時辰填好，之後就驗不到未選狀態了。
+check('時辰預設為未選（不是子時）', $('#birth-hour').value === '');
+check('時辰第一個選項是提示而非時辰', $('#birth-hour').options[0].value === ''
+  && $('#birth-hour').options[0].textContent.includes('請選擇'));
+check('「不確定時辰」仍然保留', $$('#birth-hour option').some((o) => o.value === 'unknown'));
+check('歡迎畫面只有一顆 id=welcome-start（重複 id 會讓其餘按鈕綁不到事件）',
+  $$('#welcome-start').length === 1);
+setDateParts('birth', 2002, 9, 4);
+pickGender();
+$('#birth-form').dispatchEvent(new w.Event('submit'));
+await settle();
+check('沒選時辰就排盤會被擋下', $$('.palace-cell').length === 0);
+check('沒選時辰的錯誤訊息說明了後果', !$('#birth-hour-error').hidden
+  && $('#birth-hour-error').textContent.includes('命宮'));
+$('#birth-hour').value = '13';
+$('#birth-hour').dispatchEvent(new w.Event('change'));
+check('選了時辰之後錯誤提示會清掉', $('#birth-hour-error').hidden);
+
 // 先排一張基準盤，後面的檢查都建立在它上面
 $('#name-input').value = '基準';
 setDateParts('birth', 2002, 9, 4);
@@ -251,6 +272,20 @@ check('state 初始沒有性別預設值（原始碼層面）', (() => {
   const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
   return /gender: null,/.test(src) && !/gender: 'female',/.test(src);
 })());
+check('合盤乙方時辰在 state 也沒有預設值（原始碼層面）', (() => {
+  const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
+  return !/hour: '0',/.test(src);
+})());
+// 匯入檔是外部來源：只取用得到的三個欄位落地，不整包展開進 localStorage
+check('匯入的真太陽時只取白名單欄位（原始碼層面）', (() => {
+  const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
+  return !/entry\.solarTime = \{ \.\.\.c\.solarTime \}/.test(src);
+})());
+// 正式站沒有後端，connect-src 不該留著 HMR 用的 ws:（等於替 XSS 留一條外送通道）
+check('打包設定會在正式版收緊 CSP 的 connect-src（原始碼層面）', (() => {
+  const cfg = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf-8');
+  return cfg.includes("connect-src 'self' ws: wss:") && cfg.includes("connect-src 'self'\"");
+})());
 check('命盤摘要標明依哪種曆法輸入，讓誤選可被發現', (() => {
   const t = $('#chart-profile-text').textContent;
   return t.includes('依陽曆輸入') && t.includes('換算陽曆');
@@ -260,8 +295,14 @@ check('命盤摘要標明依哪種曆法輸入，讓誤選可被發現', (() => 
 await nav('synastry');
 check('合盤乙方性別預設是「請選擇」而非預選女', $('#syn-gender').value === '');
 check('合盤乙方性別選單第一項是必選提示', $('#syn-gender').options[0].textContent.includes('必選'));
+check('合盤乙方時辰預設是「必選」而非子時', $('#syn-hour').value === ''
+  && $('#syn-hour').options[0].textContent.includes('必選'));
 $('#syn-name').value = '乙方';
 setDateParts('syn', 1995, 3, 8);
+$('#syn-run').click();
+await settle();
+check('乙方沒選時辰時合盤被擋下，並說明原因', !$('#syn-date-error').hidden
+  && $('#syn-date-error').textContent.includes('乙方時辰'));
 $('#syn-hour').value = '9';
 $('#syn-run').click();
 await settle();
