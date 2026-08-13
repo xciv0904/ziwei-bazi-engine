@@ -32,33 +32,33 @@ const tightenCspForBuild = () => ({
 });
 
 /**
- * iztro 的 i18n 進入點會靜態 require 六個語系（zh-CN / zh-TW / en-US / ja-JP / ko-KR / vi-VN）,
- * 打包器沒辦法搖掉，於是四個本站永遠用不到的語系跟著進了 ziwei chunk——
- * 而 ziwei chunk 正好在關鍵路徑上（使用者按下排盤就要等它）。
- * 本站在 ziwei.js 內固定 setLanguage('zh-TW'),繁中與簡中兩份保留（kot() 的反查會用到），
- * 其餘四個換成空物件。實測 ziwei chunk 470.11 kB → 441.65 kB（gzip 148.83 → 140.52）。
+ * 這裡曾經有一個 dropUnusedIztroLocales 外掛：iztro 的 i18n 進入點會靜態 require
+ * 六個語系，四個本站用不到的跟著進了關鍵路徑上的 ziwei chunk,看起來是白白多背的重量，
+ * 於是把它們換成空物件，省下 gzip 8.3 kB。
+ *
+ * 那是錯的，而且錯得很難發現。iztro 的 kot()（把翻譯後的字串反查回內部 key）
+ * 實作是掃過 resources 裡「每一個語系」的每一組 key/value 去比對：
+ *
+ *   for (const [, item] of Object.entries(resources))
+ *     for (const [transKey, trans] of Object.entries(item.translation))
+ *       if (trans === value) return transKey;
+ *
+ * 語系被換成空物件之後 item.translation 是 undefined,這個迴圈直接爆掉或回傳原值，
+ * 於是安星時查不到正確的 key,輔星與雜曜整批安錯宮。
+ *
+ * 使用者的回報是「紫微斗數的輔星全部錯亂」,而且用無痕視窗仍然錯——
+ * 我一開始還以為是他的瀏覽器快取。真正的原因是：整套測試都跑原始碼，
+ * 沒有一支跑建置產物，所以 npm run smoke 全綠、正式站卻是壞的。
+ *
+ * 現在補了 tests/build-output.mjs 直接對 dist 的 chunk 排一張盤比對。
+ * gzip 8.3 kB 不值得為這種風險再試一次，所以這個外掛不會回來。
  */
-const DROPPED_IZTRO_LOCALES = ['en-US', 'ja-JP', 'ko-KR', 'vi-VN'];
-const dropUnusedIztroLocales = () => ({
-  name: 'drop-unused-iztro-locales',
-  enforce: 'pre',
-  resolveId(source, importer) {
-    if (!importer || !importer.includes('iztro')) return null;
-    const hit = DROPPED_IZTRO_LOCALES.some(
-      (l) => source.endsWith(`locales/${l}`) || source.endsWith(`locales/${l}/index.js`),
-    );
-    return hit ? '\0iztro-empty-locale' : null;
-  },
-  load(id) {
-    return id === '\0iztro-empty-locale' ? 'export default {};' : null;
-  },
-});
 
 export default defineConfig(({ mode }) => ({
   base: './',
   plugins: mode === 'singlefile'
-    ? [dropUnusedIztroLocales(), viteSingleFile(), stripCspForSingleFile()]
-    : [dropUnusedIztroLocales(), tightenCspForBuild()],
+    ? [viteSingleFile(), stripCspForSingleFile()]
+    : [tightenCspForBuild()],
   build: {
     chunkSizeWarningLimit: 1200, // iztro + lunar-javascript 本體較大
   },

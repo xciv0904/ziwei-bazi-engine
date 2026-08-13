@@ -1001,7 +1001,7 @@ function renderBaZiCard() {
  */
 function baziReadingBlockHtml(baZi) {
   const modifiers = R.composeBaziModifiers?.(baZi);
-  const inner = `${modifierBlockHtml(modifiers, { title: '這張盤上，你跟別人不一樣的地方' })}${baziPillarStagesHtml(baZi)}`;
+  const inner = `${modifierBlockHtml(modifiers, { title: '這張盤上，你跟別人不一樣的地方' })}${baziPillarStagesHtml(baZi, modifiers)}`;
   return inner ? `<div class="card bazi-reading">${inner}</div>` : '';
 }
 
@@ -1013,14 +1013,14 @@ function baziReadingBlockHtml(baZi) {
  * 八字這邊只有四組字，等於把最基本的一層結構藏起來。
  * 納音與十二長生也是每一柱都算好了、卻從來沒有出現在畫面上的資料，一併帶上。
  */
-function baziPillarStagesHtml(baZi) {
-  const stages = R.composePillarStages?.(baZi) ?? [];
+function baziPillarStagesHtml(baZi, modifiers) {
+  const stages = R.composePillarStages?.(baZi, modifiers) ?? [];
   if (!stages.length) return '';
   const rows = stages.map((item) => `
     <li>
       <b>${esc(item.label)} ${esc(item.ganZhi)}</b>
       <span>${esc(item.lifeWord)}</span>
-      <small>${esc(item.note)}</small>
+      <small>${esc(item.impact)}</small>
     </li>`).join('');
   return `<section class="pillar-stages">
     <b>四柱各自在講你的哪一段</b>

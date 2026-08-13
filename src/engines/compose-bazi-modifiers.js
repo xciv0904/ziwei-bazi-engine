@@ -310,25 +310,35 @@ function narrativeOf(items) {
  * 卻不知道「年柱」是在講什麼。納音與十二長生也一併帶上，
  * 那兩項是每一柱都算好了卻從來沒被用到的資料。
  */
-export function composePillarStages(baZi) {
+export function composePillarStages(baZi, modifiers = null) {
   if (!baZi?.fourPillars) return [];
   const order = ['yearPillar', 'monthPillar', 'dayPillar', 'hourPillar'];
-  const STAGE_NOTE = {
-    yearPillar: '這一柱看的是你從哪裡來：家庭給了你什麼底子、早年的環境是鬆是緊。',
-    monthPillar: '這一柱最重要：你的性格怎麼被環境磨出來、事業與人際的土壤長什麼樣，多半看它。',
-    dayPillar: '這一柱是你自己，也是最親近的那個人：上面那個字是你，下面那個字是與你最貼身的關係。',
-    hourPillar: '這一柱看的是你往哪裡去：晚年的狀態、跟晚輩的緣分、以及你留下什麼。',
-  };
+  // 修正層已經講過的神煞不要在這裡再講一次。
+  // 兩塊常常出現在同一頁（命盤總覽的八字區、完整報告的第六節），
+  // 同一句話印兩次會被 readability 的「同一頁不得有一字不差的重複句」擋下——
+  // 那條檢查是對的，重複的句子會讓整頁看起來像機器湊出來的。
+  // 同一顆神煞也可能同時落在兩柱（空亡、六害都很常見），所以這個集合在四柱之間共用、
+  // 邊挑邊加——不然兩段會挑到同一顆，印出來還是重複句。
+  const used = new Set((modifiers?.technical?.items ?? []).map((item) => item.name));
   return order.map((key) => {
     const pillar = baZi.fourPillars[key];
     const detail = baZi.pillarDetails?.[key] ?? {};
     const shensha = (baZi.shenshaList?.[key] ?? []).slice(0, 3);
+    const tone = TWELVE_STAGE[detail.twelveStages]?.tone ?? 'shift';
+    // 這一段的實際樣子：先講整體力道（由該柱的十二長生決定），
+    // 再補一句這一柱上最明顯的神煞在生活裡怎麼出現。
+    const named = shensha.find((name) => SHENSHA_VOICE[name] && !used.has(name));
+    if (named) used.add(named);
+    const impact = [
+      PILLAR_IMPACT[key][tone],
+      named ? trimEnd(SHENSHA_VOICE[named].voice) : '',
+    ].filter(Boolean).map((text) => `${trimEnd(text)}。`).join('');
     return {
       key,
       label: PILLAR_LABEL[key],
       ganZhi: pillar ? `${pillar.stem}${pillar.branch}` : '',
       lifeWord: PILLAR_LIFE_WORD[key],
-      note: STAGE_NOTE[key],
+      impact,
       // technical 底下的東西白話面板不會渲染，跟全站約定一致
       technical: {
         nayin: detail.nayin ?? '',
@@ -338,6 +348,41 @@ export function composePillarStages(baZi) {
     };
   });
 }
+
+/**
+ * 每一柱在生活裡實際的樣子。
+ *
+ * 第一版寫的是「這一柱看的是你從哪裡來：家庭給了你什麼底子」——那是在解釋
+ * 年柱這個名詞是什麼意思。使用者的回饋很準：「這些只能解釋那些位置要幹麻，
+ * 適合放在學習的頁面，但一般使用者看不懂，與其解釋年柱，不如直接陳述它帶來的影響。」
+ *
+ * 完全同意。定義屬於學習模式，白話模式要回答的是「所以我會怎樣」。
+ * 現在每一柱依它自己的十二長生取一句，講那一段人生實際走起來是順是卡，
+ * 後面再接一句該柱最明顯的神煞在生活裡怎麼出現——兩句都是從這張盤算出來的，
+ * 不是套在誰身上都成立的通則。
+ */
+const PILLAR_IMPACT = {
+  yearPillar: {
+    boost: '你的起點是穩的：早年家裡給得出支撐，讓你不必太早為生存操心',
+    drag: '你的早年要靠自己補起來：家裡能給的有限，很多事你得比同齡人早學會',
+    shift: '你的早年環境變動不小：搬遷、家裡狀況起伏，讓你很早就學會適應',
+  },
+  monthPillar: {
+    boost: '你成長的環境是幫你的：機會、人脈與可以請教的人都不缺，發展比別人省力',
+    drag: '你成長的環境給的壓力比資源多：能力多半是被磨出來的，不是被養出來的',
+    shift: '你成長的環境常在換：換城市、換圈子、換方向，你的路線不是一條直線',
+  },
+  dayPillar: {
+    boost: '你自己這一塊是穩的：狀態好的時候撐得住事，親近的關係也給得起支持',
+    drag: '你自己這一塊比較耗：撐久了會掉下來，最親近的關係也需要你多花心力經營',
+    shift: '你自己這一塊起伏明顯：有時候什麼都做得動，有時候整個提不起勁，親近的關係也跟著波動',
+  },
+  hourPillar: {
+    boost: '你的後半段是往上的：越晚越有東西，跟晚輩的緣分也算順',
+    drag: '你的後半段要及早準備：晚年的餘裕不會自己出現，跟晚輩的相處也需要主動經營',
+    shift: '你的後半段會換一種活法：重心跟前半生不一樣，晚輩帶來的變化也不小',
+  },
+};
 
 /** 四柱各自在講什麼：給「四柱各段人生」卡片用 */
 export const PILLAR_MEANING = PILLAR_LIFE_WORD;

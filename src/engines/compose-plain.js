@@ -645,7 +645,7 @@ export function generatePlainBaziTopics(baZi, bzLuck, elements) {
     // 使用者看得到四柱干支，卻不知道「年柱」是在講什麼；納音與十二長生
     // 也是每一柱都算好了卻從來沒被用到的資料。補上這張，
     // 八字的卡片數才跟紫微一樣是六張（原本五張）。
-    baziPillarTopic(baZi),
+    baziPillarTopic(baZi, composeBaziModifiers(baZi)),
   ].filter(Boolean);
   const timeCard = baziTimeTopic(baZi, bzLuck);
   if (timeCard) cards.push(timeCard);
@@ -674,30 +674,33 @@ export function generatePlainBaziTopics(baZi, bzLuck, elements) {
 
 // ---------- 八字：四柱各段人生 ----------
 
-function baziPillarTopic(baZi) {
-  const stages = composePillarStages(baZi);
+function baziPillarTopic(baZi, modifiers) {
+  const stages = composePillarStages(baZi, modifiers);
   if (!stages.length) return null;
   const byKey = Object.fromEntries(stages.map((item) => [item.key, item]));
   return finalizeCard({
     key: 'pillars', title: '四柱各自在講你的哪一段', letter: '柱', color: 'var(--gold)',
-    summary: '四柱不是四組符號，是四段人生：年柱講你從哪裡來，月柱講你被什麼環境磨出來，日柱是你自己，時柱講你往哪裡去。',
-    // 用「：」而不是破折號：四柱各一句，四個破折號會被文字品質檢查擋下（ziwei-text-quality）,
-    // 而那條檢查是對的——同一段裡連用破折號會讓句子讀起來都黏在一起。
-    explanation: stages.map((item) => `${item.label}${item.ganZhi}：${item.note}`),
+    summary: '你的人生大致分成四段，每一段走起來的手感不一樣——這裡直接講每一段實際上是順是卡。',
+    // 講影響不講定義：「年柱看的是你從哪裡來」是在解釋名詞，屬於學習模式；
+    // 白話模式要回答的是「所以我會怎樣」。標籤也用生活用語而不是柱名。
+    explanation: stages.map((item) => `${item.lifeWord}：${item.impact}`),
+    // 這裡不要再重述四段的內容——explanation 已經逐段講過了，
+    // 重複的句子會被 readability 的「同一頁不得有一字不差的重複句」擋下，
+    // 而那條檢查是對的：同一頁看到兩次一樣的話，會讓人覺得是機器湊出來的。
+    // 這一區改講「這四段合起來看的時候會怎樣」,那是逐段講不到的東西。
     lifeExamples: [
-      `你的成長環境與人際土壤看月柱（${byKey.monthPillar?.ganZhi ?? ''}）：這一柱在八字裡份量最重，性格怎麼被磨出來多半看它。`,
-      `最貼身的關係看日柱（${byKey.dayPillar?.ganZhi ?? ''}）：上面那個字是你自己，下面那個字是與你最靠近的那個人。`,
-      `晚年與晚輩的緣分看時柱（${byKey.hourPillar?.ganZhi ?? ''}）：你留下什麼、跟後輩處得如何，這一柱說得最清楚。`,
+      '你會發現某些狀況一直重複出現，那通常是相鄰兩段的條件疊在一起造成的，不是單一階段的問題。',
+      '順的那幾段會替卡的那幾段補位：資源、人脈或經驗會被帶過去，所以卡住的時候不必只在當下想辦法。',
     ],
     challenges: [
-      '四柱之間會互相影響：某一柱特別強或特別弱，會把相鄰那一段的表現一起帶偏，不能各看各的。',
-      '年柱的條件不是你選的，但它確實決定了你的起點；把它當背景理解，比當成命定接受更有用。',
+      '四段之間會互相牽動：某一段特別順或特別卡，會把相鄰那一段一起帶著走，不能各看各的。',
+      '早年的條件不是你選的，但它確實決定了你的起點；當成背景理解，比當成命定接受更有用。',
     ],
     advice: [
-      '看八字先看月柱：它是全局的樞紐，也是你最能施力的一段。',
-      '把四柱當成一條時間線讀，而不是四張獨立的標籤，你會比較看得出自己的走向。',
+      '把力氣放在中間那一段：成長環境與事業土壤是你最能施力的地方，早年已成定局，晚年還太遠。',
+      '把這四段當成一條時間線來看，而不是四個獨立的標籤，你比較看得出自己的走向。',
     ],
-    reflection: '如果把你的人生切成四段，哪一段最像現在的你？',
+    reflection: '這四段裡，哪一段最像你現在的狀態？',
     evidence: stages.map((item) => `${item.label}${item.ganZhi}｜${item.lifeWord}`),
     technical: technicalBlock({
       chartData: stages.map((item) =>

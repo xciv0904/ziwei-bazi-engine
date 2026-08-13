@@ -14,7 +14,7 @@ import { BRIGHTNESS_ALIAS } from './compose.js';
 import { tenGodOf, composeBaZiCycleOverlay, categoryOf, categoryLabel } from './compose-luck.js';
 import { composeElementAnalysis } from './compose-elements.js';
 import { composeShenShaReading } from './compose-shensha.js';
-import { composePillarStages } from './compose-bazi-modifiers.js';
+import { composePillarStages, composeBaziModifiers } from './compose-bazi-modifiers.js';
 import { composeBranchRelationsReading, relationDisplayName } from './compose-branch-relations.js';
 import luckOverlayDb from '../data/luck-cycle-overlays.json' with { type: 'json' };
 import shenshaDb from '../data/shensha-analysis.json' with { type: 'json' };
@@ -520,12 +520,12 @@ export function generateBaziComprehensiveReading(baZi, { year = new Date().getFu
   // 紫微那邊十二宮每一宮都有名字（命宮、夫妻宮…），讀者一看就知道在講什麼；
   // 八字這邊整份報告都在講日主、十神、神煞，卻從來沒說過「年柱」是什麼意思。
   // 納音與十二長生也是每一柱都算好了、卻從來沒有出現在報告裡的資料。
-  const stageLines = composePillarStages(baZi).map((item) => {
+  const stageLines = composePillarStages(baZi, composeBaziModifiers(baZi)).map((item) => {
     const tech = mode === 'study'
       ? `（${item.ganZhi}，納音${item.technical.nayin}、十二長生${item.technical.twelveStages}`
         + `${item.technical.shensha.length ? `、${item.technical.shensha.join('、')}` : ''}）`
       : '';
-    return `${item.label}${tech}：${item.note}`;
+    return `${item.lifeWord}${tech}：${item.impact}`;
   });
   sections.push({ title: '六、四柱各段人生', text: stageLines.join('') });
 

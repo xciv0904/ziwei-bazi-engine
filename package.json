@@ -8,7 +8,7 @@
     "build": "node scripts/build-wiki.mjs && npm run verify-page && vite build",
     "preview": "vite preview",
     "test": "node test.js && node test-divination.mjs",
-    "smoke": "node --import ./css-hook.mjs smoke.mjs && npm run prelaunch && npm run verify-test && npm run readability && npm run text-quality && npm run topic-contracts && npm run on-question && npm run learning-mode && npm run annual-learning && npm run life-manual && npm run star-glossary && npm run star-application && npm run double-star && npm run reading-modes && npm run modifiers && npm run wiki-structure && npm run topic-balance",
+    "smoke": "node --import ./css-hook.mjs smoke.mjs && npm run prelaunch && npm run verify-test && npm run readability && npm run text-quality && npm run topic-contracts && npm run on-question && npm run learning-mode && npm run annual-learning && npm run life-manual && npm run star-glossary && npm run star-application && npm run double-star && npm run reading-modes && npm run modifiers && npm run wiki-structure && npm run topic-balance && npm run build-output",
     "wiki": "node scripts/build-wiki.mjs",
     "verify-page": "node cross-test.mjs > /dev/null && node cross-test-bazi.mjs > /dev/null && node cross-test-wenmo.mjs > /dev/null && node scripts/build-verification.mjs",
     "readability": "node --import ./css-hook.mjs readability.mjs",
@@ -26,7 +26,8 @@
     "double-star": "node tests/double-star-palace.mjs",
     "reading-modes": "node tests/reading-modes.mjs",
     "modifiers": "node tests/modifiers.mjs",
-    "topic-balance": "node tests/topic-balance.mjs"
+    "topic-balance": "node tests/topic-balance.mjs",
+    "build-output": "vite build && node --import ./css-hook.mjs tests/build-output.mjs"
   },
   "devDependencies": {
     "happy-dom": "^20.10.6",
