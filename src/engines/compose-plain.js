@@ -653,9 +653,22 @@ export function generatePlainBaziTopics(baZi, bzLuck, elements) {
   // 修正層：紫微每張卡都有「你跟別人不一樣的地方」（廟旺、四化、吉煞），
   // 八字這邊一直沒有對應的東西，於是八字卡只剩下骨架，而骨架人人都有。
   // 資料其實一直都在（神煞、地支合沖刑害、十二長生），只是沒被用。
-  // 掛在每張卡上，渲染端就跟紫微共用同一套 modifierBlockHtml，不必另寫一份。
+  //
+  // 但它跟紫微那邊有一個關鍵差別：紫微的修正層是「宮位層級」,一張卡一個宮位，
+  // 六張卡六份不同的內容；八字的神煞與地支關係是「整張盤層級」,只有一份。
+  // 第一版照抄紫微的做法掛在每張卡上，結果六張卡印出一模一樣的五句話——
+  // 使用者的原話是「每個字卡裡面全都長一樣」。
+  //
+  // 這正是先前主題分析踩過的同一個坑（六題共用一個宮位，修正層被印六次），
+  // 當時的解法是移到主題層級只出現一次。這裡沿用同一個解法：
+  // 掛在 cards.modifiers 這個「整份八字」的屬性上，由渲染端在分頁層級印一次，
+  // 不掛進任何一張卡。
   const modifiers = composeBaziModifiers(baZi);
-  if (modifiers?.hasSignal) for (const card of cards) card.modifiers = modifiers;
+  if (modifiers?.hasSignal) {
+    // 陣列上掛屬性看起來取巧，但它精準地表達了「這份資料屬於整組卡片，不屬於其中任何一張」，
+    // 而且不必為此改動 generatePlainBaziTopics 的回傳型別（呼叫點有五處）。
+    Object.defineProperty(cards, 'modifiers', { value: modifiers, enumerable: false });
+  }
   return cards;
 }
 

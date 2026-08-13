@@ -137,30 +137,39 @@ const BAZI_SHARE_FLOOR = 0.20; // 八字依據佔比的下限
     ok(`重點摘要兩邊卡片數對等：紫微 ${ziweiCards.length} 張、八字 ${baziCards.length} 張`);
   }
 
-  const withoutModifiers = baziCards.filter((card) => !card.modifiers?.hasSignal);
-  if (withoutModifiers.length) {
-    fail(`${withoutModifiers.length} 張八字卡沒有修正層——那是八字看起來單薄的主因`);
+  // 八字的修正層是整張盤層級的（神煞、地支關係只有一份），紫微的是宮位層級
+  //（一張卡一個宮位，六張各自不同）。第一版照抄紫微把它掛在每張卡上，
+  // 結果六張卡印出一模一樣的五句話，使用者的原話是「每個字卡裡面全都長一樣」。
+  // 這一條守的就是那個修正：修正層只能有一份，而且不掛在任何一張卡上。
+  const cardsWithModifiers = baziCards.filter((card) => card.modifiers);
+  if (cardsWithModifiers.length) {
+    fail(`${cardsWithModifiers.length} 張八字卡各自掛了修正層——同一段會被印 ${cardsWithModifiers.length} 次`);
+  } else if (!baziCards.modifiers?.hasSignal) {
+    fail('八字沒有修正層——那是它看起來單薄的主因');
   } else {
-    ok('每張八字卡都有修正層（神煞、地支合沖刑害、十二長生）');
+    ok('八字修正層只有一份，掛在整組卡片上（不會每張卡重印一次）');
   }
 
-  const zwBulk = bulk(ziweiCards);
+  // 量體比較刻意扣掉兩邊的修正層：紫微六張各有一份（合理，宮位不同），
+  // 八字只有一份（也合理，整張盤共用）。連著算會讓紫微的分母灌水，
+  // 比出來的數字沒有意義。要比的是卡片本文的份量。
+  const zwBulk = bulk(ziweiCards.map((card) => ({ ...card, modifiers: undefined })));
   const bzBulk = bulk(baziCards);
   const ratio = bzBulk / zwBulk;
   if (ratio < 0.7) {
-    fail(`八字卡片量體只有紫微的 ${(ratio * 100).toFixed(0)}%（八字 ${bzBulk} 字／紫微 ${zwBulk} 字）`);
+    fail(`八字卡片本文只有紫微的 ${(ratio * 100).toFixed(0)}%（八字 ${bzBulk} 字／紫微 ${zwBulk} 字）`);
   } else {
-    ok(`八字卡片量體是紫微的 ${(ratio * 100).toFixed(0)}%（八字 ${bzBulk} 字／紫微 ${zwBulk} 字，下限 70%）`);
+    ok(`八字卡片本文是紫微的 ${(ratio * 100).toFixed(0)}%（八字 ${bzBulk} 字／紫微 ${zwBulk} 字，下限 70%）`);
   }
 
   // 修正層若寫壞，最常見的症狀是只剩下好消息——跟紫微那邊踩過的坑一樣。
   // 底子（十二長生）必須是第一句，不論好壞。
-  const stageSpoken = baziCards.every((card) => {
-    const first = card.modifiers?.plainLines?.[0] ?? '';
-    return first && !/貴人|加分|吃香|一學就通/.test(first);
-  });
-  if (!stageSpoken) fail('八字修正層沒有先講底子，整段只剩加分項');
-  else ok('八字修正層一定先交代底子，不會只印好消息');
+  const firstLine = baziCards.modifiers?.plainLines?.[0] ?? '';
+  if (!firstLine || /貴人|加分|吃香|一學就通/.test(firstLine)) {
+    fail('八字修正層沒有先講底子，整段只剩加分項');
+  } else {
+    ok('八字修正層一定先交代底子，不會只印好消息');
+  }
 }
 
 console.log(failed

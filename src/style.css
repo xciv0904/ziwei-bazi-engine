@@ -223,6 +223,21 @@ body:not(.has-chart) .side-nav { display: none; }
 
 /* ---------- 八字四柱 ---------- */
 .bazi-card { flex: 1; min-width: 300px; align-self: stretch; }
+/* 八字盤面底下的解讀區跨整個寬度。
+   放進 .chart-area 那一排會讓右欄比左欄長一大截、左邊留一片空白——
+   那一排放的是兩張盤面，解讀不屬於那裡。 */
+.bazi-reading-wrap { margin-top: 18px; }
+.bazi-reading { padding: 18px 20px; }
+.bazi-reading .modifier-block { margin: 0; }
+.bazi-reading .pillar-stages { margin-top: 18px; }
+@media (min-width: 901px) {
+  /* 桌機兩張盤並排，兩欄等高，短的那一張不會孤零零地浮在上面 */
+  .chart-area { align-items: stretch; }
+}
+@media (max-width: 900px) {
+  /* 手機是分頁切換：看紫微那一頁時，八字的解讀區跟著收起來 */
+  .chart-area-wrap.show-ziwei .bazi-reading-wrap { display: none; }
+}
 .bazi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .bz-head { text-align: center; font: 600 10.5px/1 var(--sans); color: rgba(43, 38, 33, .5); }
 .bz-god { text-align: center; font: 400 10px/1 var(--sans); color: var(--ink-45); }

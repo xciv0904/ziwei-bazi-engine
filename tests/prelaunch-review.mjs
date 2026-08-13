@@ -304,6 +304,19 @@ check('CI 直接跑 npm run smoke，不逐支列舉（每一支測試都是部�
   return perSuite.length === 0;
 })());
 
+// ---------- U6 部署新版要提示使用者 ----------
+// 使用者曾回報「紫微斗數的輔星全部錯亂」並附截圖，但同一組生辰在當時的原始碼
+// 跑出來完全正確——他看到的是分頁開著沒關、Service Worker 手上那份舊 bundle。
+// 命理內容本來就「說不準」,使用者沒有理由懷疑是快取，只會覺得這個站算錯了。
+check('偵測到新版 Service Worker 會提示重新整理（原始碼層面）', (() => {
+  const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf-8');
+  const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf-8');
+  return /updatefound/.test(src)
+    && /有新版本/.test(src)
+    && /navigator\.serviceWorker\.controller/.test(src) // 首次安裝不該被當成更新
+    && /const CACHE = 'zwbz-v\d+'/.test(sw);
+})());
+
 // 正式站沒有後端，connect-src 不該留著 HMR 用的 ws:（等於替 XSS 留一條外送通道）
 check('打包設定會在正式版收緊 CSP 的 connect-src（原始碼層面）', (() => {
   const cfg = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf-8');

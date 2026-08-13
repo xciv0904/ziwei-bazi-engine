@@ -973,11 +973,6 @@ function renderBaZiCard() {
     return `<div class="el-legend-item"><span class="dot" style="background:${EL_COLOR[el]}"></span><span style="color:${EL_COLOR[el]}">${el}</span><b>${count}</b></div>`;
   }).join('');
   const note = `${elements.dominant.join('、')}偏旺，${elements.weak.join('、')}偏弱，可透過後天培養補強平衡。`;
-  // 八字四柱這一頁原本只有盤面：干支、藏干、納音、五行分佈，一句解讀都沒有。
-  // 對照組是紫微那一頁——點一個宮位就有主星說明、修正層、逐步判讀。
-  // 使用者的原話是「八字的部分感覺變很少」，這一頁是感受最直接的地方。
-  // 神煞、地支合沖刑害、十二長生本來就都算好了，這裡把它們接上同一套修正層元件。
-  const baziModifiers = R.composeBaziModifiers?.(baZi);
 
   return `<div class="card bazi-card">
     <div class="card-label">八字・四柱</div>
@@ -991,9 +986,23 @@ function renderBaZiCard() {
       </div>
       <div class="el-note">${esc(note)}</div>
     </div>
-    ${modifierBlockHtml(baziModifiers, { title: '這張盤上，你跟別人不一樣的地方' })}
-    ${baziPillarStagesHtml(baZi)}
   </div>`;
+}
+
+/**
+ * 八字盤面底下的解讀區（修正層與四柱分段）。
+ *
+ * 這兩塊原本塞在 renderBaZiCard() 裡面，結果把版面弄壞了：
+ * 命盤總覽的上半部是「紫微十二宮圖」與「八字四柱圖」左右並排，兩邊都是盤面；
+ * 八字那一欄多了十幾行解讀之後就比左邊長出一大截，左邊留下一大片空白。
+ *
+ * 位置錯了而不是內容錯了——那一排要放的是盤面，解讀屬於盤面底下。
+ * 移出來獨立一塊、跨整個寬度，兩邊的盤面就回到等高。
+ */
+function baziReadingBlockHtml(baZi) {
+  const modifiers = R.composeBaziModifiers?.(baZi);
+  const inner = `${modifierBlockHtml(modifiers, { title: '這張盤上，你跟別人不一樣的地方' })}${baziPillarStagesHtml(baZi)}`;
+  return inner ? `<div class="card bazi-reading">${inner}</div>` : '';
 }
 
 /**
@@ -2502,7 +2511,10 @@ function renderDashboard() {
           <button type="button" class="chart-tab${isZw ? ' active' : ''}" data-chart="ziwei">紫微命盤</button>
           <button type="button" class="chart-tab${isZw ? '' : ' active'}" data-chart="bazi">八字四柱</button>
         </div>
-        <div class="row chart-area ${isZw ? 'show-ziwei' : 'show-bazi'}">${renderZiWeiCard()}${renderBaZiCard()}</div>
+        <div class="chart-area-wrap ${isZw ? 'show-ziwei' : 'show-bazi'}">
+          <div class="row chart-area ${isZw ? 'show-ziwei' : 'show-bazi'}">${renderZiWeiCard()}${renderBaZiCard()}</div>
+          <div class="bazi-reading-wrap">${baziReadingBlockHtml(state.data.baZi)}</div>
+        </div>
         ${renderClassroom()}
         ${renderLearningPanel()}
         ${renderLuckBrowser()}
@@ -2874,6 +2886,7 @@ function renderReport() {
       <button type="button" class="report-tab${isZiwei ? '' : ' active'}" data-tab="bazi" role="tab" aria-selected="${!isZiwei}">八字</button>
     </div>
     <div class="report-intro">${intro}</div>
+    ${isZiwei ? '' : modifierBlockHtml(bazi.modifiers, { title: '這張盤上，你跟別人不一樣的地方' })}
     <div class="analysis-card-list">${list}</div>
     ${shareInvite}`;
 
@@ -2973,7 +2986,17 @@ function comprehensiveHeadline(title, source) {
 }
 
 function deepSourceCard(title, { ziWei, baziCards }) {
-  const bazi = (key) => baziCards.find((c) => c.key === key);
+  // 八字的修正層是整張盤層級的，掛在 baziCards 這個陣列上而不是個別卡片上
+  //（理由見 generatePlainBaziTopics：掛在每張卡會讓同樣的五句話印六次）。
+  // 完整報告每一節各自獨立，所以這裡把它接回這一節的 source，
+  // 但只給第一節，其餘節次不重複印。
+  const bazi = (key) => {
+    const card = baziCards.find((c) => c.key === key);
+    if (!card) return card;
+    return title === '一、個性本質' && baziCards.modifiers
+      ? { ...card, modifiers: baziCards.modifiers }
+      : card;
+  };
   switch (title) {
     case '一、性格與才華': return R.generatePlainPalaceCard(ziWei, '命宮');
     case '二、事業與金錢': return R.generatePlainPalaceCard(ziWei, '官祿宮');
@@ -4399,6 +4422,33 @@ window.addEventListener('unhandledrejection', notifyError);
 // ---------- PWA:註冊 Service Worker(離線可用、可加入主畫面) ----------
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => { /* 不支援或註冊失敗不影響功能 */ });
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      if (!reg) return;
+      // 部署新版之後提示重新整理。
+      //
+      // 這是實際發生過的問題：使用者回報「紫微斗數的輔星全部錯亂」,附了截圖，
+      // 而同一組生辰在當時的原始碼跑出來完全正確——他看到的是分頁開著沒關、
+      // Service Worker 手上那份舊 bundle。命理網站的內容看起來本來就「說不準」,
+      // 使用者沒有理由懷疑是快取，只會覺得這個站算錯了。
+      //
+      // /assets/ 是內容雜湊檔名、快取優先，本身沒問題；問題在於沒有人告訴使用者
+      // 「你手上這份已經不是最新的了」。偵測到新版就提示，讓他自己決定何時重新整理——
+      // 不自動重整：使用者可能正在讀某一段，畫面突然跳掉比看到舊版更糟。
+      const promptUpdate = () => {
+        if (!navigator.serviceWorker.controller) return; // 首次安裝不算更新
+        toast('網站有新版本，重新整理即可更新');
+      };
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing;
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed') promptUpdate();
+        });
+      });
+      // 分頁可能開著好幾天都不會觸發自動檢查，回到這個分頁時主動問一次
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) reg.update().catch(() => {});
+      });
+    }).catch(() => { /* 不支援或註冊失敗不影響功能 */ });
   });
 }

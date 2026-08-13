@@ -1,7 +1,9 @@
 // Service Worker — 離線支援
 // 策略:hashed assets(內容雜湊檔名，永不變)快取優先；其餘（index.html 等）網路優先、離線退回快取。
-// 版本號：改動這支檔案或想強制淘汰舊快取時要一起改（activate 會刪掉所有非本版本的快取）
-const CACHE = 'zwbz-v4';
+// 版本號：改動這支檔案或想強制淘汰舊快取時要一起改（activate 會刪掉所有非本版本的快取）。
+// v4 → v5：這一版把「有新版本」的提示接上（見 main.js 的 serviceWorker.register），
+// 起因是使用者回報排盤結果錯誤，實際上是分頁開著沒關、手上是舊的 bundle。
+const CACHE = 'zwbz-v5';
 
 // install 階段先把 app shell 抓進快取。
 // 之前完全不預快取，「離線可用」實際上是「你剛好造訪過的那幾頁才可用」——
