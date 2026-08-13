@@ -374,8 +374,14 @@ await clickNav($('#view-report [data-jump-dashboard]'));
 check('點擊跳轉按鈕會切到命盤總覽', !$('#view-dashboard').hidden);
 await nav('report');
 $$('#view-report .report-tab').find((t) => t.dataset.tab === 'bazi').click();
-check('八字白話摘要卡片 5 項（含喜用神）', $$('#view-report .analysis-card').length === 5);
-// 卡片標題已改成白話（內部 key 仍是 zhu/xiji/yongshen/shishen/dayun），術語只留在專業依據面板
+// 5 → 6 張：補上「四柱各自在講你的哪一段」。
+// 紫微那一邊是六張，八字是五張，而且每張的內容量只有紫微的三分之一——
+// 使用者的原話是「八字的部分感覺變很少」。四柱分段是八字最基本的一層結構，
+// 資料（納音、十二長生、各柱神煞）一直都算好了，只是從來沒有呈現。
+check('八字白話摘要卡片 6 項（含喜用神與四柱分段）', $$('#view-report .analysis-card').length === 6);
+check('八字卡有四柱分段那一張', $$('#view-report .analysis-card__title')
+  .some((t) => t.textContent.includes('四柱各自在講你的哪一段')));
+// 卡片標題已改成白話（內部 key 仍是 zhu/xiji/yongshen/shishen/pillars/dayun），術語只留在專業依據面板
 check('預設展開第一張八字卡（你的先天底色）', $('#view-report .analysis-card.open .analysis-card__title').textContent.includes('你的先天底色'));
 check('含喜用神卡，且標題已白話化', $$('#view-report .analysis-card__title').some((t) => t.textContent.includes('對你有幫助與要避開的方向')));
 check('解讀報告讀完後才出現分享命卡邀請', !!$('#report-share-btn'));
@@ -386,7 +392,10 @@ await nav('report');
 // --- 命盤解析（綜合報告） ---
 await nav('comprehensive');
 check('解析視圖顯示', !$('#view-comprehensive').hidden);
-check('紫微6段+八字6段（含全盤概覽/地支關係/神煞）', $$('#view-comprehensive .acc-item').length === 12);
+// 八字多一段「四柱各段人生」：年月日時分別在講哪一段，是八字最基本的一層結構，
+// 但整份報告原本從來沒說過「年柱」是什麼意思——紫微那邊十二宮每一宮都有名字，
+// 讀者一看就知道在講什麼，八字這邊只有四組干支。12 → 13 段。
+check('紫微6段+八字7段（含全盤概覽/地支關係/神煞/四柱各段）', $$('#view-comprehensive .acc-item').length === 13);
 check('含當前焦點段', $('#view-comprehensive').textContent.includes('當前焦點'));
 // 大眾版標題要看得懂：畫面上顯示白話標題，「財官流向」「地支關係」「神煞」等術語標題
 // 只在專業命盤模式出現（內部識別字仍維持原名，收合設定與導語都靠它）
@@ -451,7 +460,7 @@ branchRelItemAfter.querySelector('.acc-row[data-detail]').click();
 const branchRelItemCollapsed = findDetailItem('地支關係');
 check('再點一次收合回去', !branchRelItemCollapsed.classList.contains('open') && !branchRelItemCollapsed.querySelector('.acc-body'));
 // 主要4段（全盤概覽/個性本質/財官流向/人際健康建議）不受影響，預設仍全部展開
-check('全盤概覽等主要段落預設仍展開', $$('#view-comprehensive .acc-item.open').length === 12 - 2);
+check('全盤概覽等主要段落預設仍展開', $$('#view-comprehensive .acc-item.open').length === 13 - 2);
 
 // --- 雙人合盤 ---
 await nav('synastry');

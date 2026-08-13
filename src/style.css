@@ -492,6 +492,15 @@ body:not(.has-chart) .side-nav { display: none; }
   .dual-track__tag { justify-self: start; }
 }
 
+/* 四柱各段人生：八字這一頁原本只有盤面，沒有任何一句說明四柱在講什麼 */
+.pillar-stages { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(43,38,33,.09); }
+.pillar-stages > b { display: block; margin-bottom: 10px; font: 600 11.5px/1 var(--sans); color: var(--gold); }
+.pillar-stage-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pillar-stage-list li { display: grid; gap: 2px; }
+.pillar-stage-list b { font: 600 12.5px/1.5 var(--sans); color: var(--ink); }
+.pillar-stage-list span { font: 500 11.5px/1.5 var(--sans); color: var(--gold); }
+.pillar-stage-list small { font: 400 12.5px/1.75 var(--sans); color: rgba(43,38,33,.7); }
+
 .topic-ai-btn { margin: 13px 0 0; color: var(--red); border-color: rgba(180,60,46,.35); }
 .topic-ai-note { margin: 7px 0 0; font: 400 10.5px/1.6 var(--sans); color: var(--ink-45); }
 .topic-limit { margin: 14px 2px 0; }

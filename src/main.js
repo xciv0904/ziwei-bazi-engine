@@ -973,6 +973,11 @@ function renderBaZiCard() {
     return `<div class="el-legend-item"><span class="dot" style="background:${EL_COLOR[el]}"></span><span style="color:${EL_COLOR[el]}">${el}</span><b>${count}</b></div>`;
   }).join('');
   const note = `${elements.dominant.join('、')}偏旺，${elements.weak.join('、')}偏弱，可透過後天培養補強平衡。`;
+  // 八字四柱這一頁原本只有盤面：干支、藏干、納音、五行分佈，一句解讀都沒有。
+  // 對照組是紫微那一頁——點一個宮位就有主星說明、修正層、逐步判讀。
+  // 使用者的原話是「八字的部分感覺變很少」，這一頁是感受最直接的地方。
+  // 神煞、地支合沖刑害、十二長生本來就都算好了，這裡把它們接上同一套修正層元件。
+  const baziModifiers = R.composeBaziModifiers?.(baZi);
 
   return `<div class="card bazi-card">
     <div class="card-label">八字・四柱</div>
@@ -986,7 +991,32 @@ function renderBaZiCard() {
       </div>
       <div class="el-note">${esc(note)}</div>
     </div>
+    ${modifierBlockHtml(baziModifiers, { title: '這張盤上，你跟別人不一樣的地方' })}
+    ${baziPillarStagesHtml(baZi)}
   </div>`;
+}
+
+/**
+ * 四柱各自在講哪一段人生。
+ *
+ * 盤面上寫著年月日時四組干支，但沒有任何地方說過那四組分別代表什麼。
+ * 紫微那邊十二宮每一宮都有名字（命宮、夫妻宮…），使用者一看就知道在講什麼；
+ * 八字這邊只有四組字，等於把最基本的一層結構藏起來。
+ * 納音與十二長生也是每一柱都算好了、卻從來沒有出現在畫面上的資料，一併帶上。
+ */
+function baziPillarStagesHtml(baZi) {
+  const stages = R.composePillarStages?.(baZi) ?? [];
+  if (!stages.length) return '';
+  const rows = stages.map((item) => `
+    <li>
+      <b>${esc(item.label)} ${esc(item.ganZhi)}</b>
+      <span>${esc(item.lifeWord)}</span>
+      <small>${esc(item.note)}</small>
+    </li>`).join('');
+  return `<section class="pillar-stages">
+    <b>四柱各自在講你的哪一段</b>
+    <ul class="pillar-stage-list">${rows}</ul>
+  </section>`;
 }
 
 function renderClassroom() {
@@ -2878,6 +2908,7 @@ const PLAIN_SECTION_TITLE = {
   '五、神煞': '五、加分與要留意的地方',
   '二、財官流向': '二、金錢與事業的流向',
   '三、人際健康與行動建議': '三、人際、健康與可以怎麼做',
+  '六、四柱各段人生': '六、你的人生四段各在講什麼',
 };
 /** 顯示用標題：大眾版換成白話，專業命盤模式維持原本的術語標題（學習者需要對得上書上的名詞） */
 const displayTitle = (title) => (state.readingMode === 'learn' ? title : (PLAIN_SECTION_TITLE[title] ?? title));
@@ -2952,6 +2983,9 @@ function deepSourceCard(title, { ziWei, baziCards }) {
     case '一、個性本質': return bazi('zhu');
     case '二、財官流向': return bazi('xiji') || bazi('yongshen');
     case '三、人際健康與行動建議': return bazi('shishen') || bazi('dayun');
+    // 四柱各段那一節接上同名的白話卡，它才拿得到現實例子、課題與修正層——
+    // 沒有 source 的段落只會印出乾巴巴的段落文字，那正是八字這幾節單薄的原因之一。
+    case '六、四柱各段人生': return bazi('pillars');
     default: return null;
   }
 }

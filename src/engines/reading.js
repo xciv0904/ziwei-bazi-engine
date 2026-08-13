@@ -107,3 +107,4 @@ export {
 } from './topic-report.js';
 export { TOPIC_CATEGORIES, TOPIC_CONTRACTS, createCustomTopicContract, getTopicContract } from '../data/topic-contracts.js';
 export { composeChartModifiers, composePalaceModifiers } from './compose-modifiers.js';
+export { composeBaziModifiers, composePillarStages } from './compose-bazi-modifiers.js';

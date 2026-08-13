@@ -21,9 +21,9 @@ import { readFileSync } from 'node:fs';
 import { convertToZiWei } from '../src/engines/ziwei.js';
 import { convertToBaZi } from '../src/engines/bazi.js';
 import { composeElementAnalysis } from '../src/engines/compose-elements.js';
-import { composeBaZiLuck } from '../src/engines/compose-luck.js';
+import { composeBaZiLuck, composeZiWeiLuck } from '../src/engines/compose-luck.js';
 import { computeYongShen } from '../src/engines/compose-yongshen.js';
-import { generatePlainBaziTopics, generatePlainPalaceCard } from '../src/engines/compose-plain.js';
+import { generatePlainBaziTopics, generatePlainPalaceCard, generatePlainZiweiTopics } from '../src/engines/compose-plain.js';
 import { buildTopicReport } from '../src/engines/topic-report.js';
 import { TEN_GOD_ANSWER_TOPICS } from '../src/engines/topic-bazi.js';
 import { TOPIC_CATEGORIES, TOPIC_CONTRACTS } from '../src/data/topic-contracts.js';
@@ -113,7 +113,57 @@ const BAZI_SHARE_FLOOR = 0.20; // 八字依據佔比的下限
   else ok(`十神取用有依主題分流：單張命盤用到 ${minVariety}–${Math.max(...perChartTenGods)} 種十神，整體涵蓋 ${tenGodsSeen.size}/${TEN_GODS.length} 種`);
 }
 
+// ---------- 5. 重點摘要的卡片量體 ----------
+// 主題分析修好之後，剩下三頁的落差不是選擇邏輯而是內容深度：
+// 實測八字 5 張卡共 4,578 字，紫微 6 張卡共 12,259 字，八字只有紫微的 37%。
+// 這一條守住兩件事：卡片數對等，以及八字卡也要有修正層
+//（紫微每張卡都有「你跟別人不一樣的地方」,八字原本完全沒有，那正是它看起來單薄的主因）。
+{
+  const input = { year: 2002, month: 9, day: 4, hour: 13, gender: 'female' };
+  const baZi = convertToBaZi(input);
+  const elements = composeElementAnalysis(baZi.fiveElementDistribution);
+  const bzLuck = composeBaZiLuck(baZi, { year: 2026, mode: 'public' });
+  const ziWei = convertToZiWei(input);
+  const zwLuck = composeZiWeiLuck(ziWei, { mode: 'public' });
+  const baziCards = generatePlainBaziTopics(baZi, bzLuck, elements);
+  const ziweiCards = generatePlainZiweiTopics(ziWei, zwLuck);
+
+  const bulk = (cards) => cards.reduce((sum, card) =>
+    sum + JSON.stringify(card).replace(/[{}[\]",:]/g, '').length, 0);
+
+  if (baziCards.length < ziweiCards.length) {
+    fail(`八字只有 ${baziCards.length} 張卡，紫微有 ${ziweiCards.length} 張`);
+  } else {
+    ok(`重點摘要兩邊卡片數對等：紫微 ${ziweiCards.length} 張、八字 ${baziCards.length} 張`);
+  }
+
+  const withoutModifiers = baziCards.filter((card) => !card.modifiers?.hasSignal);
+  if (withoutModifiers.length) {
+    fail(`${withoutModifiers.length} 張八字卡沒有修正層——那是八字看起來單薄的主因`);
+  } else {
+    ok('每張八字卡都有修正層（神煞、地支合沖刑害、十二長生）');
+  }
+
+  const zwBulk = bulk(ziweiCards);
+  const bzBulk = bulk(baziCards);
+  const ratio = bzBulk / zwBulk;
+  if (ratio < 0.7) {
+    fail(`八字卡片量體只有紫微的 ${(ratio * 100).toFixed(0)}%（八字 ${bzBulk} 字／紫微 ${zwBulk} 字）`);
+  } else {
+    ok(`八字卡片量體是紫微的 ${(ratio * 100).toFixed(0)}%（八字 ${bzBulk} 字／紫微 ${zwBulk} 字，下限 70%）`);
+  }
+
+  // 修正層若寫壞，最常見的症狀是只剩下好消息——跟紫微那邊踩過的坑一樣。
+  // 底子（十二長生）必須是第一句，不論好壞。
+  const stageSpoken = baziCards.every((card) => {
+    const first = card.modifiers?.plainLines?.[0] ?? '';
+    return first && !/貴人|加分|吃香|一學就通/.test(first);
+  });
+  if (!stageSpoken) fail('八字修正層沒有先講底子，整段只剩加分項');
+  else ok('八字修正層一定先交代底子，不會只印好消息');
+}
+
 console.log(failed
   ? `\n${failed} 項失敗 ❌`
-  : '\n主題分析是真正的雙軌：紫微與八字各有一份對等的答案庫與版面 ✅');
+  : '\n紫微與八字在主題分析與重點摘要都已經對等 ✅');
 process.exit(failed ? 1 : 0);
