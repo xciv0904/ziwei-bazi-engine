@@ -237,8 +237,21 @@ check('主題回答來自本次命盤，且整頁只渲染展開題', (() => {
     && !text.includes('Topic Contract')
     && !text.includes('這一題的一般方向')
     && (text.match(/不會由網站上傳/g) ?? []).length === 1
-    && !text.includes('命盤無法判定') && !text.includes('水多')
-    && !text.includes('五行') && !text.includes('日主') && !text.includes('十神');
+    && !text.includes('命盤無法判定') && !text.includes('水多');
+})());
+// 術語界線改成只檢查白話區塊。
+//
+// 原本是整頁 textContent 都不准出現「五行／日主／十神」,那在八字只是配角的時候成立。
+// 現在主題分析是雙軌的：八字那一句要講得出依據，而依據就是十神——
+// 「配偶星取正官（見月支）」這種話本來就該出現在「查看這一題的命盤依據（專業資料）」裡，
+// 那一區跟紫微的「生年四化」「廟旺利陷」一樣，本來就是收合的專業資料。
+// 真正要守的是白話答案本身不出現術語，所以檢查範圍縮到答案區塊。
+check('白話答案本身零術語（專業依據區不在此限）', (() => {
+  const answerText = $$('#view-topics .topic-answer--combined')
+    .map((el) => el.textContent).join('');
+  return !answerText.includes('五行') && !answerText.includes('日主')
+    && !answerText.includes('十神') && !answerText.includes('正官')
+    && !answerText.includes('偏印') && !answerText.includes('食神');
 })());
 await nav('dashboard');
 check('命盤總覽提供主題分析導引',
@@ -257,11 +270,12 @@ check('逐題 AI 提示與網站共用已篩選證據', copiedTopicPrompt.includ
   && copiedTopicPrompt.includes('網站已用相同證據生成的直接答案')
   && copiedTopicPrompt.includes('本題已篩選命盤依據')
   && copiedTopicPrompt.includes('支持的回答目標'));
-check('主題單題只帶最多三項相關證據且不附完整命盤',
+check('主題單題只帶最多四項相關證據且不附完整命盤',
   copiedTopicPrompt.includes('全文最多 450 個中文字')
   && copiedTopicPrompt.includes('不得延伸')
   && copiedTopicPrompt.includes('第一句就回答')
-  && (copiedTopicPrompt.match(/\d+\. 來源：/g) ?? []).length <= 3
+  // 上限 3 → 4：其中一格保留給八字（見 selectTopicEvidence 的 BAZI_RESERVED_SLOT）
+  && (copiedTopicPrompt.match(/\d+\. 來源：/g) ?? []).length <= 4
   && !copiedTopicPrompt.includes('◆ 十二宮列表')
   && !copiedTopicPrompt.includes('◆ 十二宮飛化')
   && !copiedTopicPrompt.includes('完整命盤資料包')

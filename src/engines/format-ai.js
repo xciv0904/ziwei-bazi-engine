@@ -513,11 +513,27 @@ export function formatTopicPromptForAI({ contract, report, input = null, ziWei =
     '',
     ...topicChartFacts({ input, ziWei, baZi, report }),
     '【網站已用相同證據生成的直接答案】',
-    current.answer,
+    // 雙軌：紫微與八字各有一份對等的答案庫（紫微是題目×十四主星 840 格，
+    // 八字是題目×十神 600 格）。兩句都給 AI,並且明確說它們是各自獨立推出來的——
+    // 不講清楚的話 AI 會把兩句當成同一個推論的兩種說法，然後硬找一致性。
+    ...(current.baziAnswer ? [
+      `・紫微：${current.ziweiAnswer ?? current.answer}`,
+      `・八字：${current.baziAnswer}`,
+      '這兩句是兩套系統各自推出來的，不是同一個推論的兩種寫法。方向一致時可以合著講；'
+        + '不一致時要照實說明兩邊各自看到什麼，不要為了圓場硬找共通點。',
+    ] : [current.answer]),
     '',
     '【本題已篩選命盤依據】',
     ...(evidenceLines.length ? evidenceLines : ['本題相關訊號不足，不得引用其他領域補滿。']),
     '',
+    // 八字這一句的取用邏輯要交代清楚，AI 才知道那句話憑什麼這樣說，
+    // 也才有辦法在使用者追問「為什麼」的時候答得出來。
+    ...(report.resolvedTenGod ? [
+      '【八字這一句的取法】',
+      `・${report.resolvedTenGod.basisLabel}`,
+      `・該十神在四柱中共出現 ${report.resolvedTenGod.count} 次`,
+      '',
+    ] : []),
     // 網站的直接答案取自「題目 × 主星」的答案庫，扣題但只看主星。
     // 同宮的吉煞與四化會實際改變答案，所以把修正層一併交給 AI，並要求它用上。
     ...(report.modifiers?.hasSignal ? [
@@ -538,6 +554,8 @@ export function formatTopicPromptForAI({ contract, report, input = null, ziWei =
     '推論只能用上面列出的命盤事實與已篩選依據；不重新排盤，不自行補星曜、宮位、十神或事件。',
     '不輸出任何內部欄位、稽核理由、知識庫短句或程式標籤。',
     '每個結論必須能對回上面某一項「支持的回答目標」；無法對回就刪除。',
+    '紫微與八字都要用到，不可以只講其中一套；但也不要平均分配字數，'
+      + '哪一邊的訊號比較明確就多講一點，並說明你為什麼這樣判斷。',
     '使用臺灣繁體中文，不作醫療診斷、不預測具體金額、日期或必然事件。',
   ].join('\n');
 }

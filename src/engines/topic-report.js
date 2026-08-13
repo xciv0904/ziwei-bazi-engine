@@ -1,6 +1,7 @@
 import starAnswers from '../data/topic-star-answers.json' with { type: 'json' };
 import { similarityScore } from './text-quality.js';
 import { composePalaceModifiers } from './compose-modifiers.js';
+import { resolveTopicTenGod } from './topic-bazi.js';
 
 const STAR_ANSWERS = starAnswers['答案'];
 
@@ -145,8 +146,14 @@ function starAnswerFor(contract, resolved) {
  * 使用者展開這一區是想知道「這個答案是從命盤哪裡來的」,所以列的是宮位、星曜、
  * 亮度、生年四化與借星狀態,每一項都可以回到命盤上核對。
  */
-export function buildChartBasis(contract, ziWei, resolved) {
-  if (!resolved?.palace) return [];
+export function buildChartBasis(contract, ziWei, resolved, resolvedTenGod = null) {
+  // 八字那幾列先組好：即使紫微這一題沒有可用宮位，八字仍然講得出依據，
+  // 不該因為紫微缺料就整個依據面板空白。
+  const baziRows = resolvedTenGod ? [
+    { label: '八字取用', detail: resolvedTenGod.basisLabel.replace(/^八字：/, '') },
+    { label: '對應十神', detail: `${resolvedTenGod.tenGod}，四柱中共出現 ${resolvedTenGod.count} 次` },
+  ] : [];
+  if (!resolved?.palace) return baziRows;
   const rows = [];
   const { palace, star, second, borrowed, borrowedFrom, brightness, transformation } = resolved;
   rows.push({ label: '對應宮位', detail: `${palace.name}（${palace.position}）` });
@@ -175,7 +182,7 @@ export function buildChartBasis(contract, ziWei, resolved) {
       rows.push({ label: item.source, detail: `${item.star}：${item.effect}` });
     }
   }
-  return rows;
+  return [...rows, ...baziRows];
 }
 
 export function extractTopicEvidence({ contract, ziWei, ziweiCard, baziCards = [] }) {
@@ -211,9 +218,26 @@ export function extractTopicEvidence({ contract, ziWei, ziweiCard, baziCards = [
     .filter((item) => contract.answerTargets.includes(item.supportedTarget));
 }
 
+/**
+ * 從候選裡挑出這一題要秀的依據。
+ *
+ * 這裡曾經有一個實測出來的失衡：60 題選出的 180 條依據，只有 13 條來自八字（7.2%），
+ * 但八字通過篩選的候選其實有 972 條、佔全部候選的 66%。八字不是內容不夠，是被挑掉的。
+ *
+ * 原因有三個，都在這個函式裡：
+ *   1. 直接答案那一步寫死 sourceType.startsWith('ziwei_') 優先。
+ *   2. requiredTargets 逐項取最高分，而紫微候選的分數普遍較高，於是三個名額先被吃光。
+ *   3. evidenceLimit 是 3，前兩步填滿就結束了，八字連被看到的機會都沒有。
+ *
+ * 現在的做法：紫微優先仍然保留在「直接答案」那一步——那句話要跟 840 格答案庫扣得住，
+ * 換成八字會對不上。但名額從 3 加到 4，並且其中一格保留給八字。
+ * 保留名額而不是改分數，是因為分數反映的是「這一條有多扣題」，那是對的，
+ * 不該為了平衡去扭曲它；要平衡的是版面，那就用版面的方式解決。
+ */
 export function selectTopicEvidence(contract, candidates) {
   const selected = [];
   const ordered = [...candidates].sort((a, b) => b.score - a.score);
+  const isBazi = (item) => item.sourceType.startsWith('bazi_');
   const take = (candidate) => {
     if (!candidate) return;
     if (selected.some((item) => item.evidenceId === candidate.evidenceId)) return;
@@ -232,12 +256,32 @@ export function selectTopicEvidence(contract, candidates) {
   const preferredKind = DIRECT_KIND_BY_QUESTION[contract.questionIndex] ?? 'summary';
   take(ordered.find((item) => item.kind === preferredKind && item.sourceType.startsWith('ziwei_')));
   take(ordered.find((item) => item.kind === preferredKind));
+
+  // 八字保留席。挑分數最高的那一條，讓它跟紫微的依據談的是不同面向。
+  // 保留席在補滿之前先發，否則照分數補滿之後就沒位置了。
+  const limit = contract.evidenceLimit;
+  if (BAZI_RESERVED_SLOT && !selected.some(isBazi)) {
+    // 先讓出一格：若前面已經填滿，砍掉分數最低的紫微條目
+    if (selected.length >= limit) {
+      const lowestZiwei = [...selected].reverse().find((item) => !isBazi(item));
+      if (lowestZiwei) selected.splice(selected.indexOf(lowestZiwei), 1);
+    }
+    take(ordered.find(isBazi));
+  }
   for (const candidate of ordered) {
-    if (selected.length >= contract.evidenceLimit) break;
+    if (selected.length >= limit) break;
     take(candidate);
   }
-  return selected.slice(0, contract.evidenceLimit);
+  return selected.slice(0, limit);
 }
+
+/**
+ * 每題保留一格給八字。
+ *
+ * 設成常數而不是直接寫死在邏輯裡，是為了讓 tests/topic-balance.mjs
+ * 能明確地檢查這個決定還在——這是一條容易在日後重構時被順手拿掉的規則。
+ */
+const BAZI_RESERVED_SLOT = true;
 
 function evidenceText(selected, kind, fallbackIndex = 0) {
   return selected.find((item) => item.kind === kind)?.interpretation
@@ -400,11 +444,14 @@ export function validateTopicReport(report, contract) {
   return [...new Set(issues)];
 }
 
-export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [] }) {
+export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [], baZi = null, gender = null, yongshen = null }) {
   if (!contract) throw new TypeError('buildTopicReport 需要 Topic Contract');
   const candidates = extractTopicEvidence({ contract, ziWei, ziweiCard, baziCards });
   const selectedEvidence = selectTopicEvidence(contract, candidates);
   const resolved = resolveTopicStar(contract, ziWei);
+  // 八字軌：跟紫微的「題目 × 主星」對等的「題目 × 十神」答案。
+  // baZi 缺席時是 null,呼叫端要能接受只有一軌——寧可少一軌，也不要生沒有依據的話。
+  const resolvedTenGod = resolveTopicTenGod({ contract, baZi, gender, yongshen });
   const insufficient = contract.requiredTargets.some((target) =>
     !selectedEvidence.some((item) => item.supportedTarget === target));
   const report = {
@@ -415,9 +462,17 @@ export function buildTopicReport({ contract, ziWei, ziweiCard, baziCards = [] })
     selectedEvidence,
     insufficient,
     resolvedStar: resolved,
-    chartBasis: buildChartBasis(contract, ziWei, resolved),
+    resolvedTenGod,
+    chartBasis: buildChartBasis(contract, ziWei, resolved, resolvedTenGod),
     ...buildSchemas(contract, selectedEvidence, insufficient, resolved),
   };
+  // 雙軌答案：紫微一句、八字一句，並列而不是二選一。
+  // 放在 directAnswer 之後覆寫，是因為 buildSchemas 仍然只認紫微——
+  // 那份 840 格答案庫是照題目寫的，品質最好，不該為了加一軌就把它改掉。
+  if (resolvedTenGod?.answer) {
+    report.directAnswer.baziAnswer = resolvedTenGod.answer;
+    report.directAnswer.ziweiAnswer = report.directAnswer.answer;
+  }
   report.validationIssues = validateTopicReport(report, contract);
   appendModifierNote(report, resolved);
   // 有主星答案時不套用整段抹除的備援:那份答案是照著題目寫的，本身就是最扣題的內容。

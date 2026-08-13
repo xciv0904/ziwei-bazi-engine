@@ -2563,7 +2563,18 @@ function renderDashboard() {
  */
 function topicReportFor(contract, ziWei, baziCards) {
   const ziweiCard = R.generatePlainPalaceCard(ziWei, contract.allowedPalaces[0]);
-  return R.buildTopicReport({ contract, ziWei, ziweiCard, baziCards });
+  // baZi / gender / yongshen 是八字軌要的：決定這一題該看哪個十神。
+  // 幸運看喜用、健康看忌神，兩者都要 computeYongShen 的結果；愛情依性別分流。
+  const { baZi, input } = state.data;
+  return R.buildTopicReport({
+    contract,
+    ziWei,
+    ziweiCard,
+    baziCards,
+    baZi,
+    gender: input?.gender ?? null,
+    yongshen: R.computeYongShen(baZi),
+  });
 }
 
 /**
@@ -2617,9 +2628,35 @@ function topicDirectAnswerHtml(report) {
   // 使用者回報「愛情主題裡面每題都寫一樣的句子，其他主題也是」——完全正確，
   // 因為那份資料本來就是主題層級（一個宮位），不是題目層級。
   // 現在移到主題標頭，整個主題只出現一次，見 renderTopics()。
-  return `<section class="topic-answer topic-answer--combined">
+  // 雙軌呈現：紫微一句、八字一句，並列而不是二選一。
+  //
+  // 原本這裡只印一句，而那一句永遠來自紫微的「題目 × 十四主星」840 格答案庫。
+  // 實測 60 題選出的 180 條依據只有 13 條來自八字（7.2%），
+  // 站名叫「紫微斗數・八字排盤」，但八字實際上只是配角。
+  // 現在兩邊各有一份對等的答案庫（八字是「題目 × 十神」600 格），各講一句。
+  //
+  // 刻意不合成一句：兩個系統是各自獨立的推論，硬合成一句會變成
+  // 「綜合起來就是…」那種看似整合、實際上什麼都沒說的句子。
+  // 兩句並列，讀者自己就看得出哪裡一致、哪裡不同——不一致本身也是資訊。
+  if (!answer.baziAnswer) {
+    return `<section class="topic-answer topic-answer--combined">
+      <b>簡單回答</b>
+      <p>${esc(answer.answer)}</p>
+    </section>`;
+  }
+  return `<section class="topic-answer topic-answer--combined topic-answer--dual">
     <b>簡單回答</b>
-    <p>${esc(answer.answer)}</p>
+    <div class="dual-track">
+      <div class="dual-track__item">
+        <span class="dual-track__tag dual-track__tag--zw">紫微</span>
+        <p>${esc(answer.ziweiAnswer ?? answer.answer)}</p>
+      </div>
+      <div class="dual-track__item">
+        <span class="dual-track__tag dual-track__tag--bz">八字</span>
+        <p>${esc(answer.baziAnswer)}</p>
+      </div>
+    </div>
+    <p class="dual-track__note">兩套系統各自推出來的答案。方向一致代表這個訊號比較明確；不一致也正常，代表這一題在你身上有兩種力量，可以兩邊都留意。</p>
   </section>`;
 }
 

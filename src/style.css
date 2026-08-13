@@ -472,6 +472,26 @@ body:not(.has-chart) .side-nav { display: none; }
 .topic-answer b { display: block; margin-bottom: 7px; font: 600 11.5px/1 var(--sans); color: var(--red); }
 .topic-answer p { margin: 0; font: 400 13.5px/1.8 var(--sans); color: rgba(43,38,33,.72); }
 .topic-answer small { display: block; margin-top: 8px; font: 400 10.5px/1.5 var(--sans); color: var(--ink-40); }
+/* 雙軌答案：紫微一句、八字一句並列。
+   兩塊視覺上對等——一邊做得比較顯眼就等於偷偷告訴讀者該相信哪一邊。 */
+.dual-track { display: grid; gap: 10px; }
+.dual-track__item { display: grid; grid-template-columns: auto 1fr; gap: 9px; align-items: start; }
+.dual-track__tag {
+  flex-shrink: 0; padding: 2px 7px; border-radius: 4px;
+  font: 600 10.5px/1.6 var(--sans); white-space: nowrap;
+}
+.dual-track__tag--zw { color: var(--red); background: rgba(180,60,46,.1); }
+.dual-track__tag--bz { color: var(--gold); background: rgba(138,109,59,.13); }
+.dual-track__item p { margin: 0; }
+.topic-answer .dual-track__note {
+  margin: 10px 0 0; padding-top: 9px; border-top: 1px solid rgba(43,38,33,.09);
+  font: 400 11px/1.7 var(--sans); color: var(--ink-45);
+}
+@media (max-width: 560px) {
+  .dual-track__item { grid-template-columns: 1fr; gap: 4px; }
+  .dual-track__tag { justify-self: start; }
+}
+
 .topic-ai-btn { margin: 13px 0 0; color: var(--red); border-color: rgba(180,60,46,.35); }
 .topic-ai-note { margin: 7px 0 0; font: 400 10.5px/1.6 var(--sans); color: var(--ink-45); }
 .topic-limit { margin: 14px 2px 0; }

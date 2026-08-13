@@ -153,7 +153,12 @@ const makeContract = (category, question, index) => {
       directAnswer: ['answer', 'reasons', 'scenario', 'actions'],
       longTermAdvice: ['problem', 'trigger', 'action', 'method', 'check'],
     },
-    evidenceLimit: 3,
+    // 3 → 4：其中一格保留給八字（見 selectTopicEvidence 的 BAZI_RESERVED_SLOT）。
+    // 原本是 3，而紫微候選的分數普遍較高，三個名額在八字被看到之前就填滿了——
+    // 實測 60 題選出的 180 條依據只有 13 條來自八字，佔 7.2%，
+    // 但八字通過篩選的候選其實佔全部候選的 66%。多一格是最小的修法：
+    // 不動分數（分數反映的是扣不扣題，那是對的），只讓版面容得下第二個系統。
+    evidenceLimit: 4,
     wordBudget: { topicAnalysis: 550, directAnswer: 450, longTermAdvice: 420 },
     questionIndex: index,
   });
